@@ -126,9 +126,16 @@
     "prismjs": "https://aistudiocdn.com/prismjs@^1.30.0",
     "react-simple-code-editor": "https://aistudiocdn.com/react-simple-code-editor@^0.14.1",
     "@astral-sh/ruff-api/web": "https://esm.sh/@astral-sh/ruff-api@0.0.4/web/index.js",
-    "@astral-sh/ruff-wasm-web": "https://aistudiocdn.com/@astral-sh/ruff-wasm-web@^0.14.8"
+    "@astral-sh/ruff-wasm-web": "https://aistudiocdn.com/@astral-sh/ruff-wasm-web@^0.14.8",
+    "isomorphic-git": "https://esm.sh/isomorphic-git@1.27.0",
+    "@isomorphic-git/lightning-fs": "https://esm.sh/@isomorphic-git/lightning-fs@4.6.0",
+    "buffer": "https://esm.sh/buffer@6.0.3"
   }
 }
+</script>
+<script type="module">
+    import { Buffer } from 'buffer';
+    window.Buffer = Buffer;
 </script>
 </head>
   <body>

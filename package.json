@@ -15,7 +15,10 @@
     "react-dom": "^19.2.0",
     "prismjs": "^1.30.0",
     "react-simple-code-editor": "^0.14.1",
-    "@astral-sh/ruff-wasm-web": "^0.14.8"
+    "@astral-sh/ruff-wasm-web": "^0.14.8",
+    "isomorphic-git": "1.27.0",
+    "@isomorphic-git/lightning-fs": "4.6.0",
+    "buffer": "6.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

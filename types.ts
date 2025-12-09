@@ -8,7 +8,7 @@ export interface File {
   isOpen?: boolean;
   language: string;
   content: string;
-  committedContent?: string; // The content as it exists in HEAD
+  committedContent?: string; // Kept for logic reference, though we lean on gitService now
   isModified?: boolean; // Editor dirty state (unsaved to disk)
   history?: {
     past: string[];
@@ -39,15 +39,25 @@ export interface TerminalLine {
   timestamp: number;
 }
 
+// Updated Commit to match isomorphic-git ReadCommitResult roughly
 export interface Commit {
-  id: string;
+  oid: string; // SHA
   message: string;
-  timestamp: number;
-  author: string;
-  stats: {
-    added: number;
-    modified: number;
-    deleted: number;
+  payload?: string;
+  commit: {
+      message: string;
+      author: {
+          name: string;
+          email: string;
+          timestamp: number;
+          timezoneOffset: number;
+      };
+      committer: {
+          name: string;
+          email: string;
+          timestamp: number;
+          timezoneOffset: number;
+      };
   };
 }
 

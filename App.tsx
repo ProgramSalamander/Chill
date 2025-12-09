@@ -36,6 +36,7 @@ import GitPanel from './components/GitPanel';
 import ContextBar from './components/ContextBar';
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
+import { gitService, GitStatus } from './services/gitService';
 import { File, Message, MessageRole, TerminalLine, Commit, Diagnostic } from './types';
 import { Chat, Content } from '@google/genai';
 
@@ -85,7 +86,6 @@ const processDirectoryHandle = async (dirHandle: any, parentId: string | null = 
                 parentId,
                 language: getLanguage(entry.name),
                 content,
-                committedContent: content,
                 handle: fileHandle, 
                 history: { past: [], future: [], lastSaved: Date.now() }
             });
@@ -140,7 +140,6 @@ You have access to the project structure and contents when the user enables full
 
 function App() {
   const [files, setFiles] = useState<File[]>(INITIAL_FILES);
-  const [deletedFiles, setDeletedFiles] = useState<File[]>([]);
   const [activeFileId, setActiveFileId] = useState<string>(''); 
   const [openFileIds, setOpenFileIds] = useState<string[]>([]);
   const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'git' | null>('explorer');
@@ -154,7 +153,8 @@ function App() {
   
   const [contextScope, setContextScope] = useState<'project' | 'file'>('project');
 
-  const [stagedFileIds, setStagedFileIds] = useState<string[]>([]);
+  // Git State
+  const [gitStatus, setGitStatus] = useState<GitStatus[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
 
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -231,26 +231,24 @@ function App() {
     }
   }, [addTerminalLine]);
 
-  // Init Linter
+  // Init Service & Git
   useEffect(() => {
-    initRuff().then(() => {
-      console.log('Ruff Linter initialized');
-    });
+    initRuff().then(() => console.log('Ruff Linter initialized'));
     initChat();
+    
+    // Init Git
+    gitService.init().then(() => {
+        addTerminalLine('Isomorphic-git initialized in browser memory.', 'info');
+        refreshGit();
+    });
   }, [initChat]);
 
   const activeFile = files.find(f => f.id === activeFileId && f.type === 'file') || null;
 
   // --- Helper to resolve paths ---
   const resolveFileByPath = useCallback((path: string, currentFiles: File[]) => {
-      // Very basic resolution: matches partial name or exact name
-      // Ideally we reconstruct full paths, but for this demo, matching name is safer
-      const normalize = (p: string) => p.replace(/^\.\//, '').replace(/\//g, '');
-      
-      // Try exact name match first
       const exact = currentFiles.find(f => f.name === path || f.name === path.split('/').pop());
       if (exact) return exact;
-
       return null;
   }, []);
 
@@ -270,6 +268,25 @@ function App() {
     }
     return path;
   }, []);
+
+  const refreshGit = useCallback(async () => {
+     try {
+         const status = await gitService.status();
+         setGitStatus(status);
+         const logs = await gitService.log();
+         // @ts-ignore
+         setCommits(logs);
+     } catch (e) {
+         console.error('Git Refresh Error', e);
+     }
+  }, []);
+
+  // Sync virtual files to git fs
+  const syncFileToGit = async (file: File) => {
+      const path = getFilePath(file, filesRef.current);
+      await gitService.writeFile(path, file.content);
+      refreshGit();
+  };
 
   const handleAgentAction = useCallback(async (action: string, args: any): Promise<string> => {
       const currentFiles = filesRef.current;
@@ -308,8 +325,6 @@ function App() {
                  return `Updated file: ${existing.name}`;
              } else {
                  // Create new
-                 // Simplified: Create in root or deduce folder. 
-                 // For now, creates in root if simple name.
                  const name = path.split('/').pop() || 'untitled';
                  handleCreateNode('file', null, name, content);
                  return `Created new file: ${name}`;
@@ -325,12 +340,12 @@ function App() {
           default:
               return `Unknown tool: ${action}`;
       }
-  }, [addTerminalLine, getFilePath, resolveFileByPath]); // Note: handleFileChange/handleCreateNode need to be accessible, let's move them or ensure they are stable
+  }, [addTerminalLine, getFilePath, resolveFileByPath]);
 
   // --- File System Access API ---
   const handleOpenFolder = async () => {
     try {
-      // @ts-ignore - window.showDirectoryPicker is not yet in all TS definitions
+      // @ts-ignore
       const dirHandle = await window.showDirectoryPicker({
         mode: 'readwrite'
       });
@@ -344,10 +359,20 @@ function App() {
       setProjectHandle(dirHandle);
       setActiveFileId('');
       setOpenFileIds([]);
-      setStagedFileIds([]);
-      setDeletedFiles([]);
+      setGitStatus([]);
       setCommits([]);
       
+      // Re-init git and sync files
+      await gitService.init();
+      // Bulk write to git FS to sync
+      for (const f of loadedFiles) {
+          if (f.type === 'file') {
+              const path = getFilePath(f, loadedFiles);
+              await gitService.writeFile(path, f.content);
+          }
+      }
+      refreshGit();
+
       addTerminalLine(`Loaded project: ${dirHandle.name} with ${loadedFiles.length} items.`, 'success');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -487,7 +512,6 @@ ${f.content}
     const idToUpdate = targetId || activeFileId;
     if (!idToUpdate) return;
 
-    // Clear selection if content changes on active file
     if (idToUpdate === activeFileId && selectedCode) setSelectedCode('');
 
     setFiles(prev => prev.map(f => {
@@ -521,7 +545,6 @@ ${f.content}
     if (idToUpdate === activeFileId) {
         setSuggestion(null);
 
-        // Trigger Linting if Python
         const updatedFile = files.find(f => f.id === idToUpdate);
         if (updatedFile?.language === 'python' || (updatedFile === undefined && activeFile?.language === 'python')) {
             if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
@@ -588,16 +611,9 @@ ${f.content}
     }
   };
   
-  // Memoized to prevent re-renders in CodeEditor breaking event listeners
   const handleSelectionChange = useCallback((selection: string) => {
     setSelectedCode(selection);
   }, []);
-
-  const handleExplainSelection = () => {
-    if (!selectedCode) return;
-    setIsAIOpen(true);
-    handleSendMessage(`Explain the following code snippet:\n\n\`\`\`${activeFile?.language || 'text'}\n${selectedCode}\n\`\`\``);
-  };
 
   const handleContextAction = (action: string) => {
     if (!selectedCode || !activeFile) return;
@@ -628,53 +644,30 @@ ${f.content}
     if (prompt) handleSendMessage(prompt);
   };
 
-  const handleGitStage = (fileId: string) => {
-    if (!stagedFileIds.includes(fileId)) {
-        setStagedFileIds(prev => [...prev, fileId]);
-    }
+  const handleGitStage = async (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (!file) return;
+    const path = getFilePath(file, files);
+    await gitService.add(path);
+    refreshGit();
   };
 
-  const handleGitUnstage = (fileId: string) => {
-    setStagedFileIds(prev => prev.filter(id => id !== fileId));
+  const handleGitUnstage = async (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (!file) return;
+    const path = getFilePath(file, files);
+    await gitService.reset(path);
+    refreshGit();
   };
 
-  const handleGitCommit = (message: string) => {
-    const timestamp = Date.now();
-    
-    // Process modified/added files
-    const stagedFilesList = files.filter(f => stagedFileIds.includes(f.id));
-    
-    setFiles(prev => prev.map(f => {
-        if (stagedFileIds.includes(f.id)) {
-            return { ...f, committedContent: f.content };
-        }
-        return f;
-    }));
-
-    // Process deleted files
-    const stagedDeletions = deletedFiles.filter(f => stagedFileIds.includes(f.id));
-    setDeletedFiles(prev => prev.filter(f => !stagedFileIds.includes(f.id)));
-
-    const newCommit: Commit = {
-        id: Math.random().toString(36).slice(2, 11),
-        message,
-        timestamp,
-        author: 'User',
-        stats: {
-            added: stagedFilesList.filter(f => !f.committedContent).length,
-            modified: stagedFilesList.filter(f => f.committedContent).length,
-            deleted: stagedDeletions.length
-        }
-    };
-
-    setCommits(prev => [...prev, newCommit]);
-    setStagedFileIds([]);
-    addTerminalLine(`Commit ${newCommit.id.slice(0, 7)}: ${message}`, 'success');
+  const handleGitCommit = async (message: string) => {
+    const sha = await gitService.commit(message);
+    addTerminalLine(`Commit ${sha.slice(0, 7)}: ${message}`, 'success');
+    refreshGit();
   };
 
   const fetchCodeSuggestion = useCallback(async (isAuto: boolean = false) => {
     if (!activeFile || isGenerating || isFetchingSuggestion) return;
-    
     if (activeFile.id !== activeFileIdRef.current) return;
 
     setIsFetchingSuggestion(true);
@@ -784,6 +777,10 @@ ${f.content}
     setFiles(prev => [...prev, newFile]);
     
     if (type === 'file') {
+        const path = getFilePath(newFile, [...filesRef.current, newFile]);
+        await gitService.writeFile(path, newFile.content);
+        refreshGit();
+
         if (!initialContent) {
             setOpenFileIds(prev => [...prev, newFile.id]);
             setActiveFileId(newFile.id);
@@ -810,6 +807,13 @@ ${f.content}
               addTerminalLine(`FS Rename Error: ${e} (Renaming only in memory)`, 'error');
           }
       }
+      
+      const oldPath = getFilePath(file, files);
+      // We'd need to move it in git too, but isomorphic-git move is manual (copy + delete). 
+      // For simplicity, we just delete old and add new in git logic implicitly via delete/create?
+      // Better: just sync the new file name.
+      
+      await gitService.deleteFile(oldPath);
 
       setFiles(prev => prev.map(f => {
           if (f.id === id) {
@@ -817,18 +821,27 @@ ${f.content}
           }
           return f;
       }));
+      
+      // We need to re-find the file to get new path
+      const updatedFiles = files.map(f => f.id === id ? { ...f, name: newName } : f);
+      const updatedFile = updatedFiles.find(f => f.id === id)!;
+      const newPath = getFilePath(updatedFile, updatedFiles);
+      await gitService.writeFile(newPath, updatedFile.content);
+      refreshGit();
+
       addTerminalLine(`Renamed to ${newName}`, 'info');
   };
 
   const handleSave = async () => {
-    // File System Access API Save
     const file = files.find(f => f.id === activeFileId);
-    if (file && file.handle) {
+    if (!file) return;
+
+    // File System Access API Save
+    if (file.handle) {
         try {
             const writable = await file.handle.createWritable();
             await writable.write(file.content);
             await writable.close();
-            addTerminalLine(`Written to disk: ${file.name}`, 'info');
         } catch (err) {
             addTerminalLine(`Error saving to disk: ${err}`, 'error');
             return;
@@ -838,7 +851,9 @@ ${f.content}
     setFiles(prev => prev.map(f => 
       f.id === activeFileId ? { ...f, isModified: false } : f
     ));
-    addTerminalLine(`Saved file: ${activeFile?.name}`, 'success');
+
+    await syncFileToGit(file);
+    addTerminalLine(`Saved file: ${file.name}`, 'success');
   };
 
   const getDescendantIds = (fileId: string, allFiles: File[]): string[] => {
@@ -861,7 +876,6 @@ ${f.content}
                  const parent = files.find(f => f.id === fileToDelete.parentId);
                  if (parent && parent.handle) parentHandle = parent.handle;
              }
-             // Recursive delete for folders, simple for files
              await parentHandle.removeEntry(fileToDelete.name, { recursive: fileToDelete.type === 'folder' });
          } catch (e) {
              addTerminalLine(`FS Delete Error: ${e}`, 'error');
@@ -871,14 +885,11 @@ ${f.content}
 
     const idsToDelete = [fileToDelete.id, ...getDescendantIds(fileToDelete.id, files)];
     
-    // Capture files to be deleted for Git tracking before removing them
-    const filesBeingDeleted = files.filter(f => idsToDelete.includes(f.id));
-    
-    // Only track deletions for files that were previously committed
-    const trackedDeletions = filesBeingDeleted.filter(f => f.type === 'file' && f.committedContent !== undefined);
-    
-    if (trackedDeletions.length > 0) {
-        setDeletedFiles(prev => [...prev, ...trackedDeletions]);
+    // Remove from Git
+    if (fileToDelete.type === 'file') {
+        const path = getFilePath(fileToDelete, files);
+        await gitService.deleteFile(path);
+        // Note: deleting in FS shows as 'deleted' in git status.
     }
     
     const newFiles = files.filter(f => !idsToDelete.includes(f.id));
@@ -887,9 +898,6 @@ ${f.content}
     const newOpenIds = openFileIds.filter(id => !idsToDelete.includes(id));
     setOpenFileIds(newOpenIds);
     
-    // Unstage deleted files if they were staged as modified/added
-    setStagedFileIds(prev => prev.filter(id => !idsToDelete.includes(id)));
-
     if (activeFileId && idsToDelete.includes(activeFileId)) {
         if (newOpenIds.length > 0) {
             setActiveFileId(newOpenIds[newOpenIds.length - 1]);
@@ -898,6 +906,7 @@ ${f.content}
         }
     }
     
+    refreshGit();
     addTerminalLine(`Deleted ${fileToDelete.type}: ${fileToDelete.name}`, 'info');
     setFileToDelete(null);
   };
@@ -1089,7 +1098,7 @@ ${text}
         >
           <div className="relative">
              <IconGitBranch size={22} strokeWidth={1.5} />
-             {stagedFileIds.length > 0 && (
+             {gitStatus.filter(s => s.status !== 'unmodified').length > 0 && (
                 <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm"></div>
              )}
           </div>
@@ -1139,8 +1148,7 @@ ${text}
            {activeSidebarView === 'git' && (
              <GitPanel 
                 files={files}
-                deletedFiles={deletedFiles}
-                stagedFileIds={stagedFileIds}
+                gitStatus={gitStatus}
                 commits={commits}
                 onStage={handleGitStage}
                 onUnstage={handleGitUnstage}

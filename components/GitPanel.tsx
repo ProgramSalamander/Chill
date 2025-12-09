@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { File, Commit } from '../types';
 import { generateCommitMessage } from '../services/geminiService';
+import { GitStatus } from '../services/gitService';
 import { 
   IconGitCommit, 
   IconPlusCircle, 
@@ -16,19 +17,16 @@ import {
 
 interface GitPanelProps {
   files: File[];
-  deletedFiles: File[];
-  stagedFileIds: string[];
+  gitStatus: GitStatus[];
   commits: Commit[];
   onStage: (fileId: string) => void;
   onUnstage: (fileId: string) => void;
   onCommit: (message: string) => void;
-  onDiscard?: (fileId: string) => void;
 }
 
 const GitPanel: React.FC<GitPanelProps> = ({ 
   files, 
-  deletedFiles,
-  stagedFileIds, 
+  gitStatus,
   commits, 
   onStage, 
   onUnstage, 
@@ -37,53 +35,39 @@ const GitPanel: React.FC<GitPanelProps> = ({
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Categorize changes
-  const modifiedFiles = files.filter(f => 
-    f.type === 'file' && 
-    f.committedContent !== undefined && 
-    f.content !== f.committedContent &&
-    !stagedFileIds.includes(f.id)
+  // Helper to map file path back to File object for the app
+  const getFileIdByPath = (path: string) => {
+      // Simple exact match name logic used in app
+      const file = files.find(f => f.name === path || path.endsWith(f.name));
+      return file ? file.id : null;
+  };
+
+  const stagedFiles = gitStatus.filter(s => 
+      s.status === '*added' || s.status === '*modified' || s.status === '*deleted'
   );
 
-  const addedFiles = files.filter(f => 
-    f.type === 'file' && 
-    f.committedContent === undefined &&
-    !stagedFileIds.includes(f.id)
+  const unstagedFiles = gitStatus.filter(s => 
+      s.status === 'added' || s.status === 'modified' || s.status === 'deleted'
   );
-  
-  const deletedFilesUnstaged = deletedFiles.filter(f => !stagedFileIds.includes(f.id));
-
-  // Combine all unstaged changes
-  const allUnstaged = [
-      ...modifiedFiles.map(f => ({ ...f, status: 'M' })),
-      ...addedFiles.map(f => ({ ...f, status: 'A' })),
-      ...deletedFilesUnstaged.map(f => ({ ...f, status: 'D' }))
-  ];
-
-  // Combine all staged changes
-  const stagedFilesList = [
-      ...files.filter(f => stagedFileIds.includes(f.id)).map(f => ({ ...f, status: f.committedContent === undefined ? 'A' : 'M' })),
-      ...deletedFiles.filter(f => stagedFileIds.includes(f.id)).map(f => ({ ...f, status: 'D' }))
-  ];
 
   const handleCommit = () => {
-    if (!commitMessage.trim() || stagedFilesList.length === 0) return;
+    if (!commitMessage.trim() || stagedFiles.length === 0) return;
     onCommit(commitMessage);
     setCommitMessage('');
   };
 
   const handleGenerateMessage = async () => {
-    if (stagedFilesList.length === 0) return;
+    if (stagedFiles.length === 0) return;
     setIsGenerating(true);
     
     try {
-      const changes = stagedFilesList.map(f => {
+      const changes = stagedFiles.map(f => {
          let prefix = '';
-         if (f.status === 'A') prefix = 'New File';
-         else if (f.status === 'M') prefix = 'Modified';
-         else if (f.status === 'D') prefix = 'Deleted';
+         if (f.status === '*added') prefix = 'New File';
+         else if (f.status === '*modified') prefix = 'Modified';
+         else if (f.status === '*deleted') prefix = 'Deleted';
 
-         return `File: ${f.name} (${prefix})\n`; 
+         return `File: ${f.filepath} (${prefix})\n`; 
       }).join('\n');
 
       const msg = await generateCommitMessage(changes);
@@ -95,33 +79,38 @@ const GitPanel: React.FC<GitPanelProps> = ({
     }
   };
 
-  const renderFileItem = (file: any, isStaged: boolean) => {
+  const renderFileItem = (item: GitStatus, isStaged: boolean) => {
      let icon = <span className="text-yellow-500/70 text-[10px] font-mono font-bold">M</span>;
      let colorClass = "text-amber-200";
 
-     if (file.status === 'A') {
+     if (item.status.includes('added')) {
          icon = <span className="text-green-500/70 text-[10px] font-mono font-bold">A</span>;
          colorClass = "text-green-200";
-     } else if (file.status === 'D') {
+     } else if (item.status.includes('deleted')) {
          icon = <span className="text-red-500/70 text-[10px] font-mono font-bold">D</span>;
          colorClass = "text-red-300 decoration-line-through decoration-red-500/30";
      }
 
+     const fileId = getFileIdByPath(item.filepath);
+
      return (
-        <div key={file.id} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-white/5 text-sm text-slate-300">
+        <div key={item.filepath} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-white/5 text-sm text-slate-300">
             <div className="flex items-center gap-2 truncate">
                 {icon}
-                <span className={`truncate ${colorClass}`}>{file.name}</span>
+                <span className={`truncate ${colorClass}`}>{item.filepath}</span>
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                    onClick={() => isStaged ? onUnstage(file.id) : onStage(file.id)}
-                    className="text-slate-500 hover:text-white"
-                    title={isStaged ? "Unstage Changes" : "Stage Changes"}
-                >
-                    {isStaged ? <IconMinusCircle size={14} /> : <IconPlusCircle size={14} />}
-                </button>
-            </div>
+            {fileId && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        onClick={() => isStaged ? onUnstage(fileId) : onStage(fileId)}
+                        className="text-slate-500 hover:text-white"
+                        title={isStaged ? "Unstage Changes" : "Stage Changes"}
+                    >
+                        {isStaged ? <IconMinusCircle size={14} /> : <IconPlusCircle size={14} />}
+                    </button>
+                </div>
+            )}
+            {!fileId && <span className="text-[10px] text-slate-600 italic">Synced</span>}
         </div>
      );
   };
@@ -154,7 +143,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
                 />
                 <button 
                     onClick={handleGenerateMessage}
-                    disabled={isGenerating || stagedFilesList.length === 0}
+                    disabled={isGenerating || stagedFiles.length === 0}
                     className="absolute right-2 top-2 p-1.5 rounded-md text-slate-500 hover:text-vibe-glow hover:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500"
                     title="Generate AI Commit Message"
                 >
@@ -163,7 +152,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
             </div>
             <button 
                 onClick={handleCommit}
-                disabled={stagedFilesList.length === 0 || !commitMessage.trim()}
+                disabled={stagedFiles.length === 0 || !commitMessage.trim()}
                 className="w-full py-1.5 bg-vibe-accent hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-vibe-accent text-white text-xs font-medium rounded transition-colors flex items-center justify-center gap-2"
             >
                 <IconCheck size={14} />
@@ -174,26 +163,26 @@ const GitPanel: React.FC<GitPanelProps> = ({
         {/* Staged Changes */}
         <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                <span>Staged Changes ({stagedFilesList.length})</span>
+                <span>Staged Changes ({stagedFiles.length})</span>
             </div>
             <div className="space-y-0.5">
-                {stagedFilesList.length === 0 && (
+                {stagedFiles.length === 0 && (
                     <div className="text-[10px] text-slate-600 italic px-2">No files staged</div>
                 )}
-                {stagedFilesList.map(f => renderFileItem(f, true))}
+                {stagedFiles.map(f => renderFileItem(f, true))}
             </div>
         </div>
 
         {/* Changes */}
         <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                <span>Changes ({allUnstaged.length})</span>
+                <span>Changes ({unstagedFiles.length})</span>
             </div>
             <div className="space-y-0.5">
-                {allUnstaged.length === 0 && (
+                {unstagedFiles.length === 0 && (
                     <div className="text-[10px] text-slate-600 italic px-2">Working tree clean</div>
                 )}
-                {allUnstaged.map(f => renderFileItem(f, false))}
+                {unstagedFiles.map(f => renderFileItem(f, false))}
             </div>
         </div>
 
@@ -207,23 +196,26 @@ const GitPanel: React.FC<GitPanelProps> = ({
                     {/* Vertical line for history timeline */}
                     <div className="absolute left-[7px] top-2 bottom-2 w-[1px] bg-white/10" />
                     
-                    {commits.slice().reverse().map(commit => (
-                        <div key={commit.id} className="relative pl-5 py-1">
-                            <div className="absolute left-[5px] top-[9px] w-[5px] h-[5px] rounded-full bg-vibe-500 ring-2 ring-vibe-900" />
-                            <div className="text-xs text-slate-300 font-medium">{commit.message}</div>
-                            <div className="text-[10px] text-slate-600 flex items-center gap-2 mt-0.5">
-                                <span className="flex items-center gap-1">
-                                    <IconClock size={10} />
-                                    {new Date(commit.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                </span>
-                                <span>•</span>
-                                <span>{commit.author}</span>
-                                {commit.stats.added > 0 && <span className="text-green-500">+{commit.stats.added}</span>}
-                                {commit.stats.modified > 0 && <span className="text-yellow-500">~{commit.stats.modified}</span>}
-                                {commit.stats.deleted > 0 && <span className="text-red-500">-{commit.stats.deleted}</span>}
+                    {commits.map((commitObj) => {
+                        // Access nested commit object structure from isomorphic-git
+                        const { commit, oid } = commitObj;
+                        return (
+                            <div key={oid} className="relative pl-5 py-1">
+                                <div className="absolute left-[5px] top-[9px] w-[5px] h-[5px] rounded-full bg-vibe-500 ring-2 ring-vibe-900" />
+                                <div className="text-xs text-slate-300 font-medium">{commit.message}</div>
+                                <div className="text-[10px] text-slate-600 flex items-center gap-2 mt-0.5">
+                                    <span className="flex items-center gap-1">
+                                        <IconClock size={10} />
+                                        {/* Timestamp is in seconds in git */}
+                                        {new Date(commit.committer.timestamp * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                    </span>
+                                    <span>•</span>
+                                    <span>{commit.committer.name}</span>
+                                    <span className="font-mono opacity-50 ml-1">{oid.slice(0, 6)}</span>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
              </div>
         )}
