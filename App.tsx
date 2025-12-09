@@ -138,19 +138,50 @@ If the user asks to modify the current file, provide the full updated code block
 You have access to the project structure and contents when the user enables full context. Use this to understand dependencies and imports.`;
 
 function App() {
-  const [files, setFiles] = useState<File[]>(INITIAL_FILES);
+  // --- Persistence & State Init ---
+  
+  // Restore files from local storage if available
+  const [files, setFiles] = useState<File[]>(() => {
+    try {
+        const saved = localStorage.getItem('vibe_files_backup');
+        return saved ? JSON.parse(saved) : INITIAL_FILES;
+    } catch { return INITIAL_FILES; }
+  });
+
   const [activeFileId, setActiveFileId] = useState<string>(''); 
   const [openFileIds, setOpenFileIds] = useState<string[]>([]);
-  const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'git' | null>('explorer');
+  
+  // Restore Layout Settings
+  const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'git' | null>(() => {
+      try {
+        const saved = localStorage.getItem('vibe_layout_sidebar');
+        return saved ? JSON.parse(saved) : 'explorer';
+      } catch { return 'explorer'; }
+  });
+
   const [projectHandle, setProjectHandle] = useState<any>(null); // For File System Access API
   
   const [isAIOpen, setIsAIOpen] = useState(false);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+  
+  const [isTerminalOpen, setIsTerminalOpen] = useState(() => {
+      try {
+        const saved = localStorage.getItem('vibe_layout_terminal');
+        return saved ? JSON.parse(saved) : true;
+      } catch { return true; }
+  });
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   
-  const [contextScope, setContextScope] = useState<'project' | 'file'>('project');
+  const [contextScope, setContextScope] = useState<'project' | 'file'>(() => {
+       try {
+        const saved = localStorage.getItem('vibe_context_scope');
+        return (saved === 'project' || saved === 'file') ? saved : 'project';
+       } catch { return 'project'; }
+  });
+
+  // --------------------------------
 
   // Git State
   const [gitStatus, setGitStatus] = useState<GitStatus[]>([]);
@@ -205,6 +236,26 @@ function App() {
     activeFileIdRef.current = activeFileId;
   }, [activeFileId]);
 
+  // --- Persistence Effects ---
+  useEffect(() => {
+    // Strip non-serializable FS handles before saving to LS
+    const safeFiles = files.map(({ handle, ...rest }) => ({ ...rest, handle: undefined }));
+    localStorage.setItem('vibe_files_backup', JSON.stringify(safeFiles));
+  }, [files]);
+
+  useEffect(() => {
+      localStorage.setItem('vibe_layout_sidebar', JSON.stringify(activeSidebarView));
+  }, [activeSidebarView]);
+
+  useEffect(() => {
+      localStorage.setItem('vibe_layout_terminal', JSON.stringify(isTerminalOpen));
+  }, [isTerminalOpen]);
+
+  useEffect(() => {
+      localStorage.setItem('vibe_context_scope', contextScope);
+  }, [contextScope]);
+  // ---------------------------
+
   const addTerminalLine = useCallback((text: string, type: TerminalLine['type'] = 'info') => {
     setTerminalLines(prev => [...prev, {
       id: Math.random().toString(36).slice(2, 11),
@@ -233,8 +284,23 @@ function App() {
     initChat();
     
     // Init Git
-    gitService.init().then(() => {
+    gitService.init().then(async () => {
         addTerminalLine('Isomorphic-git initialized in browser memory.', 'info');
+        
+        // If files were loaded from local storage but Git is empty (new session in memory),
+        // we should sync files TO git so they exist in the FS for git ops.
+        if (files.length > 0) {
+            for (const f of files) {
+                if (f.type === 'file') {
+                    // This reconstruction is a bit loose but sufficient for flat restoration
+                    // Ideally we track full paths or just write them flat
+                    // The getFilePath helper relies on 'files' state so it should work
+                    const path = getFilePath(f, files);
+                    await gitService.writeFile(path, f.content);
+                }
+            }
+        }
+        
         refreshGit();
     });
   }, [initChat]);

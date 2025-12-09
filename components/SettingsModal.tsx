@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { IconClose, IconSettings, IconZap, IconCpu, IconSparkles, IconTerminal } from './Icons';
 import { AIConfig, AIModelConfig, AIProvider } from '../types';
-import { getAIConfig } from '../services/geminiService';
+import { getAIConfig, saveAIConfig } from '../services/geminiService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -30,7 +30,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpd
   };
 
   const handleSave = () => {
-      localStorage.setItem('vibe_ai_config', JSON.stringify(config));
+      saveAIConfig(config);
       onKeyUpdate();
       onClose();
   };
