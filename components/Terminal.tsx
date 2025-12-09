@@ -19,57 +19,50 @@ const Terminal: React.FC<TerminalProps> = ({ lines, isOpen, diagnostics = [], on
     }
   }, [lines, isOpen, activeTab]);
 
-  useEffect(() => {
-    if (diagnostics.length > 0) {
-      // Optional: Auto-switch to problems if new errors appear? 
-      // Maybe simpler to just show a badge count.
-    }
-  }, [diagnostics]);
-
   if (!isOpen) return null;
 
   return (
-    <div className="h-48 border-t border-white/10 bg-vibe-900 font-mono text-sm flex flex-col">
-      <div className="flex items-center justify-between px-4 bg-vibe-800 border-b border-white/5 h-9 shrink-0">
+    <div className="h-full bg-black/40 backdrop-blur-sm font-mono text-sm flex flex-col">
+      <div className="flex items-center justify-between px-4 bg-white/5 border-b border-white/5 h-10 shrink-0">
         <div className="flex items-center h-full gap-6">
              <button 
                 onClick={() => setActiveTab('terminal')}
-                className={`h-full text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'terminal' ? 'text-white border-vibe-glow' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+                className={`h-full text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${activeTab === 'terminal' ? 'text-vibe-glow border-vibe-accent' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
              >
-                <IconTerminal size={12} />
+                <IconTerminal size={14} />
                 Terminal
              </button>
              <button 
                 onClick={() => setActiveTab('problems')}
-                className={`h-full text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'problems' ? 'text-white border-red-500' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+                className={`h-full text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${activeTab === 'problems' ? 'text-red-400 border-red-500' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
              >
-                <div className={`w-2 h-2 rounded-full ${diagnostics.length > 0 ? 'bg-red-500' : 'bg-slate-600'}`}></div>
+                <div className={`w-2 h-2 rounded-full ${diagnostics.length > 0 ? 'bg-red-500 animate-pulse' : 'bg-slate-600'}`}></div>
                 Problems {diagnostics.length > 0 && `(${diagnostics.length})`}
              </button>
         </div>
-        <div className="flex gap-2">
-           <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
-           <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
-           <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
+        <div className="flex gap-2 opacity-50">
+           <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+           <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+           <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
         </div>
       </div>
       
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         {activeTab === 'terminal' ? (
-            <div className="space-y-1">
+            <div className="space-y-1.5 font-mono text-xs md:text-sm">
                 {lines.map((line) => (
-                <div key={line.id} className="flex gap-2">
-                    <span className="text-slate-600 select-none flex-shrink-0">
+                <div key={line.id} className="flex gap-3 group">
+                    <span className="text-slate-600 select-none flex-shrink-0 text-[10px] pt-0.5 opacity-50 group-hover:opacity-100 transition-opacity">
                     {new Date(line.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}
                     </span>
                     <span className={`
-                    break-all whitespace-pre-wrap
-                    ${line.type === 'error' ? 'text-red-400' : ''}
-                    ${line.type === 'success' ? 'text-green-400' : ''}
-                    ${line.type === 'command' ? 'text-yellow-400' : ''}
+                    break-all whitespace-pre-wrap flex-1
+                    ${line.type === 'error' ? 'text-red-400 drop-shadow-[0_0_5px_rgba(248,113,113,0.5)]' : ''}
+                    ${line.type === 'success' ? 'text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.5)]' : ''}
+                    ${line.type === 'command' ? 'text-yellow-400 font-semibold' : ''}
                     ${line.type === 'info' ? 'text-slate-300' : ''}
                     `}>
-                    {line.type === 'command' && '$ '}
+                    {line.type === 'command' && <span className="text-slate-500 mr-2">$</span>}
                     {line.text}
                     </span>
                 </div>
@@ -79,20 +72,22 @@ const Terminal: React.FC<TerminalProps> = ({ lines, isOpen, diagnostics = [], on
         ) : (
             <div className="space-y-1">
                 {diagnostics.length === 0 ? (
-                    <div className="text-slate-500 italic">No problems detected.</div>
+                    <div className="text-slate-500 italic flex items-center gap-2">
+                        <span className="text-green-500">✓</span> No problems detected. System optimal.
+                    </div>
                 ) : (
                     diagnostics.map((diag, idx) => (
                         <div 
                             key={idx} 
-                            className="flex gap-3 hover:bg-white/5 p-1 rounded cursor-pointer group"
+                            className="flex gap-3 hover:bg-white/5 p-2 rounded cursor-pointer group border border-transparent hover:border-red-500/20 transition-all"
                             onClick={() => onSelectDiagnostic && onSelectDiagnostic(diag.startLine, diag.startColumn)}
                         >
-                            <span className="text-red-500 flex-shrink-0">✖</span>
+                            <span className="text-red-500 flex-shrink-0 mt-0.5">✖</span>
                             <div className="flex flex-col">
-                                <span className="text-slate-300 text-xs">
-                                    {diag.message} <span className="text-slate-600">({diag.code})</span>
+                                <span className="text-slate-200 text-xs font-medium">
+                                    {diag.message} <span className="text-slate-500 font-mono ml-2 opacity-50">{diag.code}</span>
                                 </span>
-                                <span className="text-slate-500 text-[10px] group-hover:text-vibe-glow transition-colors">
+                                <span className="text-slate-500 text-[10px] group-hover:text-vibe-glow transition-colors mt-1">
                                     Line {diag.startLine}, Col {diag.startColumn}
                                 </span>
                             </div>

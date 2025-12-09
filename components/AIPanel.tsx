@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, MessageRole, File } from '../types';
 import { IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, IconInsert, IconSearch, IconFolderOpen, IconFileCode } from './Icons';
@@ -32,21 +31,21 @@ const CodeBlock: React.FC<{ code: string; language: string; onApply: (c: string)
   };
 
   return (
-    <div className="relative group my-2 rounded-lg overflow-hidden border border-white/10 bg-black/30">
-        <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/5 text-xs text-slate-400">
-            <span className="font-mono text-vibe-glow/80 opacity-70">{language || 'text'}</span>
+    <div className="relative group my-3 rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-lg">
+        <div className="flex items-center justify-between px-3 py-2 bg-white/5 border-b border-white/5 text-xs text-slate-400">
+            <span className="font-mono text-vibe-glow font-bold opacity-80">{language || 'text'}</span>
             <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
                   onClick={handleCopy} 
-                  className="flex items-center justify-center p-1 hover:bg-white/10 rounded transition-colors"
+                  className="flex items-center justify-center p-1.5 hover:bg-white/10 rounded-md transition-colors"
                   title="Copy to Clipboard"
                 >
                     {copied ? <IconCheck size={14} className="text-green-400" /> : <IconCopy size={14} />}
                 </button>
-                <div className="w-[1px] h-3 bg-white/10 mx-0.5" />
+                <div className="w-[1px] h-3 bg-white/10 mx-1" />
                 <button 
                   onClick={() => onInsert(code)}
-                  className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-white/10 rounded transition-colors text-slate-300 hover:text-white"
+                  className="flex items-center gap-1 px-2 py-1 hover:bg-white/10 rounded-md transition-colors text-slate-300 hover:text-white"
                   title="Insert at Cursor"
                 >
                     <IconInsert size={14} />
@@ -54,7 +53,7 @@ const CodeBlock: React.FC<{ code: string; language: string; onApply: (c: string)
                 </button>
                 <button 
                   onClick={() => onApply(code)}
-                  className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-indigo-500/20 rounded transition-colors text-indigo-400 hover:text-indigo-300"
+                  className="flex items-center gap-1 px-2 py-1 hover:bg-vibe-accent/20 rounded-md transition-colors text-vibe-accent hover:text-indigo-300"
                   title="Replace Entire File Content"
                 >
                   <IconZap size={14} />
@@ -62,7 +61,7 @@ const CodeBlock: React.FC<{ code: string; language: string; onApply: (c: string)
                 </button>
             </div>
         </div>
-        <pre className="p-3 overflow-x-auto text-xs font-mono text-slate-300 custom-scrollbar">
+        <pre className="p-4 overflow-x-auto text-xs font-mono text-slate-200 custom-scrollbar leading-relaxed">
             <code>{code}</code>
         </pre>
     </div>
@@ -106,7 +105,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   // Helper to detect code blocks in markdown
   const renderMessageContent = (text: string, role: MessageRole) => {
     if (role === MessageRole.USER) {
-      return <p className="whitespace-pre-wrap">{text}</p>;
+      return <p className="whitespace-pre-wrap leading-relaxed">{text}</p>;
     }
 
     // Split by code blocks
@@ -129,7 +128,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
               />
             );
           }
-          return <p key={idx} className="whitespace-pre-wrap">{part}</p>;
+          return <p key={idx} className="whitespace-pre-wrap leading-relaxed text-slate-300">{part}</p>;
         })}
       </div>
     );
@@ -138,69 +137,72 @@ const AIPanel: React.FC<AIPanelProps> = ({
   return (
     <div 
       className={`
-        w-96 flex flex-col border-l border-white/10 glass-panel h-full absolute right-0 top-0 z-20 shadow-2xl 
-        transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) transform
-        ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}
+        w-[450px] flex flex-col glass-panel-heavy h-[calc(100vh-16px)] absolute right-2 top-2 z-50 rounded-2xl shadow-2xl 
+        transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) transform border-none ring-1 ring-white/10
+        ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[120%] opacity-0 pointer-events-none'}
       `}
     >
       {/* Header */}
-      <div className="flex flex-col border-b border-white/10 bg-gradient-to-r from-vibe-800 to-vibe-900">
+      <div className="flex flex-col border-b border-white/5 bg-gradient-to-r from-vibe-900/50 to-transparent p-1">
           <div className="flex items-center justify-between p-4 pb-2">
-            <div className="flex items-center gap-2 text-vibe-glow">
-              <IconSparkles size={18} className="animate-pulse-slow" />
-              <span className="font-semibold tracking-wide">Gemini Vibe</span>
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                  <IconSparkles size={20} className="text-vibe-glow animate-pulse-slow" />
+                  <div className="absolute inset-0 bg-vibe-accent blur-md opacity-20"></div>
+              </div>
+              <div>
+                  <h3 className="font-bold tracking-wide text-white text-sm">Gemini Vibe</h3>
+                  <p className="text-[10px] text-vibe-accent">AI Architect</p>
+              </div>
             </div>
-            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-lg">
               <IconClose size={18} />
             </button>
           </div>
 
           {/* Context Scope Toggle */}
-          <div className="px-4 pb-3 pt-1 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Context Scope</span>
-              <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5">
+          <div className="px-4 pb-4 pt-1 flex items-center justify-between">
+              <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 w-full">
                   <button 
                     onClick={() => setContextScope('file')}
                     className={`
-                      flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all
-                      ${contextScope === 'file' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}
+                      flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
+                      ${contextScope === 'file' ? 'bg-white/10 text-white shadow-sm border border-white/5' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
                     <IconFileCode size={12} />
-                    File
+                    Current File
                   </button>
                   <button 
                     onClick={() => setContextScope('project')}
                     className={`
-                      flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all
-                      ${contextScope === 'project' ? 'bg-vibe-accent/20 text-vibe-glow shadow-sm border border-vibe-accent/10' : 'text-slate-500 hover:text-slate-300'}
+                       flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
+                      ${contextScope === 'project' ? 'bg-vibe-accent/20 text-vibe-glow shadow-sm border border-vibe-accent/20' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
                     <IconFolderOpen size={12} />
-                    Project
+                    Full Project
                   </button>
               </div>
           </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/20">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-4 opacity-50">
-            <div className="relative">
-                <IconSparkles size={48} className="text-vibe-glow opacity-50" />
-                <div className="absolute -bottom-1 -right-1 bg-vibe-900 rounded-full p-1 border border-white/10">
-                   {contextScope === 'project' ? <IconFolderOpen size={16} /> : <IconFileCode size={16} />}
+          <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-6 opacity-60">
+            <div className="relative group cursor-pointer">
+                <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-20 group-hover:opacity-40 transition-opacity rounded-full"></div>
+                <div className="relative bg-black/50 p-6 rounded-full border border-vibe-border shadow-2xl">
+                    <IconSparkles size={40} className="text-vibe-glow" />
                 </div>
             </div>
-            <div className="text-center">
-                <p className="text-sm font-medium text-slate-300">
-                    {contextScope === 'project' ? 'Full Project Context Active' : 'Active File Context Only'}
-                </p>
-                <p className="text-xs mt-1 max-w-[200px]">
+            <div className="text-center space-y-2">
+                <p className="text-sm font-semibold text-white">How can I help you code today?</p>
+                <p className="text-xs max-w-[240px] mx-auto leading-relaxed">
                     {contextScope === 'project' 
-                        ? 'I can see all your files and help with project-wide tasks.' 
-                        : 'I am focused on the currently open file.'}
+                        ? 'I have full visibility of your project structure. Ask me anything.' 
+                        : 'I am focused on the active file context.'}
                 </p>
             </div>
           </div>
@@ -208,45 +210,50 @@ const AIPanel: React.FC<AIPanelProps> = ({
         {messages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
             <div 
-              className={`max-w-[95%] rounded-2xl px-4 py-3 text-sm shadow-md ${
+              className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-sm border ${
                 msg.role === MessageRole.USER 
-                  ? 'bg-vibe-accent text-white rounded-br-none' 
-                  : 'bg-white/5 text-slate-200 border border-white/10 rounded-bl-none w-full'
+                  ? 'bg-vibe-accent/90 text-white rounded-br-sm border-indigo-400/30' 
+                  : 'bg-[#181824]/80 text-slate-200 rounded-bl-sm border-white/5'
               }`}
             >
               {renderMessageContent(msg.text, msg.role)}
             </div>
-            <span className="text-[10px] text-slate-600 mt-1 px-1">
+            <span className="text-[10px] text-slate-600 mt-1.5 px-1 font-mono">
                {msg.role === 'user' ? 'You' : 'Gemini 2.5'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
             </span>
           </div>
         ))}
         {isGenerating && (
-          <div className="flex items-center gap-2 text-slate-400 text-xs px-2 animate-pulse">
-            <div className="w-2 h-2 bg-vibe-glow rounded-full"></div>
-            Analyzing project structure & thinking...
+          <div className="flex items-center gap-3 text-vibe-glow text-xs px-2 animate-pulse">
+            <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce"></div>
+            <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce delay-75"></div>
+            <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce delay-150"></div>
+            <span className="font-mono ml-2 opacity-70">Thinking...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-vibe-900 border-t border-white/10">
-        <div className="relative">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={contextScope === 'project' ? "Ask about any file in your project..." : "Ask about the current file..."}
-            className="w-full bg-vibe-800/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-sm text-white focus:outline-none focus:border-vibe-glow/50 focus:ring-1 focus:ring-vibe-glow/20 transition-all resize-none h-24"
-          />
-          <button 
-            onClick={handleSend}
-            disabled={!input.trim() || isGenerating}
-            className="absolute right-3 bottom-3 p-2 bg-vibe-accent hover:bg-indigo-400 disabled:bg-slate-700 rounded-lg text-white transition-all shadow-lg shadow-indigo-500/20"
-          >
-            <IconZap size={16} fill={input.trim() ? "currentColor" : "none"} />
-          </button>
+      <div className="p-4 bg-black/20 border-t border-white/5 backdrop-blur-md">
+        <div className="relative group">
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-vibe-accent to-purple-600 rounded-xl opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200 blur"></div>
+          <div className="relative">
+            <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={contextScope === 'project' ? "Ask about any file..." : "Ask about this code..."}
+                className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-sm text-white focus:outline-none placeholder-slate-600 transition-all resize-none h-14 focus:h-24 shadow-inner"
+            />
+            <button 
+                onClick={handleSend}
+                disabled={!input.trim() || isGenerating}
+                className="absolute right-2 bottom-2 p-2 bg-vibe-accent hover:bg-indigo-400 disabled:bg-slate-800 disabled:text-slate-600 rounded-lg text-white transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)]"
+            >
+                <IconZap size={18} fill={input.trim() ? "currentColor" : "none"} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

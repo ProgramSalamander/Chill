@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { File } from '../types';
 import { 
@@ -124,23 +123,23 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
     <div className="select-none">
       <div 
         className={`
-          group flex items-center gap-1 py-1 px-2 cursor-pointer transition-colors relative
-          ${activeFileId === node.id ? 'bg-vibe-accent/10 text-white border-l-2 border-vibe-glow' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200 border-l-2 border-transparent'}
+          group flex items-center gap-2 py-1.5 px-3 cursor-pointer transition-all relative rounded-lg mx-1
+          ${activeFileId === node.id ? 'bg-vibe-accent/20 text-white shadow-sm' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}
         `}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        style={{ paddingLeft: `${depth * 12 + 12}px` }}
         onClick={() => onFileClick(node)}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
-        <span className="opacity-70 flex-shrink-0">
+        <span className={`opacity-70 flex-shrink-0 transition-transform ${node.isOpen ? 'rotate-0' : '-rotate-90'}`}>
           {node.type === 'folder' ? (
-            node.isOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />
+             <IconChevronDown size={14} />
           ) : (
             <div className="w-3.5" /> // Spacer for alignment
           )}
         </span>
 
-        <span className={`mr-2 flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (isModified ? 'text-amber-400' : (isAdded ? 'text-green-400' : 'text-slate-500'))}`}>
+        <span className={`flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (isModified ? 'text-amber-400' : (isAdded ? 'text-green-400' : 'text-slate-500'))}`}>
           {node.type === 'folder' ? (
              node.isOpen ? <IconFolderOpen size={16} /> : <IconFolder size={16} />
           ) : (
@@ -160,17 +159,17 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
                         if (e.key === 'Escape') setIsEditing(false);
                     }}
                     onBlur={handleSaveEdit}
-                    className="bg-black/40 border border-vibe-glow/50 rounded px-1 py-0.5 text-xs text-white w-full outline-none"
+                    className="bg-black/60 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-white w-full outline-none shadow-lg"
                 />
             </div>
         ) : (
             <>
               <span className={`truncate text-sm flex-1 ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')}`}>{node.name}</span>
               {isModified && (
-                 <span className="text-[10px] font-bold text-amber-400 font-mono mr-2" title="Modified">M</span>
+                 <span className="text-[9px] font-bold text-amber-400 font-mono mr-2 bg-amber-400/10 px-1 rounded" title="Modified">M</span>
               )}
               {isAdded && (
-                 <span className="text-[10px] font-bold text-green-400 font-mono mr-2" title="Added (Untracked)">U</span>
+                 <span className="text-[9px] font-bold text-green-400 font-mono mr-2 bg-green-400/10 px-1 rounded" title="Added (Untracked)">U</span>
               )}
             </>
         )}
@@ -178,22 +177,22 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         {/* Hover Actions */}
         {!isEditing && (
             <div className={`
-                flex items-center gap-1 ml-auto
-                ${showActions ? 'opacity-100' : 'opacity-0'} 
-                transition-opacity duration-200
+                flex items-center gap-1 ml-auto bg-black/60 rounded px-1 backdrop-blur-sm
+                ${showActions ? 'opacity-100 scale-100' : 'opacity-0 scale-90'} 
+                transition-all duration-200
             `}>
                 {node.type === 'folder' && (
                     <>
                         <button 
                             onClick={(e) => startCreate(e, 'file')} 
-                            className="p-1 hover:bg-white/10 rounded text-slate-500 hover:text-green-400"
+                            className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-green-400 transition-colors"
                             title="New File"
                         >
                             <IconFilePlus size={12} />
                         </button>
                         <button 
                             onClick={(e) => startCreate(e, 'folder')} 
-                            className="p-1 hover:bg-white/10 rounded text-slate-500 hover:text-green-400"
+                            className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-green-400 transition-colors"
                             title="New Folder"
                         >
                             <IconFolderPlus size={12} />
@@ -202,14 +201,14 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
                 )}
                 <button 
                     onClick={handleStartEdit} 
-                    className="p-1 hover:bg-white/10 rounded text-slate-500 hover:text-blue-400"
+                    className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-blue-400 transition-colors"
                     title="Rename"
                 >
                     <IconEdit size={12} />
                 </button>
                 <button 
                     onClick={(e) => { e.stopPropagation(); onDelete(node); }} 
-                    className="p-1 hover:bg-white/10 rounded text-slate-500 hover:text-red-400"
+                    className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-red-400 transition-colors"
                     title="Delete"
                 >
                     <IconTrash size={12} />
@@ -221,8 +220,8 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
       {/* Creation Input within folder */}
       {isCreating && node.isOpen && (
           <div 
-             className="flex items-center gap-2 py-1 px-2 animate-in fade-in slide-in-from-top-1"
-             style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
+             className="flex items-center gap-2 py-1 px-2 animate-in fade-in slide-in-from-top-1 my-1"
+             style={{ paddingLeft: `${(depth + 1) * 12 + 28}px` }}
           >
              <span className="text-slate-500">
                 {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
@@ -238,17 +237,17 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
                         if (e.key === 'Escape') setIsCreating(null);
                     }}
                     placeholder={`Name ${isCreating}...`}
-                    className="bg-black/40 border border-vibe-glow/50 rounded px-1 py-0.5 text-xs text-white w-full outline-none"
+                    className="bg-black/60 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-white w-full outline-none shadow-lg"
                  />
-                 <button onClick={saveCreate} className="text-green-400 hover:bg-green-400/10 p-0.5 rounded"><IconCheck size={12}/></button>
-                 <button onClick={() => setIsCreating(null)} className="text-red-400 hover:bg-red-400/10 p-0.5 rounded"><IconClose size={12}/></button>
+                 <button onClick={saveCreate} className="text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
+                 <button onClick={() => setIsCreating(null)} className="text-red-400 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
              </div>
           </div>
       )}
 
       {/* Render Children */}
       {node.type === 'folder' && node.isOpen && (
-        <div className="flex flex-col">
+        <div className="flex flex-col border-l border-white/5 ml-[calc(100%-8px)]">
           {children.map(child => (
             <FileTreeNode 
               key={child.id} 
@@ -266,7 +265,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
           {children.length === 0 && !isCreating && (
               <div 
                 className="py-1 text-[10px] text-slate-600 italic select-none"
-                style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
+                style={{ paddingLeft: `${(depth + 1) * 12 + 28}px` }}
               >
                   Empty
               </div>

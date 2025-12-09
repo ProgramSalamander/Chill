@@ -18,15 +18,29 @@
             },
             colors: {
               vibe: {
-                900: '#0a0a0f',
-                800: '#13131f',
-                700: '#1c1c2e',
-                accent: '#6366f1', // Indigo
-                glow: '#818cf8',
+                900: '#050508',
+                800: '#0f0f16',
+                700: '#181824',
+                accent: '#818cf8', // Indigo 400
+                glow: '#c7d2fe',
+                glass: 'rgba(20, 20, 30, 0.6)',
+                border: 'rgba(255, 255, 255, 0.08)',
               }
             },
             animation: {
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'glow': 'glow 2s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+              glow: {
+                'from': { boxShadow: '0 0 10px -10px #818cf8' },
+                'to': { boxShadow: '0 0 20px 5px #818cf8' },
+              }
             }
           }
         }
@@ -35,28 +49,64 @@
     <style>
       /* Custom Scrollbar for Vibe Feel */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #0a0a0f; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #2d2d45; 
-        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.1); 
+        border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #434366; 
+        background: rgba(255, 255, 255, 0.2); 
       }
+      
       body {
-        background-color: #0a0a0f;
+        background-color: #050508;
         color: #e2e8f0;
+        overflow: hidden;
       }
+
+      /* Ambient Background */
+      .ambient-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
+        background: 
+          radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%), 
+          radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.08), transparent 25%);
+        pointer-events: none;
+      }
+
       .glass-panel {
-        background: rgba(19, 19, 31, 0.7);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(15, 15, 22, 0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
+
+      .glass-panel-heavy {
+        background: rgba(10, 10, 15, 0.85);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      
+      /* Editor Overrides */
+      .prism-editor textarea {
+        outline: none !important;
+      }
+      
+      pre[class*="language-"] {
+        text-shadow: none !important;
+        background: transparent !important;
+      }
+
       /* Squiggle for errors */
       .squiggle-error {
         text-decoration: underline wavy #ef4444;
@@ -82,6 +132,7 @@
 </script>
 </head>
   <body>
+    <div class="ambient-bg"></div>
     <div id="root"></div>
   </body>
 </html>

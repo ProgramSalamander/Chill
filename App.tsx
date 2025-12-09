@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconMenu, 
@@ -12,7 +11,7 @@ import {
   IconSparkles,
   IconUndo, 
   IconRedo, 
-  IconClose,
+  IconClose, 
   IconCommand,
   IconFolderPlus,
   IconFilePlus,
@@ -33,6 +32,7 @@ import DeleteConfirmModal from './components/DeleteConfirmModal';
 import CommandPalette from './components/CommandPalette';
 import FileExplorer from './components/FileExplorer';
 import GitPanel from './components/GitPanel';
+import ContextBar from './components/ContextBar';
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { File, Message, MessageRole, TerminalLine, Commit, Diagnostic } from './types';
@@ -311,9 +311,9 @@ ${f.content}
     if (!rootHtmlFile) {
         return `
             <html>
-                <body style="background-color: #ffffff; color: #64748b; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+                <body style="background-color: #050508; color: #64748b; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
                     <div style="text-align: center;">
-                        <h3 style="margin-bottom: 0.5rem;">No HTML Entry Point Found</h3>
+                        <h3 style="margin-bottom: 0.5rem; color: #e2e8f0;">No HTML Entry Point Found</h3>
                         <p style="font-size: 0.875rem;">Create an index.html file to enable Live Preview.</p>
                     </div>
                 </body>
@@ -407,6 +407,9 @@ ${f.content}
   };
 
   const handleFileChange = (newContent: string, forceHistory: boolean = false) => {
+    // Clear selection if content changes, preventing stale context bar
+    if (selectedCode) setSelectedCode('');
+
     setFiles(prev => prev.map(f => {
         if (f.id !== activeFileId) return f;
         
@@ -501,14 +504,44 @@ ${f.content}
     }
   };
   
-  const handleSelectionChange = (selection: string) => {
+  // Memoized to prevent re-renders in CodeEditor breaking event listeners
+  const handleSelectionChange = useCallback((selection: string) => {
     setSelectedCode(selection);
-  };
+  }, []);
 
   const handleExplainSelection = () => {
     if (!selectedCode) return;
     setIsAIOpen(true);
     handleSendMessage(`Explain the following code snippet:\n\n\`\`\`${activeFile?.language || 'text'}\n${selectedCode}\n\`\`\``);
+  };
+
+  const handleContextAction = (action: string) => {
+    if (!selectedCode || !activeFile) return;
+    
+    setIsAIOpen(true);
+    let prompt = '';
+    const lang = activeFile.language;
+    const codeWrapper = `\`\`\`${lang}\n${selectedCode}\n\`\`\``;
+
+    switch (action) {
+        case 'explain':
+            prompt = `Explain the following code snippet:\n\n${codeWrapper}`;
+            break;
+        case 'refactor':
+            prompt = `Refactor the following code to be cleaner, more efficient, and modern. Explain your changes briefly:\n\n${codeWrapper}`;
+            break;
+        case 'docs':
+            prompt = `Add comprehensive documentation (JSDoc/Docstrings) and comments to the following code:\n\n${codeWrapper}`;
+            break;
+        case 'debug':
+            prompt = `Analyze the following code for potential bugs, logical errors, or edge cases. Fix them and explain why:\n\n${codeWrapper}`;
+            break;
+        case 'types':
+             prompt = `Add strict type definitions to the following code:\n\n${codeWrapper}`;
+             break;
+    }
+    
+    if (prompt) handleSendMessage(prompt);
   };
 
   const handleGitStage = (fileId: string) => {
@@ -952,58 +985,58 @@ ${text}
   }, [activeFile]);
 
   return (
-    <div className="flex h-screen w-screen bg-vibe-900 text-slate-300 font-sans overflow-hidden">
+    <div className="flex h-screen w-screen text-slate-300 font-sans overflow-hidden relative">
       
-      {/* Sidebar Navigation */}
-      <div className="w-12 flex flex-col items-center py-4 bg-vibe-900 border-r border-white/5 gap-4 z-30">
+      {/* Sidebar Navigation (Floating Glass) */}
+      <div className="w-14 flex flex-col items-center py-6 gap-6 z-40 ml-2 my-2 rounded-2xl glass-panel">
         <button 
           onClick={() => setActiveSidebarView(activeSidebarView === 'explorer' ? null : 'explorer')}
-          className={`p-2 rounded-xl transition-all ${activeSidebarView === 'explorer' ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+          className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'explorer' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="File Explorer (Cmd+B)"
         >
-          <IconFileCode size={20} />
+          <IconFileCode size={22} strokeWidth={1.5} />
         </button>
         <button 
           onClick={() => setActiveSidebarView(activeSidebarView === 'git' ? null : 'git')}
-          className={`p-2 rounded-xl transition-all ${activeSidebarView === 'git' ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+          className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'git' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
           title="Source Control"
         >
           <div className="relative">
-             <IconGitBranch size={20} />
+             <IconGitBranch size={22} strokeWidth={1.5} />
              {stagedFileIds.length > 0 && (
-                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-vibe-900"></div>
+                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm"></div>
              )}
           </div>
         </button>
         <button 
           onClick={() => setIsCommandPaletteOpen(true)}
-          className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/5 transition-all"
+          className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
           title="Command Palette (Cmd+P)"
         >
-          <IconSearch size={20} />
+          <IconSearch size={22} strokeWidth={1.5} />
         </button>
         
         <div className="flex-1" />
         
         <button 
           onClick={() => setIsSettingsOpen(true)}
-          className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/5 transition-all"
+          className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
           title="Settings"
         >
-          <IconSettings size={20} />
+          <IconSettings size={22} strokeWidth={1.5} />
         </button>
       </div>
 
-      {/* Sidebar Panel */}
+      {/* Sidebar Panel (Floating Glass) */}
       {activeSidebarView && (
-        <div className="w-64 bg-vibe-800/50 border-r border-white/5 flex flex-col animate-in slide-in-from-left-5 duration-200">
+        <div className="w-72 glass-panel flex flex-col animate-in slide-in-from-left-5 duration-300 ml-2 my-2 rounded-2xl z-30">
            {activeSidebarView === 'explorer' && (
              <>
-               <div className="p-4 flex items-center justify-between border-b border-white/5 h-14">
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">Explorer</span>
+               <div className="p-5 flex items-center justify-between border-b border-vibe-border h-16">
+                  <span className="text-xs font-bold text-vibe-glow uppercase tracking-widest drop-shadow-sm">Explorer</span>
                   <div className="flex items-center gap-1">
-                      <button onClick={handleCreateRootFile} className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-white"><IconFilePlus size={14} /></button>
-                      <button onClick={handleOpenFolder} className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-white"><IconFolderOpen size={14} /></button>
+                      <button onClick={handleCreateRootFile} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFilePlus size={16} /></button>
+                      <button onClick={handleOpenFolder} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFolderOpen size={16} /></button>
                   </div>
                </div>
                <FileExplorer 
@@ -1032,11 +1065,11 @@ ${text}
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-vibe-900 relative">
+      <div className="flex-1 flex flex-col min-w-0 relative m-2 gap-2">
         
         {/* Editor Tabs & Header */}
-        <div className="h-14 flex items-center justify-between bg-vibe-900 border-b border-white/5 px-2 select-none">
-           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[calc(100%-200px)]">
+        <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
+           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)]">
               {openFileIds.map(id => {
                  const file = files.find(f => f.id === id);
                  if (!file) return null;
@@ -1046,18 +1079,20 @@ ${text}
                       key={id}
                       onClick={() => { setActiveFileId(id); setSelectedCode(''); }}
                       className={`
-                        group flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer border border-transparent transition-all min-w-[120px] max-w-[200px]
-                        ${isActive ? 'bg-vibe-800 border-white/10 text-white shadow-sm' : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'}
+                        group flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer border transition-all min-w-[140px] max-w-[220px]
+                        ${isActive 
+                            ? 'bg-vibe-accent/20 border-vibe-accent/30 text-white shadow-[0_0_10px_rgba(99,102,241,0.2)]' 
+                            : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:text-slate-300'}
                       `}
                    >
-                      <span className={`${isActive ? 'text-vibe-glow' : 'opacity-70'}`}>
+                      <span className={`${isActive ? 'text-vibe-glow' : 'opacity-50'}`}>
                          {file.language === 'python' ? '🐍' : <IconFileCode size={14} />}
                       </span>
-                      <span className="text-xs truncate flex-1">{file.name}</span>
-                      {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent"></div>}
+                      <span className="text-xs truncate flex-1 font-medium">{file.name}</span>
+                      {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse"></div>}
                       <button 
                         onClick={(e) => handleCloseTab(e, id)}
-                        className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/10 rounded ${isActive ? 'text-slate-400 hover:text-white' : ''}`}
+                        className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/20 rounded-md ${isActive ? 'text-slate-300 hover:text-white' : ''}`}
                       >
                         <IconClose size={12} />
                       </button>
@@ -1066,33 +1101,33 @@ ${text}
               })}
            </div>
 
-           <div className="flex items-center gap-2 pr-2">
+           <div className="flex items-center gap-2 pl-2 border-l border-vibe-border">
               <button 
                 onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white' : 'bg-white/5 text-slate-400 hover:text-white'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
               >
                  {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
                  <span className="hidden sm:inline">Preview</span>
               </button>
               <button 
                 onClick={() => runCode()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-medium"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
               >
                  <IconPlay size={14} />
                  <span className="hidden sm:inline">Run</span>
               </button>
               <button 
                 onClick={() => setIsAIOpen(!isAIOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-medium border ${isAIOpen ? 'bg-vibe-accent text-white border-vibe-accent' : 'bg-white/5 text-slate-400 border-white/5 hover:text-white'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
               >
                  <IconSparkles size={14} />
-                 <span className="hidden sm:inline">AI Assistant</span>
+                 <span className="hidden sm:inline">AI Vibe</span>
               </button>
            </div>
         </div>
 
         {/* Editor & Content */}
-        <div className="flex-1 relative overflow-hidden flex flex-col">
+        <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl">
             {activeFile ? (
                <div className="flex-1 relative">
                   <CodeEditor 
@@ -1112,39 +1147,37 @@ ${text}
                      diagnostics={diagnostics}
                   />
                   
-                  {/* Floating Action Bar for Selection */}
+                  {/* Floating Action Bar for Selection - UPDATED to ContextBar */}
                   {selectedCode && (
                      <div className="absolute top-4 right-8 z-40 animate-in fade-in slide-in-from-top-2">
-                        <button 
-                          onClick={handleExplainSelection}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-vibe-accent text-white rounded-full shadow-lg hover:bg-indigo-500 transition-transform hover:scale-105 text-xs font-medium"
-                        >
-                           <IconSparkles size={14} />
-                           Explain Selection
-                        </button>
+                        <ContextBar 
+                            language={activeFile.language}
+                            onAction={handleContextAction}
+                        />
                      </div>
                   )}
                </div>
             ) : (
-               <div className="flex-1 flex flex-col items-center justify-center text-slate-600 bg-[#0a0a0f]">
-                  <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-                     <IconCommand size={32} />
+               <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
+                  <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
+                     <IconCommand size={40} className="text-vibe-accent opacity-50" />
                   </div>
-                  <p className="text-sm font-medium text-slate-400">Open a file to start coding</p>
-                  <p className="text-xs mt-2 opacity-50">Cmd+P to search files</p>
+                  <p className="text-sm font-medium text-slate-400 tracking-wide">Select a file to start your vibe coding session</p>
+                  <div className="mt-4 flex gap-2">
+                      <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+P to search</span>
+                      <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+B to explorer</span>
+                  </div>
                </div>
             )}
 
             {/* Terminal Panel */}
-            <div className={`transition-all duration-300 border-t border-white/10 ${isTerminalOpen ? 'h-48' : 'h-0 overflow-hidden'}`}>
+            <div className={`transition-all duration-300 border-t border-vibe-border ${isTerminalOpen ? 'h-56' : 'h-0 overflow-hidden'}`}>
                 <Terminal 
                   lines={terminalLines} 
                   isOpen={isTerminalOpen} 
                   diagnostics={diagnostics}
                   onSelectDiagnostic={(line, col) => {
                       if (activeFile) {
-                          // Simple jump logic could be implemented here by setting cursor
-                          // For now we just log
                           console.log(`Jump to ${line}:${col}`);
                       }
                   }}

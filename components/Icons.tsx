@@ -38,7 +38,10 @@ import {
   Clock,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Bug,
+  FileText,
+  Wand2
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -79,3 +82,6 @@ export const IconClock = (props: any) => <Clock {...props} />;
 export const IconEye = (props: any) => <Eye {...props} />;
 export const IconEyeOff = (props: any) => <EyeOff {...props} />;
 export const IconRefresh = (props: any) => <RefreshCw {...props} />;
+export const IconBug = (props: any) => <Bug {...props} />;
+export const IconFileText = (props: any) => <FileText {...props} />;
+export const IconWand = (props: any) => <Wand2 {...props} />;

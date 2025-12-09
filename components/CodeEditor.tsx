@@ -1,5 +1,4 @@
-
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import Editor from 'react-simple-code-editor';
 // We need to import Prism specifically to use it for highlighting
 import Prism from 'prismjs';
@@ -85,7 +84,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return map[lang] || Prism.languages.javascript;
   };
 
-  const handleStateChange = (e: React.SyntheticEvent<any>) => {
+  const handleStateChange = useCallback((e: React.SyntheticEvent<any>) => {
     const target = e.currentTarget as HTMLTextAreaElement;
     const val = target.value || '';
     const start = target.selectionStart;
@@ -96,12 +95,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
 
     if (onSelectionChange) {
-      const selectedText = val.substring(start, end);
+      // If start === end, selection is collapsed (empty)
+      const selectedText = start !== end ? val.substring(start, end) : '';
       onSelectionChange(selectedText);
     }
-  };
+  }, [onCursorChange, onSelectionChange]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<any>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<any>) => {
     // Tab for completion
     if (e.key === 'Tab' && suggestion && onAcceptSuggestion) {
       e.preventDefault();
@@ -132,7 +132,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       onRedo?.();
       return;
     }
-  };
+  }, [suggestion, onAcceptSuggestion, onTriggerSuggestion, onUndo, onRedo]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
      if (!contentRef.current || charWidth === 0) return;
@@ -257,15 +257,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [code, cursorOffset]);
 
   return (
-    <div className={`flex h-full w-full overflow-hidden ${className || ''}`}>
+    <div className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
         
         {/* Editor Pane */}
         <div ref={containerRef} className={`relative h-full font-mono text-sm overflow-auto transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-white/10' : 'w-full'}`}>
-            <div className="flex min-h-full min-w-full bg-[#0a0a0f]">
+            <div className="flex min-h-full min-w-full">
                 
                 {/* Gutter */}
                 <div 
-                  className="sticky left-0 z-30 flex flex-col items-end bg-[#0a0a0f] border-r border-white/5 text-slate-600 select-none py-[20px] p-4 text-xs"
+                  className="sticky left-0 z-30 flex flex-col items-end border-r border-white/5 text-slate-600 select-none py-[20px] p-4 text-xs bg-black/20 backdrop-blur-sm"
                   style={{
                     fontFamily: commonStyles.fontFamily,
                     fontSize: commonStyles.fontSize,
@@ -276,7 +276,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                     {lines.map(i => (
                         <div 
                           key={i} 
-                          className={`w-full ${i === currentLineNumber ? 'text-vibe-glow font-medium' : 'hover:text-slate-400'}`}
+                          className={`w-full text-right ${i === currentLineNumber ? 'text-vibe-glow font-bold' : 'hover:text-slate-400'}`}
                         >
                             {i}
                         </div>
@@ -326,9 +326,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                     >
                     <span>{prefix}</span>
                     {suggestion && (
-                        <span className="text-slate-500 opacity-60 relative italic">
+                        <span className="text-vibe-glow opacity-50 relative italic">
                         {suggestion}
-                        <span className="absolute -top-4 left-0 text-[9px] bg-vibe-accent/30 border border-vibe-accent/50 px-1 rounded text-white font-sans whitespace-nowrap opacity-70 not-italic">
+                        <span className="absolute -top-5 left-0 text-[10px] bg-vibe-accent text-white px-1.5 rounded shadow-lg font-sans whitespace-nowrap opacity-100 not-italic border border-white/10">
                             TAB
                         </span>
                         </span>
@@ -345,6 +345,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                     onSelect={handleStateChange}
                     onClick={handleStateChange}
                     onKeyUp={handleStateChange}
+                    onMouseUp={handleStateChange}
                     textareaClassName="focus:outline-none z-30"
                     style={{
                         ...commonStyles,
@@ -356,7 +357,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                     {/* Tooltip */}
                     {hoveredDiagnostic && tooltipPos && (
                         <div 
-                            className="absolute z-50 bg-[#0f0f16] border border-white/10 rounded-lg shadow-xl p-3 max-w-sm animate-in fade-in zoom-in-95 duration-100 pointer-events-none"
+                            className="absolute z-50 bg-[#0f0f16]/90 backdrop-blur border border-red-500/30 rounded-lg shadow-2xl p-3 max-w-sm animate-in fade-in zoom-in-95 duration-100 pointer-events-none"
                             style={{
                                 top: tooltipPos.y,
                                 left: Math.min(tooltipPos.x, (contentRef.current?.clientWidth || 500) - 300),
@@ -382,8 +383,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
         {/* Live Preview Pane */}
         {showPreview && (
-            <div className="w-1/2 h-full flex flex-col bg-white/5 animate-in slide-in-from-right-5 fade-in duration-300">
-                <div className="h-9 bg-vibe-900 border-b border-white/10 flex items-center justify-between px-3 select-none">
+            <div className="w-1/2 h-full flex flex-col bg-white/5 animate-in slide-in-from-right-5 fade-in duration-300 backdrop-blur-sm border-l border-white/10">
+                <div className="h-9 bg-black/20 border-b border-white/10 flex items-center justify-between px-3 select-none">
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
@@ -419,4 +420,3 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 };
 
 export default CodeEditor;
-    
