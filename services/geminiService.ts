@@ -3,6 +3,9 @@ import { GoogleGenAI, Chat, Content, GenerateContentResponse, Tool, Type } from 
 import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse } from '../types';
 import { getAIConfig } from './configService';
 
+// Safely get env var
+const ENV_API_KEY = typeof process !== 'undefined' ? process.env.API_KEY : '';
+
 // --- Tool Definitions ---
 
 export const AGENT_TOOLS_GEMINI: Tool[] = [
@@ -74,7 +77,7 @@ class GeminiSessionWrapper implements AISession {
   private chat: Chat;
 
   constructor(apiKey: string, model: string, systemInstruction: string, history: Message[], tools?: boolean) {
-    const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || '' });
+    const ai = new GoogleGenAI({ apiKey: apiKey || ENV_API_KEY || '' });
     
     // Convert history to Gemini format
     const geminiHistory: Content[] = history
@@ -345,7 +348,7 @@ export const getCodeCompletion = async (
 
       } else {
           // Gemini Completion
-          const ai = new GoogleGenAI({ apiKey: config.completion.apiKey || process.env.API_KEY || '' });
+          const ai = new GoogleGenAI({ apiKey: config.completion.apiKey || ENV_API_KEY || '' });
           const response = await ai.models.generateContent({
             model: config.completion.modelId,
             contents: prompt,
