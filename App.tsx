@@ -34,6 +34,7 @@ import CommandPalette from './components/CommandPalette';
 import FileExplorer from './components/FileExplorer';
 import GitPanel from './components/GitPanel';
 import ContextBar from './components/ContextBar';
+import MenuBar from './components/MenuBar';
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { gitService, GitStatus } from './services/gitService';
@@ -443,6 +444,25 @@ function App() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleNewProject = async () => {
+      if (files.length > 0) {
+          const confirmed = window.confirm("Start a new project? Any unsaved changes in memory will be lost.");
+          if (!confirmed) return;
+      }
+      
+      setFiles([]);
+      setActiveFileId('');
+      setOpenFileIds([]);
+      setProjectHandle(null);
+      setGitStatus([]);
+      setCommits([]);
+      setMessages([]);
+      setTerminalLines([]);
+
+      await gitService.init(); 
+      addTerminalLine('Initialized new empty project.', 'success');
   };
   // -----------------------------
 
@@ -918,6 +938,27 @@ ${f.content}
     addTerminalLine(`Saved file: ${file.name}`, 'success');
   };
 
+  const handleSaveAll = async () => {
+      const modified = files.filter(f => f.isModified);
+      let count = 0;
+      for (const f of modified) {
+          // FS API Write
+          if (f.handle) {
+             try {
+                const writable = await f.handle.createWritable();
+                await writable.write(f.content);
+                await writable.close();
+             } catch(e) { console.error(e); }
+          }
+          // Git sync
+          await syncFileToGit(f);
+          count++;
+      }
+      // Update state
+      setFiles(prev => prev.map(f => f.isModified ? { ...f, isModified: false } : f));
+      if (count > 0) addTerminalLine(`Saved ${count} files.`, 'success');
+  };
+
   const getDescendantIds = (fileId: string, allFiles: File[]): string[] => {
       const children = allFiles.filter(f => f.parentId === fileId);
       let ids = children.map(c => c.id);
@@ -1144,222 +1185,237 @@ ${text}
   }, [activeFile]);
 
   return (
-    <div className="flex h-screen w-screen text-slate-300 font-sans overflow-hidden relative">
-      
-      {/* Sidebar Navigation (Floating Glass) */}
-      <div className="w-14 flex flex-col items-center py-6 gap-6 z-40 ml-2 my-2 rounded-2xl glass-panel">
-        <button 
-          onClick={() => setActiveSidebarView(activeSidebarView === 'explorer' ? null : 'explorer')}
-          className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'explorer' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-          title="File Explorer (Cmd+B)"
-        >
-          <IconFileCode size={22} strokeWidth={1.5} />
-        </button>
-        <button 
-          onClick={() => setActiveSidebarView(activeSidebarView === 'git' ? null : 'git')}
-          className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'git' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-          title="Source Control"
-        >
-          <div className="relative">
-             <IconGitBranch size={22} strokeWidth={1.5} />
-             {gitStatus.filter(s => s.status !== 'unmodified').length > 0 && (
-                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm"></div>
-             )}
-          </div>
-        </button>
-        <button 
-          onClick={() => setIsCommandPaletteOpen(true)}
-          className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
-          title="Command Palette (Cmd+P)"
-        >
-          <IconSearch size={22} strokeWidth={1.5} />
-        </button>
-        
-        <div className="flex-1" />
-        
-        <button 
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
-          title="Settings"
-        >
-          <IconSettings size={22} strokeWidth={1.5} />
-        </button>
-      </div>
+    <div className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-[#050508] relative">
+      <MenuBar 
+          onNewProject={handleNewProject}
+          onOpenProject={handleOpenFolder}
+          onSaveAll={handleSaveAll}
+          projectName={projectHandle?.name || (files.length > 0 ? 'Untitled Project' : undefined)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+      />
 
-      {/* Sidebar Panel (Floating Glass) */}
-      {activeSidebarView && (
-        <div className="w-72 glass-panel flex flex-col animate-in slide-in-from-left-5 duration-300 ml-2 my-2 rounded-2xl z-30">
-           {activeSidebarView === 'explorer' && (
-             <>
-               <div className="p-5 flex items-center justify-between border-b border-vibe-border h-16">
-                  <span className="text-xs font-bold text-vibe-glow uppercase tracking-widest drop-shadow-sm">Explorer</span>
-                  <div className="flex items-center gap-1">
-                      <button onClick={handleCreateRootFile} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFilePlus size={16} /></button>
-                      <button onClick={handleOpenFolder} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFolderOpen size={16} /></button>
-                  </div>
-               </div>
-               <FileExplorer 
-                  files={files} 
-                  activeFileId={activeFileId} 
-                  onFileClick={handleFileClick}
-                  onDelete={(f) => setFileToDelete(f)}
-                  onRename={handleRenameNode}
-                  onCreate={(type, parentId, name) => handleCreateNode(type, parentId, name)}
-                  onToggleFolder={handleToggleFolder}
-               />
-             </>
-           )}
-           {activeSidebarView === 'git' && (
-             <GitPanel 
-                files={files}
-                gitStatus={gitStatus}
-                commits={commits}
-                onStage={handleGitStage}
-                onUnstage={handleGitUnstage}
-                onCommit={handleGitCommit}
-             />
-           )}
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative m-2 gap-2">
-        
-        {/* Editor Tabs & Header */}
-        <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
-           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)]">
-              {openFileIds.map(id => {
-                 const file = files.find(f => f.id === id);
-                 if (!file) return null;
-                 const isActive = activeFileId === id;
-                 return (
-                   <div 
-                      key={id}
-                      onClick={() => { setActiveFileId(id); setSelectedCode(''); }}
-                      className={`
-                        group flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer border transition-all min-w-[140px] max-w-[220px]
-                        ${isActive 
-                            ? 'bg-vibe-accent/20 border-vibe-accent/30 text-white shadow-[0_0_10px_rgba(99,102,241,0.2)]' 
-                            : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:text-slate-300'}
-                      `}
-                   >
-                      <span className={`${isActive ? 'text-vibe-glow' : 'opacity-50'}`}>
-                         {file.language === 'python' ? '🐍' : <IconFileCode size={14} />}
-                      </span>
-                      <span className="text-xs truncate flex-1 font-medium">{file.name}</span>
-                      {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse"></div>}
-                      <button 
-                        onClick={(e) => handleCloseTab(e, id)}
-                        className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/20 rounded-md ${isActive ? 'text-slate-300 hover:text-white' : ''}`}
-                      >
-                        <IconClose size={12} />
-                      </button>
-                   </div>
-                 )
-              })}
-           </div>
-
-           <div className="flex items-center gap-2 pl-2 border-l border-vibe-border">
-              <button 
-                onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-              >
-                 {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
-                 <span className="hidden sm:inline">Preview</span>
-              </button>
-              <button 
-                onClick={() => runCode()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
-              >
-                 <IconPlay size={14} />
-                 <span className="hidden sm:inline">Run</span>
-              </button>
-              <button 
-                onClick={() => setIsAIOpen(!isAIOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
-              >
-                 <IconSparkles size={14} />
-                 <span className="hidden sm:inline">AI Vibe</span>
-              </button>
-           </div>
+      <div className="flex-1 flex min-h-0 w-full relative">
+        {/* Sidebar Navigation (Floating Glass) */}
+        <div className="w-14 flex flex-col items-center py-6 gap-6 z-40 ml-2 my-2 rounded-2xl glass-panel">
+            <button 
+            onClick={() => setActiveSidebarView(activeSidebarView === 'explorer' ? null : 'explorer')}
+            className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'explorer' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+            title="File Explorer (Cmd+B)"
+            >
+            <IconFileCode size={22} strokeWidth={1.5} />
+            </button>
+            <button 
+            onClick={() => setActiveSidebarView(activeSidebarView === 'git' ? null : 'git')}
+            className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'git' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+            title="Source Control"
+            >
+            <div className="relative">
+                <IconGitBranch size={22} strokeWidth={1.5} />
+                {gitStatus.filter(s => s.status !== 'unmodified').length > 0 && (
+                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm"></div>
+                )}
+            </div>
+            </button>
+            <button 
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
+            title="Command Palette (Cmd+P)"
+            >
+            <IconSearch size={22} strokeWidth={1.5} />
+            </button>
+            
+            <div className="flex-1" />
+            
+            <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
+            title="Settings"
+            >
+            <IconSettings size={22} strokeWidth={1.5} />
+            </button>
         </div>
 
-        {/* Editor & Content */}
-        <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl">
-            {activeFile ? (
-               <div className="flex-1 relative">
-                  <CodeEditor 
-                     code={activeFile.content}
-                     language={activeFile.language}
-                     onChange={(code) => handleFileChange(code, false)}
-                     cursorOffset={cursorPosition}
-                     onCursorChange={handleCursorChange}
-                     onSelectionChange={handleSelectionChange}
-                     suggestion={suggestion}
-                     onAcceptSuggestion={handleAcceptSuggestion}
-                     onTriggerSuggestion={handleManualTriggerSuggestion}
-                     onUndo={handleUndo}
-                     onRedo={handleRedo}
-                     showPreview={isPreviewOpen}
-                     previewContent={getPreviewContent}
-                     diagnostics={diagnostics}
-                  />
-                  
-                  {/* Floating Action Bar for Selection - UPDATED to ContextBar */}
-                  {selectedCode && (
-                     <div className="absolute top-4 right-8 z-40 animate-in fade-in slide-in-from-top-2">
-                        <ContextBar 
-                            language={activeFile.language}
-                            onAction={handleContextAction}
-                        />
-                     </div>
-                  )}
-               </div>
-            ) : (
-               <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
-                  <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
-                     <IconCommand size={40} className="text-vibe-accent opacity-50" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-400 tracking-wide">Select a file to start your vibe coding session</p>
-                  <div className="mt-4 flex gap-2">
-                      <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+P to search</span>
-                      <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+B to explorer</span>
-                  </div>
-               </div>
+        {/* Sidebar Panel (Floating Glass) */}
+        {activeSidebarView && (
+            <div className="w-72 glass-panel flex flex-col animate-in slide-in-from-left-5 duration-300 ml-2 my-2 rounded-2xl z-30">
+            {activeSidebarView === 'explorer' && (
+                <>
+                <div className="p-5 flex items-center justify-between border-b border-vibe-border h-16">
+                    <span className="text-xs font-bold text-vibe-glow uppercase tracking-widest drop-shadow-sm">Explorer</span>
+                    <div className="flex items-center gap-1">
+                        <button onClick={handleCreateRootFile} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFilePlus size={16} /></button>
+                        <button onClick={handleOpenFolder} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFolderOpen size={16} /></button>
+                    </div>
+                </div>
+                <FileExplorer 
+                    files={files} 
+                    activeFileId={activeFileId} 
+                    onFileClick={handleFileClick}
+                    onDelete={(f) => setFileToDelete(f)}
+                    onRename={handleRenameNode}
+                    onCreate={(type, parentId, name) => handleCreateNode(type, parentId, name)}
+                    onToggleFolder={handleToggleFolder}
+                />
+                </>
             )}
+            {activeSidebarView === 'git' && (
+                <GitPanel 
+                    files={files}
+                    gitStatus={gitStatus}
+                    commits={commits}
+                    onStage={handleGitStage}
+                    onUnstage={handleGitUnstage}
+                    onCommit={handleGitCommit}
+                />
+            )}
+            </div>
+        )}
 
-            {/* Terminal Panel */}
-            <div className={`transition-all duration-300 border-t border-vibe-border ${isTerminalOpen ? 'h-56' : 'h-0 overflow-hidden'}`}>
-                <Terminal 
-                  lines={terminalLines} 
-                  isOpen={isTerminalOpen} 
-                  diagnostics={diagnostics}
-                  onSelectDiagnostic={(line, col) => {
-                      if (activeFile) {
-                          console.log(`Jump to ${line}:${col}`);
-                      }
-                  }}
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 relative m-2 gap-2">
+            
+            {/* Editor Tabs & Header */}
+            <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)]">
+                {openFileIds.map(id => {
+                    const file = files.find(f => f.id === id);
+                    if (!file) return null;
+                    const isActive = activeFileId === id;
+                    return (
+                    <div 
+                        key={id}
+                        onClick={() => { setActiveFileId(id); setSelectedCode(''); }}
+                        className={`
+                            group flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer border transition-all min-w-[140px] max-w-[220px]
+                            ${isActive 
+                                ? 'bg-vibe-accent/20 border-vibe-accent/30 text-white shadow-[0_0_10px_rgba(99,102,241,0.2)]' 
+                                : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:text-slate-300'}
+                        `}
+                    >
+                        <span className={`${isActive ? 'text-vibe-glow' : 'opacity-50'}`}>
+                            {file.language === 'python' ? '🐍' : <IconFileCode size={14} />}
+                        </span>
+                        <span className="text-xs truncate flex-1 font-medium">{file.name}</span>
+                        {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse"></div>}
+                        <button 
+                            onClick={(e) => handleCloseTab(e, id)}
+                            className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/20 rounded-md ${isActive ? 'text-slate-300 hover:text-white' : ''}`}
+                        >
+                            <IconClose size={12} />
+                        </button>
+                    </div>
+                    )
+                })}
+            </div>
+
+            <div className="flex items-center gap-2 pl-2 border-l border-vibe-border">
+                <button 
+                    onClick={() => setIsPreviewOpen(!isPreviewOpen)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                >
+                    {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
+                    <span className="hidden sm:inline">Preview</span>
+                </button>
+                <button 
+                    onClick={() => runCode()}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
+                >
+                    <IconPlay size={14} />
+                    <span className="hidden sm:inline">Run</span>
+                </button>
+                <button 
+                    onClick={() => setIsAIOpen(!isAIOpen)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
+                >
+                    <IconSparkles size={14} />
+                    <span className="hidden sm:inline">AI Vibe</span>
+                </button>
+            </div>
+            </div>
+
+            {/* Editor & Content */}
+            <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl">
+                {activeFile ? (
+                <div className="flex-1 relative">
+                    <CodeEditor 
+                        code={activeFile.content}
+                        language={activeFile.language}
+                        onChange={(code) => handleFileChange(code, false)}
+                        cursorOffset={cursorPosition}
+                        onCursorChange={handleCursorChange}
+                        onSelectionChange={handleSelectionChange}
+                        suggestion={suggestion}
+                        onAcceptSuggestion={handleAcceptSuggestion}
+                        onTriggerSuggestion={handleManualTriggerSuggestion}
+                        onUndo={handleUndo}
+                        onRedo={handleRedo}
+                        showPreview={isPreviewOpen}
+                        previewContent={getPreviewContent}
+                        diagnostics={diagnostics}
+                    />
+                    
+                    {/* Floating Action Bar for Selection - UPDATED to ContextBar */}
+                    {selectedCode && (
+                        <div className="absolute top-4 right-8 z-40 animate-in fade-in slide-in-from-top-2">
+                            <ContextBar 
+                                language={activeFile.language}
+                                onAction={handleContextAction}
+                            />
+                        </div>
+                    )}
+                </div>
+                ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
+                    <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
+                        <IconCommand size={40} className="text-vibe-accent opacity-50" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-400 tracking-wide">Select a file to start your vibe coding session</p>
+                    <div className="mt-4 flex gap-2">
+                        <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+P to search</span>
+                        <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+B to explorer</span>
+                    </div>
+                </div>
+                )}
+
+                {/* Terminal Panel */}
+                <div className={`transition-all duration-300 border-t border-vibe-border ${isTerminalOpen ? 'h-56' : 'h-0 overflow-hidden'}`}>
+                    <Terminal 
+                    lines={terminalLines} 
+                    isOpen={isTerminalOpen} 
+                    diagnostics={diagnostics}
+                    onSelectDiagnostic={(line, col) => {
+                        if (activeFile) {
+                            console.log(`Jump to ${line}:${col}`);
+                        }
+                    }}
+                    />
+                </div>
+            </div>
+
+        </div>
+
+        {/* Overlays */}
+        <div className="absolute top-0 right-0 h-full pointer-events-none">
+            {/* Inner container to ensure relative positioning correct for absolute children if needed */}
+            <div className="relative w-full h-full pointer-events-auto">
+                 <AIPanel 
+                    isOpen={isAIOpen} 
+                    onClose={() => setIsAIOpen(false)}
+                    messages={messages}
+                    onSendMessage={handleSendMessage}
+                    isGenerating={isGenerating}
+                    activeFile={activeFile}
+                    onApplyCode={handleApplyCode}
+                    onInsertCode={handleInsertCode}
+                    contextScope={contextScope}
+                    setContextScope={setContextScope}
+                    files={files}
+                    onAgentAction={handleAgentAction}
                 />
             </div>
         </div>
 
       </div>
-
-      {/* Overlays */}
-      <AIPanel 
-         isOpen={isAIOpen} 
-         onClose={() => setIsAIOpen(false)}
-         messages={messages}
-         onSendMessage={handleSendMessage}
-         isGenerating={isGenerating}
-         activeFile={activeFile}
-         onApplyCode={handleApplyCode}
-         onInsertCode={handleInsertCode}
-         contextScope={contextScope}
-         setContextScope={setContextScope}
-         files={files}
-         onAgentAction={handleAgentAction}
-      />
 
       <SettingsModal 
          isOpen={isSettingsOpen} 

@@ -138,7 +138,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
           If you need to perform an action, use the available tools.
           `;
           
-          // Pass messages=[] to start fresh session, tools=true
           const chat = createChatSession(systemPrompt, [], true);
           agentChatRef.current = chat;
           
@@ -150,12 +149,9 @@ const AIPanel: React.FC<AIPanelProps> = ({
           while (keepGoing && turns < MAX_TURNS) {
               turns++;
               
-              // Send message (Thinking/Calling Tool)
-              // Note: Initial message has no tool responses
               let response = await chat.sendMessage({ message: currentInput });
-              currentInput = ""; // Clear input for next loops (unless we get tools)
+              currentInput = "";
 
-              // Check for text response (Thinking)
               if (response.text) {
                   setAgentSteps(prev => [...prev, {
                       id: Math.random().toString(),
@@ -165,7 +161,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
                   }]);
               }
 
-              // Check for Function Calls (Unified Interface)
               const calls = response.toolCalls;
               
               if (calls && calls.length > 0) {
@@ -181,7 +176,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
                           timestamp: Date.now()
                       }]);
 
-                      // Execute Action via App Handler
                       let result = "Error";
                       try {
                           result = await onAgentAction(call.name, call.args);
@@ -203,12 +197,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
                       });
                   }
 
-                  // Send Tool Responses back to model
-                  // We send a "dummy" message property with the tool responses as per our interface
-                  // The underlying service handles how to attach this to the provider
                   response = await chat.sendMessage({ message: "", toolResponses: toolResponses });
                   
-                  // Process the response to the tool output
                   if (response.text) {
                       setAgentSteps(prev => [...prev, {
                           id: Math.random().toString(),
@@ -218,7 +208,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
                       }]);
                   }
                   
-                  // If no more tool calls, we might be done or pausing
                   if (!response.toolCalls || response.toolCalls.length === 0) {
                       keepGoing = false;
                       setAgentSteps(prev => [...prev, {
@@ -228,41 +217,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
                         timestamp: Date.now()
                       }]);
                   } else {
-                       // Loop continues automatically as turns increment and we have new calls
-                       // We need to loop inside here if we want to handle chaining recursively, 
-                       // but the main while loop handles sequential turns fine if we just continue.
-                       // However, our main loop relies on `currentInput`.
-                       // Actually, since we updated `response` inside the block, the next iteration needs to handle the *next* set of calls.
-                       // But the main `while` sends `sendMessage`.
-                       // We need to structure this so `sendMessage` is called once per loop iteration.
-                       
-                       // Refactor: The `response` obtained inside the tool handling block IS the result of the next turn.
-                       // We need to feed that back into the loop check.
-                       // For simplicity in this structure: we just let the loop continue? 
-                       // No, `sendMessage` was already called. 
-                       // If we continue the loop, we call `sendMessage` again with empty input?
-                       // Yes, that works for some providers (continue generation), but conceptually we just finished a turn.
-                       // The `response` variable inside the `if(calls)` block contains the NEXT turn's output (which might contain more tools).
-                       
-                       // Let's handle generic recursion inside the loop? 
-                       // Or just set flags.
-                       
                        if (response.toolCalls && response.toolCalls.length > 0) {
-                           // We have more tools to run immediately.
-                           // We can't easily jump back to top of while loop with the `response` already in hand.
-                           // Simplest hack: Handle chain inside the tool block.
-                           
-                           // Actually, let's just break the loop if we are done, otherwise loop.
-                           // But we need to update `response` for the check at the start? 
-                           // No, the while loop calls `sendMessage`.
-                           // We already called `sendMessage` with the tool outputs.
-                           // So we are effectively one turn ahead.
-                           
-                           // FIX: To keep it robust, we should restructure the loop.
-                           // But to minimize changes: we handled one level of chaining. 
-                           // If the model wants to call tools AGAIN immediately, we should support it.
-                           
-                           // Let's iterate until no tools inside the block.
                            let activeResponse = response;
                            while (activeResponse.toolCalls && activeResponse.toolCalls.length > 0 && turns < MAX_TURNS) {
                                turns++;
@@ -278,9 +233,9 @@ const AIPanel: React.FC<AIPanelProps> = ({
                                    setAgentSteps(prev => [...prev, { id: Math.random().toString(), type: 'thought', text: activeResponse.text, timestamp: Date.now() }]);
                                }
                            }
-                           keepGoing = false; // Finished chaining
+                           keepGoing = false;
                        } else {
-                           keepGoing = false; // Done
+                           keepGoing = false;
                        }
                   }
               } else {
@@ -395,7 +350,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   return (
     <div 
       className={`
-        w-[450px] flex flex-col glass-panel-heavy h-[calc(100vh-16px)] absolute right-2 top-2 z-50 rounded-2xl shadow-2xl 
+        w-[450px] flex flex-col glass-panel-heavy h-[calc(100%-16px)] absolute right-2 top-2 z-50 rounded-2xl shadow-2xl 
         transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) transform border-none ring-1 ring-white/10
         ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[120%] opacity-0 pointer-events-none'}
       `}
