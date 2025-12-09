@@ -1,29 +1,20 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
-  IconMenu, 
   IconTerminal, 
-  IconSettings, 
   IconPlay, 
-  IconMessage, 
-  IconPlus, 
   IconSave, 
-  IconSearch, 
   IconSparkles,
-  IconUndo, 
-  IconRedo, 
   IconClose, 
   IconCommand,
-  IconFolderPlus,
   IconFilePlus,
-  IconTrash,
+  IconFolderOpen,
   IconFileCode,
   IconGitBranch,
-  IconFolder,
+  IconSearch,
+  IconSettings,
   IconEye,
-  IconEyeOff,
-  IconFolderOpen,
-  IconMore
+  IconEyeOff
 } from './components/Icons';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -35,99 +26,15 @@ import FileExplorer from './components/FileExplorer';
 import GitPanel from './components/GitPanel';
 import ContextBar from './components/ContextBar';
 import MenuBar from './components/MenuBar';
+import Sidebar from './components/Sidebar';
+import EditorTabs from './components/EditorTabs';
+
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { gitService, GitStatus } from './services/gitService';
 import { File, Message, MessageRole, TerminalLine, Commit, Diagnostic, AISession } from './types';
-
-// Helper to infer language from extension
-const getLanguage = (filename: string) => {
-  if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return 'typescript';
-  if (filename.endsWith('.js') || filename.endsWith('.jsx')) return 'javascript';
-  if (filename.endsWith('.css')) return 'css';
-  if (filename.endsWith('.html')) return 'html';
-  if (filename.endsWith('.json')) return 'json';
-  if (filename.endsWith('.py')) return 'python';
-  if (filename.endsWith('.md')) return 'markdown';
-  return 'typescript'; // Default
-};
-
-// Recursively read directory handle
-const processDirectoryHandle = async (dirHandle: any, parentId: string | null = null): Promise<File[]> => {
-  let entries: File[] = [];
-  // @ts-ignore
-  for await (const entry of dirHandle.values()) {
-      const id = Math.random().toString(36).slice(2, 11);
-      
-      if (entry.kind === 'file') {
-          // Filter out annoying system files
-          if (['.DS_Store', 'thumbs.db'].includes(entry.name)) continue;
-          
-          try {
-            const fileHandle = await dirHandle.getFileHandle(entry.name);
-            const fileData = await fileHandle.getFile();
-            
-            let content = '';
-            // Only read text for reasonably sized files to avoid freezing
-            if (fileData.size < 5000000) { // < 5MB
-                 try {
-                     content = await fileData.text();
-                 } catch (e) {
-                     content = '[Binary or Non-Text Content]';
-                 }
-            } else {
-                content = '[File too large to display]';
-            }
-
-            entries.push({
-                id,
-                name: entry.name,
-                type: 'file',
-                parentId,
-                language: getLanguage(entry.name),
-                content,
-                handle: fileHandle, 
-                history: { past: [], future: [], lastSaved: Date.now() }
-            });
-          } catch (e) {
-             console.error(`Failed to read file ${entry.name}`, e);
-          }
-
-      } else if (entry.kind === 'directory') {
-           // Skip heavy folders for this demo
-           if (['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv'].includes(entry.name)) {
-               entries.push({
-                  id,
-                  name: entry.name,
-                  type: 'folder',
-                  parentId,
-                  isOpen: false,
-                  language: '',
-                  content: '',
-                  handle: entry
-               });
-               continue;
-           }
-           
-           const folderHandle = await dirHandle.getDirectoryHandle(entry.name);
-           entries.push({
-              id,
-              name: entry.name,
-              type: 'folder',
-              parentId,
-              isOpen: false,
-              language: '',
-              content: '',
-              handle: folderHandle
-           });
-           
-           // Recursion
-           const children = await processDirectoryHandle(folderHandle, id);
-           entries = [...entries, ...children];
-      }
-  }
-  return entries;
-};
+import { getLanguage, getFilePath, processDirectoryHandle, resolveFileByPath, generateProjectContext } from './utils/fileUtils';
+import { generatePreviewHtml } from './utils/previewUtils';
 
 const INITIAL_FILES: File[] = [];
 
@@ -293,9 +200,6 @@ function App() {
         if (files.length > 0) {
             for (const f of files) {
                 if (f.type === 'file') {
-                    // This reconstruction is a bit loose but sufficient for flat restoration
-                    // Ideally we track full paths or just write them flat
-                    // The getFilePath helper relies on 'files' state so it should work
                     const path = getFilePath(f, files);
                     await gitService.writeFile(path, f.content);
                 }
@@ -307,30 +211,6 @@ function App() {
   }, [initChat]);
 
   const activeFile = files.find(f => f.id === activeFileId && f.type === 'file') || null;
-
-  // --- Helper to resolve paths ---
-  const resolveFileByPath = useCallback((path: string, currentFiles: File[]) => {
-      const exact = currentFiles.find(f => f.name === path || f.name === path.split('/').pop());
-      if (exact) return exact;
-      return null;
-  }, []);
-
-  const getFilePath = useCallback((file: File, allFiles: File[]): string => {
-    let path = file.name;
-    let current = file;
-    let depth = 0;
-    while (current.parentId && depth < 10) { 
-        const parent = allFiles.find(f => f.id === current.parentId);
-        if (parent) {
-            path = `${parent.name}/${path}`;
-            current = parent;
-        } else {
-            break;
-        }
-        depth++;
-    }
-    return path;
-  }, []);
 
   const refreshGit = useCallback(async () => {
      try {
@@ -403,7 +283,7 @@ function App() {
           default:
               return `Unknown tool: ${action}`;
       }
-  }, [addTerminalLine, getFilePath, resolveFileByPath]);
+  }, [addTerminalLine]);
 
   // --- File System Access API ---
   const handleOpenFolder = async () => {
@@ -466,80 +346,9 @@ function App() {
   };
   // -----------------------------
 
-  const getProjectContext = useCallback(() => {
-     const structure = files.map(f => {
-        const path = getFilePath(f, files);
-        return `${f.type === 'folder' ? '[DIR]' : '[FILE]'} ${path}`;
-     }).sort().join('\n');
-
-     const contents = files
-        .filter(f => f.type === 'file')
-        .map(f => `
-// --- START OF FILE: ${getFilePath(f, files)} ---
-${f.content}
-// --- END OF FILE: ${getFilePath(f, files)} ---
-        `).join('\n');
-     
-     return `PROJECT STRUCTURE:\n${structure}\n\nPROJECT FILES CONTENT:\n${contents}`;
-  }, [files, getFilePath]);
-
   const getPreviewContent = useMemo(() => {
     if (!isPreviewOpen) return '';
-
-    let rootHtmlFile = activeFile?.language === 'html' ? activeFile : files.find(f => f.name === 'index.html');
-    
-    if (!rootHtmlFile) {
-        rootHtmlFile = files.find(f => f.language === 'html');
-    }
-
-    if (!rootHtmlFile) {
-        return `
-            <html>
-                <body style="background-color: #050508; color: #64748b; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-                    <div style="text-align: center;">
-                        <h3 style="margin-bottom: 0.5rem; color: #e2e8f0;">No HTML Entry Point Found</h3>
-                        <p style="font-size: 0.875rem;">Create an index.html file to enable Live Preview.</p>
-                    </div>
-                </body>
-            </html>
-        `;
-    }
-
-    let html = rootHtmlFile.content;
-
-    const stripTypes = (code: string) => {
-        return code
-            .replace(/:\s*[a-zA-Z0-9_<>\[\]]+/g, '') 
-            .replace(/<[a-zA-Z0-9_,\s]+>/g, ''); 
-    };
-
-    html = html.replace(/<link[^>]*href=["']([^"']+)["'][^>]*>/g, (match, href) => {
-        if (href.includes('http')) return match; 
-        
-        const filename = href.split('/').pop();
-        const cssFile = files.find(f => f.name === filename);
-        if (cssFile) {
-            return `<style>\n/* Injected from ${filename} */\n${cssFile.content}\n</style>`;
-        }
-        return match;
-    });
-
-    html = html.replace(/<script[^>]*src=["']([^"']+)["'][^>]*><\/script>/g, (match, src) => {
-        if (src.includes('http')) return match;
-
-        const filename = src.split('/').pop();
-        const jsFile = files.find(f => f.name === filename);
-        if (jsFile) {
-            let content = jsFile.content;
-            if (jsFile.language === 'typescript') {
-                content = stripTypes(content);
-            }
-            return `<script>\n// Injected from ${filename}\n${content}\n</script>`;
-        }
-        return match;
-    });
-
-    return html;
+    return generatePreviewHtml(files, activeFile);
   }, [files, activeFile, isPreviewOpen]);
 
 
@@ -756,7 +565,7 @@ ${f.content}
     if (!isAuto) addTerminalLine('Fetching suggestion...', 'info');
     
     try {
-        const context = getProjectContext();
+        const context = generateProjectContext(files);
         const cursor = lastCursorPosRef.current; 
         
         const suggestionText = await getCodeCompletion(
@@ -780,7 +589,7 @@ ${f.content}
     } finally {
         setIsFetchingSuggestion(false);
     }
-  }, [activeFile, isGenerating, isFetchingSuggestion, getProjectContext, addTerminalLine]);
+  }, [activeFile, isGenerating, isFetchingSuggestion, files, addTerminalLine]);
 
   useEffect(() => {
     if (!activeFile) return;
@@ -1030,7 +839,7 @@ ${f.content}
       let prompt = text;
       
       if (contextScope === 'project') {
-          const context = getProjectContext();
+          const context = generateProjectContext(files);
           prompt = `
 [PROJECT CONTEXT START]
 ${context}
@@ -1195,45 +1004,13 @@ ${text}
       />
 
       <div className="flex-1 flex min-h-0 w-full relative">
-        {/* Sidebar Navigation (Floating Glass) */}
-        <div className="w-14 flex flex-col items-center py-6 gap-6 z-40 ml-2 my-2 rounded-2xl glass-panel">
-            <button 
-            onClick={() => setActiveSidebarView(activeSidebarView === 'explorer' ? null : 'explorer')}
-            className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'explorer' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-            title="File Explorer (Cmd+B)"
-            >
-            <IconFileCode size={22} strokeWidth={1.5} />
-            </button>
-            <button 
-            onClick={() => setActiveSidebarView(activeSidebarView === 'git' ? null : 'git')}
-            className={`p-2.5 rounded-xl transition-all duration-300 ${activeSidebarView === 'git' ? 'bg-vibe-accent text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
-            title="Source Control"
-            >
-            <div className="relative">
-                <IconGitBranch size={22} strokeWidth={1.5} />
-                {gitStatus.filter(s => s.status !== 'unmodified').length > 0 && (
-                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm"></div>
-                )}
-            </div>
-            </button>
-            <button 
-            onClick={() => setIsCommandPaletteOpen(true)}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
-            title="Command Palette (Cmd+P)"
-            >
-            <IconSearch size={22} strokeWidth={1.5} />
-            </button>
-            
-            <div className="flex-1" />
-            
-            <button 
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300"
-            title="Settings"
-            >
-            <IconSettings size={22} strokeWidth={1.5} />
-            </button>
-        </div>
+        <Sidebar 
+          activeView={activeSidebarView}
+          setActiveView={setActiveSidebarView}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          gitStatus={gitStatus}
+        />
 
         {/* Sidebar Panel (Floating Glass) */}
         {activeSidebarView && (
@@ -1274,64 +1051,19 @@ ${text}
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0 relative m-2 gap-2">
             
-            {/* Editor Tabs & Header */}
-            <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)]">
-                {openFileIds.map(id => {
-                    const file = files.find(f => f.id === id);
-                    if (!file) return null;
-                    const isActive = activeFileId === id;
-                    return (
-                    <div 
-                        key={id}
-                        onClick={() => { setActiveFileId(id); setSelectedCode(''); }}
-                        className={`
-                            group flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer border transition-all min-w-[140px] max-w-[220px]
-                            ${isActive 
-                                ? 'bg-vibe-accent/20 border-vibe-accent/30 text-white shadow-[0_0_10px_rgba(99,102,241,0.2)]' 
-                                : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:text-slate-300'}
-                        `}
-                    >
-                        <span className={`${isActive ? 'text-vibe-glow' : 'opacity-50'}`}>
-                            {file.language === 'python' ? '🐍' : <IconFileCode size={14} />}
-                        </span>
-                        <span className="text-xs truncate flex-1 font-medium">{file.name}</span>
-                        {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse"></div>}
-                        <button 
-                            onClick={(e) => handleCloseTab(e, id)}
-                            className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/20 rounded-md ${isActive ? 'text-slate-300 hover:text-white' : ''}`}
-                        >
-                            <IconClose size={12} />
-                        </button>
-                    </div>
-                    )
-                })}
-            </div>
-
-            <div className="flex items-center gap-2 pl-2 border-l border-vibe-border">
-                <button 
-                    onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                >
-                    {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
-                    <span className="hidden sm:inline">Preview</span>
-                </button>
-                <button 
-                    onClick={() => runCode()}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
-                >
-                    <IconPlay size={14} />
-                    <span className="hidden sm:inline">Run</span>
-                </button>
-                <button 
-                    onClick={() => setIsAIOpen(!isAIOpen)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
-                >
-                    <IconSparkles size={14} />
-                    <span className="hidden sm:inline">AI Vibe</span>
-                </button>
-            </div>
-            </div>
+            <EditorTabs 
+               openFileIds={openFileIds}
+               activeFileId={activeFileId}
+               files={files}
+               setActiveFileId={setActiveFileId}
+               onCloseTab={handleCloseTab}
+               onClearSelection={() => setSelectedCode('')}
+               isPreviewOpen={isPreviewOpen}
+               setIsPreviewOpen={setIsPreviewOpen}
+               isAIOpen={isAIOpen}
+               setIsAIOpen={setIsAIOpen}
+               onRunCode={runCode}
+            />
 
             {/* Editor & Content */}
             <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl">

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { IconClose, IconSettings, IconZap, IconCpu, IconSparkles, IconTerminal } from './Icons';
 import { AIConfig, AIModelConfig, AIProvider } from '../types';
-import { getAIConfig, saveAIConfig } from '../services/geminiService';
+import { getAIConfig, saveAIConfig } from '../services/configService';
 
 interface SettingsModalProps {
   isOpen: boolean;
