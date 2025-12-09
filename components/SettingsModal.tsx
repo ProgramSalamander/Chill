@@ -1,5 +1,8 @@
+
 import React, { useEffect, useState } from 'react';
-import { IconClose, IconSettings, IconZap, IconCpu } from './Icons';
+import { IconClose, IconSettings, IconZap, IconCpu, IconSparkles, IconTerminal } from './Icons';
+import { AIConfig, AIModelConfig, AIProvider } from '../types';
+import { getAIConfig } from '../services/geminiService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,120 +11,158 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpdate }) => {
-  const [hasKey, setHasKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'completion'>('chat');
+  const [config, setConfig] = useState<AIConfig>(getAIConfig());
+  const [hasSystemKey, setHasSystemKey] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
+      setConfig(getAIConfig());
       checkKey();
     }
   }, [isOpen]);
 
   const checkKey = async () => {
     if (window.aistudio) {
-      try {
         const has = await window.aistudio.hasSelectedApiKey();
-        setHasKey(has);
-      } catch (e) {
-        console.error("Error checking key status:", e);
-      }
+        setHasSystemKey(has);
     }
   };
 
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      try {
-        await window.aistudio.openSelectKey();
-        // Assuming success if the promise resolves without error in the provided environment
-        setHasKey(true);
-        onKeyUpdate();
-      } catch (e) {
-        console.error("Error selecting key:", e);
-      }
-    }
+  const handleSave = () => {
+      localStorage.setItem('vibe_ai_config', JSON.stringify(config));
+      onKeyUpdate();
+      onClose();
+  };
+
+  const updateConfig = (section: 'chat' | 'completion', key: keyof AIModelConfig, value: string) => {
+      setConfig(prev => ({
+          ...prev,
+          [section]: {
+              ...prev[section],
+              [key]: value
+          }
+      }));
   };
 
   if (!isOpen) return null;
 
+  const renderConfigForm = (section: 'chat' | 'completion') => {
+      const modelConfig = config[section];
+      const isGemini = modelConfig.provider === 'gemini';
+
+      return (
+          <div className="space-y-4 animate-in fade-in duration-300">
+             {/* Provider Select */}
+             <div className="space-y-1.5">
+                 <label className="text-xs font-semibold text-slate-500 uppercase">Provider</label>
+                 <div className="grid grid-cols-2 gap-2">
+                     <button 
+                        onClick={() => updateConfig(section, 'provider', 'gemini')}
+                        className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-2 ${isGemini ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300' : 'bg-black/20 border-white/5 text-slate-500 hover:bg-white/5'}`}
+                     >
+                         <IconSparkles size={14} />
+                         Google Gemini
+                     </button>
+                     <button 
+                        onClick={() => updateConfig(section, 'provider', 'openai')}
+                        className={`py-2 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-2 ${!isGemini ? 'bg-green-500/20 border-green-500 text-green-300' : 'bg-black/20 border-white/5 text-slate-500 hover:bg-white/5'}`}
+                     >
+                         <IconTerminal size={14} />
+                         OpenAI / Compatible
+                     </button>
+                 </div>
+             </div>
+
+             {/* Fields */}
+             <div className="space-y-3">
+                 <div className="space-y-1.5">
+                     <label className="text-xs text-slate-400">Model ID</label>
+                     <input 
+                        type="text" 
+                        value={modelConfig.modelId}
+                        onChange={(e) => updateConfig(section, 'modelId', e.target.value)}
+                        placeholder={isGemini ? "gemini-2.5-flash" : "gpt-4o"}
+                        className="w-full bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-vibe-accent"
+                     />
+                 </div>
+                 
+                 {!isGemini && (
+                     <div className="space-y-1.5">
+                        <label className="text-xs text-slate-400">Base URL</label>
+                        <input 
+                            type="text" 
+                            value={modelConfig.baseUrl}
+                            onChange={(e) => updateConfig(section, 'baseUrl', e.target.value)}
+                            placeholder="https://api.openai.com/v1"
+                            className="w-full bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-vibe-accent"
+                        />
+                        <p className="text-[10px] text-slate-600">For LocalAI, Ollama, etc. use http://localhost:11434/v1</p>
+                    </div>
+                 )}
+
+                 <div className="space-y-1.5">
+                     <label className="text-xs text-slate-400">API Key</label>
+                     <input 
+                        type="password" 
+                        value={modelConfig.apiKey}
+                        onChange={(e) => updateConfig(section, 'apiKey', e.target.value)}
+                        placeholder={isGemini ? (hasSystemKey ? "Using System Key (Optional Override)" : "Required") : "sk-..."}
+                        className="w-full bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-vibe-accent"
+                     />
+                 </div>
+             </div>
+          </div>
+      );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-[480px] bg-[#0f0f16] border border-indigo-500/20 rounded-2xl shadow-[0_0_50px_rgba(99,102,241,0.15)] overflow-hidden transform transition-all">
+      <div className="w-[500px] bg-[#0f0f16] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-5 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-900/20 to-transparent">
+        <div className="p-5 border-b border-white/5 flex justify-between items-center bg-white/5">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
                <IconSettings size={18} className="text-indigo-400" />
             </div>
-            <h2 className="text-lg font-semibold text-white tracking-tight">Configuration</h2>
+            <h2 className="text-lg font-semibold text-white tracking-tight">AI Settings</h2>
           </div>
-          <button 
-            onClick={onClose} 
-            className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-md"
-          >
-            <IconClose size={18} />
-          </button>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1"><IconClose size={18} /></button>
         </div>
         
-        <div className="p-6 space-y-6">
-          {/* API Key Section */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-              <IconCpu size={12} />
-              AI Model Access
-            </h3>
-            
-            <div className="p-1 rounded-xl bg-black/20 border border-white/5">
-              <div className="bg-[#13131f] rounded-lg p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-slate-200">Gemini API Key</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {hasKey 
-                        ? 'Connected with custom API key' 
-                        : 'Using default system key'}
-                    </div>
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-md text-[10px] font-semibold border ${
-                    hasKey 
-                      ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' 
-                      : 'bg-slate-800 border-white/5 text-slate-400'
-                  }`}>
-                    {hasKey ? 'CUSTOM KEY' : 'DEFAULT'}
-                  </div>
-                </div>
+        {/* Tabs */}
+        <div className="flex border-b border-white/5">
+             <button 
+                onClick={() => setActiveTab('chat')}
+                className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'chat' ? 'border-vibe-accent text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
+             >
+                 Chat & Agent
+             </button>
+             <button 
+                onClick={() => setActiveTab('completion')}
+                className={`flex-1 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'completion' ? 'border-vibe-accent text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}
+             >
+                 Inline Completion
+             </button>
+        </div>
 
-                <button 
-                  onClick={handleSelectKey}
-                  className="group relative w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-indigo-600/20 overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                  <IconZap size={16} className={hasKey ? "fill-current" : ""} />
-                  {hasKey ? 'Update API Key' : 'Select API Key'}
-                </button>
-              </div>
-            </div>
-
-            <p className="text-[10px] text-slate-500 text-center leading-relaxed max-w-[90%] mx-auto">
-              To verify and control your usage, select a project with a valid API key.
-              <br />
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
-              >
-                View Billing Documentation
-              </a>
-            </p>
-          </div>
+        <div className="p-6 overflow-y-auto custom-scrollbar">
+            {renderConfigForm(activeTab)}
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end">
+        <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">
           <button 
             onClick={onClose} 
-            className="px-5 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/5"
+            className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
           >
-            Done
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave} 
+            className="px-6 py-2 rounded-lg text-sm font-medium bg-vibe-accent hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-all"
+          >
+            Save Changes
           </button>
         </div>
       </div>

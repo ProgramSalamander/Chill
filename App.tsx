@@ -37,8 +37,7 @@ import ContextBar from './components/ContextBar';
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { gitService, GitStatus } from './services/gitService';
-import { File, Message, MessageRole, TerminalLine, Commit, Diagnostic } from './types';
-import { Chat, Content } from '@google/genai';
+import { File, Message, MessageRole, TerminalLine, Commit, Diagnostic, AISession } from './types';
 
 // Helper to infer language from extension
 const getLanguage = (filename: string) => {
@@ -182,7 +181,7 @@ function App() {
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const chatSessionRef = useRef<Chat | null>(null);
+  const chatSessionRef = useRef<AISession | null>(null);
   const messagesRef = useRef(messages);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCursorPosRef = useRef(0);
@@ -217,12 +216,9 @@ function App() {
 
   const initChat = useCallback(() => {
     try {
-      const history: Content[] = messagesRef.current
-        .filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL)
-        .map(m => ({
-          role: m.role as 'user' | 'model',
-          parts: [{ text: m.text }]
-        }));
+      // Filter only user/model messages for history
+      const history = messagesRef.current
+        .filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
 
       chatSessionRef.current = createChatSession(SYSTEM_INSTRUCTION, history);
       addTerminalLine('System initialized. VibeCode AI connected.', 'info');
@@ -940,6 +936,7 @@ ${text}
         prompt = `[Current Context: File "${activeFile.name}" (${activeFile.language})]\n\n${activeFile.content}\n\nUser Query: ${text}`;
       }
 
+      // Updated to use the unified method
       const stream = await sendMessageStream(chatSessionRef.current, prompt);
       
       const responseId = (Date.now() + 1).toString();
@@ -966,12 +963,13 @@ ${text}
         msg.id === responseId ? { ...msg, isStreaming: false } : msg
       ));
 
-    } catch (error) {
+    } catch (error: any) {
+      console.error(error);
       addTerminalLine('Error communicating with AI service.', 'error');
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: MessageRole.SYSTEM,
-        text: "Error: Could not connect to AI. Please check your API key in Settings.",
+        text: `Error: ${error.message || 'Could not connect to AI'}. Check Settings.`,
         timestamp: Date.now()
       }]);
     } finally {

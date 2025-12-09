@@ -1,5 +1,4 @@
 
-
 export interface File {
   id: string;
   name: string;
@@ -82,6 +81,46 @@ export interface AgentStep {
   toolName?: string;
   toolArgs?: any;
   timestamp: number;
+}
+
+// --- AI Provider Types ---
+
+export type AIProvider = 'gemini' | 'openai';
+
+export interface AIModelConfig {
+  provider: AIProvider;
+  modelId: string;
+  baseUrl: string; // e.g. https://api.openai.com/v1 or http://localhost:11434/v1
+  apiKey: string;
+}
+
+export interface AIConfig {
+  chat: AIModelConfig;
+  completion: AIModelConfig;
+}
+
+// Unified Session Interfaces
+
+export interface AIToolCall {
+  id: string;
+  name: string;
+  args: any;
+}
+
+export interface AIToolResponse {
+  id: string; // Call ID for OpenAI, Name for Gemini (handled by adapter)
+  name: string;
+  result: any;
+}
+
+export interface AIResponse {
+  text: string;
+  toolCalls?: AIToolCall[];
+}
+
+export interface AISession {
+  sendMessage: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AIResponse>;
+  sendMessageStream: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AsyncIterable<{ text: string }>>;
 }
 
 declare global {

@@ -1,9 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, MessageRole, File, AgentStep } from '../types';
-import { IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, IconInsert, IconSearch, IconFolderOpen, IconFileCode, IconWand, IconTerminal, IconBug } from './Icons';
-import { AGENT_TOOLS, createChatSession } from '../services/geminiService';
-import { Chat } from '@google/genai';
+import { Message, MessageRole, File, AgentStep, AISession, AIToolCall } from '../types';
+import { IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, IconInsert, IconWand, IconTerminal, IconBug } from './Icons';
+import { createChatSession } from '../services/geminiService';
 
 interface AIPanelProps {
   isOpen: boolean;
@@ -93,7 +92,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   // Agent State
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const [isAgentRunning, setIsAgentRunning] = useState(false);
-  const agentChatRef = useRef<Chat | null>(null);
+  const agentChatRef = useRef<AISession | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -125,7 +124,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
       }]);
 
       try {
-          // Initialize Agent Session
           const systemPrompt = `You are an autonomous coding agent called "Vibe Agent".
           Your goal is to complete the user's request by autonomously exploring the codebase, reading files, and writing code.
           
@@ -140,7 +138,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
           If you need to perform an action, use the available tools.
           `;
           
-          const chat = createChatSession(systemPrompt, [], AGENT_TOOLS);
+          // Pass messages=[] to start fresh session, tools=true
+          const chat = createChatSession(systemPrompt, [], true);
           agentChatRef.current = chat;
           
           let currentInput = goal;
@@ -152,8 +151,10 @@ const AIPanel: React.FC<AIPanelProps> = ({
               turns++;
               
               // Send message (Thinking/Calling Tool)
-              const response = await chat.sendMessage({ message: currentInput });
-              
+              // Note: Initial message has no tool responses
+              let response = await chat.sendMessage({ message: currentInput });
+              currentInput = ""; // Clear input for next loops (unless we get tools)
+
               // Check for text response (Thinking)
               if (response.text) {
                   setAgentSteps(prev => [...prev, {
@@ -164,15 +165,13 @@ const AIPanel: React.FC<AIPanelProps> = ({
                   }]);
               }
 
-              // Check for Function Calls
-              const calls = response.candidates?.[0]?.content?.parts?.filter(p => p.functionCall);
+              // Check for Function Calls (Unified Interface)
+              const calls = response.toolCalls;
               
               if (calls && calls.length > 0) {
-                  const functionResponses: any[] = [];
+                  const toolResponses: any[] = [];
                   
-                  for (const part of calls) {
-                      const call = part.functionCall!;
-                      
+                  for (const call of calls) {
                       setAgentSteps(prev => [...prev, {
                           id: Math.random().toString(),
                           type: 'call',
@@ -183,7 +182,12 @@ const AIPanel: React.FC<AIPanelProps> = ({
                       }]);
 
                       // Execute Action via App Handler
-                      const result = await onAgentAction(call.name, call.args);
+                      let result = "Error";
+                      try {
+                          result = await onAgentAction(call.name, call.args);
+                      } catch (e: any) {
+                          result = `Error executing ${call.name}: ${e.message}`;
+                      }
                       
                       setAgentSteps(prev => [...prev, {
                         id: Math.random().toString(),
@@ -192,91 +196,92 @@ const AIPanel: React.FC<AIPanelProps> = ({
                         timestamp: Date.now()
                       }]);
 
-                      functionResponses.push({
-                          id: call.name, // The SDK might handle IDs differently, but for chat turn it expects a specific structure
+                      toolResponses.push({
+                          id: call.id, 
                           name: call.name,
-                          response: { result: result } 
+                          result: result
                       });
                   }
 
-                  // Send Tool Response back to model
-                  const toolParts = calls.map((call, idx) => ({
-                      functionResponse: {
-                          name: call.functionCall!.name,
-                          response: { result: functionResponses[idx].response.result }
-                      }
-                  }));
-
-                  // Corrected: sendMessage takes an object with message property
-                  const toolResponse = await chat.sendMessage({ message: toolParts });
+                  // Send Tool Responses back to model
+                  // We send a "dummy" message property with the tool responses as per our interface
+                  // The underlying service handles how to attach this to the provider
+                  response = await chat.sendMessage({ message: "", toolResponses: toolResponses });
                   
-                  // Process the response to the tool output (Model will think again or finish)
-                  if (toolResponse.text) {
+                  // Process the response to the tool output
+                  if (response.text) {
                       setAgentSteps(prev => [...prev, {
                           id: Math.random().toString(),
                           type: 'thought',
-                          text: toolResponse.text,
+                          text: response.text,
                           timestamp: Date.now()
                       }]);
                   }
                   
-                  if (!toolResponse.candidates?.[0]?.content?.parts?.some(p => p.functionCall)) {
-                      keepGoing = false; // Agent is done for now
+                  // If no more tool calls, we might be done or pausing
+                  if (!response.toolCalls || response.toolCalls.length === 0) {
+                      keepGoing = false;
                       setAgentSteps(prev => [...prev, {
                         id: Math.random().toString(),
                         type: 'response',
-                        text: "Task completed (or pausing for feedback).",
+                        text: "Task completed.",
                         timestamp: Date.now()
                       }]);
                   } else {
-                      let lastResponse = toolResponse;
-                      
-                      while (lastResponse.candidates?.[0]?.content?.parts?.some(p => p.functionCall) && turns < MAX_TURNS) {
-                           turns++;
-                           const newCalls = lastResponse.candidates?.[0]?.content?.parts?.filter(p => p.functionCall) || [];
-                           const newResponses: any[] = [];
-
-                           for (const part of newCalls) {
-                               const call = part.functionCall!;
-                               setAgentSteps(prev => [...prev, {
-                                    id: Math.random().toString(),
-                                    type: 'call',
-                                    text: `Running ${call.name}...`,
-                                    toolName: call.name,
-                                    toolArgs: call.args,
-                                    timestamp: Date.now()
-                                }]);
-                                const res = await onAgentAction(call.name, call.args);
-                                setAgentSteps(prev => [...prev, {
-                                    id: Math.random().toString(),
-                                    type: 'result',
-                                    text: res.length > 200 ? res.slice(0, 200) + '...' : res,
-                                    timestamp: Date.now()
-                                }]);
-                                newResponses.push({ result: res });
-                           }
-
-                           const newToolParts = newCalls.map((call, idx) => ({
-                                functionResponse: {
-                                    name: call.functionCall!.name,
-                                    response: newResponses[idx]
-                                }
-                            }));
-                            
-                           // Corrected: sendMessage takes an object with message property
-                           lastResponse = await chat.sendMessage({ message: newToolParts });
+                       // Loop continues automatically as turns increment and we have new calls
+                       // We need to loop inside here if we want to handle chaining recursively, 
+                       // but the main while loop handles sequential turns fine if we just continue.
+                       // However, our main loop relies on `currentInput`.
+                       // Actually, since we updated `response` inside the block, the next iteration needs to handle the *next* set of calls.
+                       // But the main `while` sends `sendMessage`.
+                       // We need to structure this so `sendMessage` is called once per loop iteration.
+                       
+                       // Refactor: The `response` obtained inside the tool handling block IS the result of the next turn.
+                       // We need to feed that back into the loop check.
+                       // For simplicity in this structure: we just let the loop continue? 
+                       // No, `sendMessage` was already called. 
+                       // If we continue the loop, we call `sendMessage` again with empty input?
+                       // Yes, that works for some providers (continue generation), but conceptually we just finished a turn.
+                       // The `response` variable inside the `if(calls)` block contains the NEXT turn's output (which might contain more tools).
+                       
+                       // Let's handle generic recursion inside the loop? 
+                       // Or just set flags.
+                       
+                       if (response.toolCalls && response.toolCalls.length > 0) {
+                           // We have more tools to run immediately.
+                           // We can't easily jump back to top of while loop with the `response` already in hand.
+                           // Simplest hack: Handle chain inside the tool block.
                            
-                           if (lastResponse.text) {
-                                setAgentSteps(prev => [...prev, {
-                                    id: Math.random().toString(),
-                                    type: 'thought',
-                                    text: lastResponse.text,
-                                    timestamp: Date.now()
-                                }]);
+                           // Actually, let's just break the loop if we are done, otherwise loop.
+                           // But we need to update `response` for the check at the start? 
+                           // No, the while loop calls `sendMessage`.
+                           // We already called `sendMessage` with the tool outputs.
+                           // So we are effectively one turn ahead.
+                           
+                           // FIX: To keep it robust, we should restructure the loop.
+                           // But to minimize changes: we handled one level of chaining. 
+                           // If the model wants to call tools AGAIN immediately, we should support it.
+                           
+                           // Let's iterate until no tools inside the block.
+                           let activeResponse = response;
+                           while (activeResponse.toolCalls && activeResponse.toolCalls.length > 0 && turns < MAX_TURNS) {
+                               turns++;
+                               const nextResponses: any[] = [];
+                               for (const call of activeResponse.toolCalls) {
+                                   setAgentSteps(prev => [...prev, { id: Math.random().toString(), type: 'call', text: `Running ${call.name}...`, toolName: call.name, toolArgs: call.args, timestamp: Date.now() }]);
+                                   const res = await onAgentAction(call.name, call.args);
+                                   setAgentSteps(prev => [...prev, { id: Math.random().toString(), type: 'result', text: res.length > 100 ? res.slice(0,100)+'...' : res, timestamp: Date.now() }]);
+                                   nextResponses.push({ id: call.id, name: call.name, result: res });
+                               }
+                               activeResponse = await chat.sendMessage({ message: "", toolResponses: nextResponses });
+                               if (activeResponse.text) {
+                                   setAgentSteps(prev => [...prev, { id: Math.random().toString(), type: 'thought', text: activeResponse.text, timestamp: Date.now() }]);
+                               }
                            }
-                      }
-                      
-                      keepGoing = false;
+                           keepGoing = false; // Finished chaining
+                       } else {
+                           keepGoing = false; // Done
+                       }
                   }
               } else {
                   keepGoing = false;
@@ -309,13 +314,11 @@ const AIPanel: React.FC<AIPanelProps> = ({
     }
   };
 
-  // Helper to detect code blocks in markdown
   const renderMessageContent = (text: string, role: MessageRole) => {
     if (role === MessageRole.USER) {
       return <p className="whitespace-pre-wrap leading-relaxed">{text}</p>;
     }
 
-    // Split by code blocks
     const parts = text.split(/(```[\s\S]*?```)/g);
     
     return (
@@ -406,8 +409,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
                   <div className="absolute inset-0 bg-vibe-accent blur-md opacity-20"></div>
               </div>
               <div>
-                  <h3 className="font-bold tracking-wide text-white text-sm">{mode === 'chat' ? 'Gemini Vibe' : 'Vibe Agent'}</h3>
-                  <p className="text-[10px] text-vibe-accent">{mode === 'chat' ? 'AI Architect' : 'Autonomous Mode'}</p>
+                  <h3 className="font-bold tracking-wide text-white text-sm">{mode === 'chat' ? 'Vibe Chat' : 'Vibe Agent'}</h3>
+                  <p className="text-[10px] text-vibe-accent">{mode === 'chat' ? 'AI Assistant' : 'Autonomous Mode'}</p>
               </div>
             </div>
             <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-lg">
@@ -488,7 +491,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
                     {renderMessageContent(msg.text, msg.role)}
                     </div>
                     <span className="text-[10px] text-slate-600 mt-1.5 px-1 font-mono">
-                    {msg.role === 'user' ? 'You' : 'Gemini 2.5'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                    {msg.role === 'user' ? 'You' : 'AI'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                     </span>
                 </div>
                 ))}
