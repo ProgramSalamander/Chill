@@ -63,6 +63,17 @@ export interface Diagnostic {
 
 export type ThemeMode = 'neon' | 'calm' | 'matrix';
 
+export type AgentStepType = 'user' | 'thought' | 'call' | 'result' | 'response' | 'error';
+
+export interface AgentStep {
+  id: string;
+  type: AgentStepType;
+  text: string;
+  toolName?: string;
+  toolArgs?: any;
+  timestamp: number;
+}
+
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;

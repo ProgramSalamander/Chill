@@ -1,7 +1,9 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, MessageRole, File } from '../types';
-import { IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, IconInsert, IconSearch, IconFolderOpen, IconFileCode } from './Icons';
-import { GenerateContentResponse } from "@google/genai";
+import { Message, MessageRole, File, AgentStep } from '../types';
+import { IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, IconInsert, IconSearch, IconFolderOpen, IconFileCode, IconWand, IconTerminal, IconBug } from './Icons';
+import { AGENT_TOOLS, createChatSession } from '../services/geminiService';
+import { Chat } from '@google/genai';
 
 interface AIPanelProps {
   isOpen: boolean;
@@ -14,6 +16,8 @@ interface AIPanelProps {
   onInsertCode: (code: string) => void;
   contextScope: 'project' | 'file';
   setContextScope: (scope: 'project' | 'file') => void;
+  files: File[];
+  onAgentAction: (action: string, args: any) => Promise<string>;
 }
 
 const CodeBlock: React.FC<{ code: string; language: string; onApply: (c: string) => void; onInsert: (c: string) => void }> = ({ 
@@ -78,21 +82,224 @@ const AIPanel: React.FC<AIPanelProps> = ({
   onApplyCode,
   onInsertCode,
   contextScope,
-  setContextScope
+  setContextScope,
+  files,
+  onAgentAction
 }) => {
+  const [mode, setMode] = useState<'chat' | 'agent'>('chat');
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Agent State
+  const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
+  const [isAgentRunning, setIsAgentRunning] = useState(false);
+  const agentChatRef = useRef<Chat | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
-  }, [messages, isOpen]);
+  }, [messages, agentSteps, isOpen, mode]);
 
-  const handleSend = () => {
-    if (!input.trim() || isGenerating) return;
-    onSendMessage(input);
-    setInput('');
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    
+    if (mode === 'chat') {
+        if (isGenerating) return;
+        onSendMessage(input);
+        setInput('');
+    } else {
+        if (isAgentRunning) return;
+        handleRunAgent(input);
+        setInput('');
+    }
+  };
+
+  const handleRunAgent = async (goal: string) => {
+      setIsAgentRunning(true);
+      setAgentSteps(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'user',
+          text: goal,
+          timestamp: Date.now()
+      }]);
+
+      try {
+          // Initialize Agent Session
+          const systemPrompt = `You are an autonomous coding agent called "Vibe Agent".
+          Your goal is to complete the user's request by autonomously exploring the codebase, reading files, and writing code.
+          
+          Guidelines:
+          1. Start by exploring the codebase using 'listFiles' to understand the structure.
+          2. Read relevant files using 'readFile'.
+          3. Plan your changes.
+          4. Execute changes using 'writeFile'.
+          5. Verify your work (conceptually).
+          
+          Always keep the user informed of what you are doing. If you need to "think", just output text.
+          If you need to perform an action, use the available tools.
+          `;
+          
+          const chat = createChatSession(systemPrompt, [], AGENT_TOOLS);
+          agentChatRef.current = chat;
+          
+          let currentInput = goal;
+          let keepGoing = true;
+          let turns = 0;
+          const MAX_TURNS = 15;
+
+          while (keepGoing && turns < MAX_TURNS) {
+              turns++;
+              
+              // Send message (Thinking/Calling Tool)
+              const response = await chat.sendMessage({ message: currentInput });
+              
+              // Check for text response (Thinking)
+              if (response.text) {
+                  setAgentSteps(prev => [...prev, {
+                      id: Math.random().toString(),
+                      type: 'thought',
+                      text: response.text,
+                      timestamp: Date.now()
+                  }]);
+              }
+
+              // Check for Function Calls
+              const calls = response.candidates?.[0]?.content?.parts?.filter(p => p.functionCall);
+              
+              if (calls && calls.length > 0) {
+                  const functionResponses: any[] = [];
+                  
+                  for (const part of calls) {
+                      const call = part.functionCall!;
+                      
+                      setAgentSteps(prev => [...prev, {
+                          id: Math.random().toString(),
+                          type: 'call',
+                          text: `Running ${call.name}...`,
+                          toolName: call.name,
+                          toolArgs: call.args,
+                          timestamp: Date.now()
+                      }]);
+
+                      // Execute Action via App Handler
+                      const result = await onAgentAction(call.name, call.args);
+                      
+                      setAgentSteps(prev => [...prev, {
+                        id: Math.random().toString(),
+                        type: 'result',
+                        text: result.length > 200 ? result.slice(0, 200) + '...' : result,
+                        timestamp: Date.now()
+                      }]);
+
+                      functionResponses.push({
+                          id: call.name, // The SDK might handle IDs differently, but for chat turn it expects a specific structure
+                          name: call.name,
+                          response: { result: result } 
+                      });
+                  }
+
+                  // Send Tool Response back to model
+                  const toolParts = calls.map((call, idx) => ({
+                      functionResponse: {
+                          name: call.functionCall!.name,
+                          response: { result: functionResponses[idx].response.result }
+                      }
+                  }));
+
+                  // Corrected: sendMessage takes an object with message property
+                  const toolResponse = await chat.sendMessage({ message: toolParts });
+                  
+                  // Process the response to the tool output (Model will think again or finish)
+                  if (toolResponse.text) {
+                      setAgentSteps(prev => [...prev, {
+                          id: Math.random().toString(),
+                          type: 'thought',
+                          text: toolResponse.text,
+                          timestamp: Date.now()
+                      }]);
+                  }
+                  
+                  if (!toolResponse.candidates?.[0]?.content?.parts?.some(p => p.functionCall)) {
+                      keepGoing = false; // Agent is done for now
+                      setAgentSteps(prev => [...prev, {
+                        id: Math.random().toString(),
+                        type: 'response',
+                        text: "Task completed (or pausing for feedback).",
+                        timestamp: Date.now()
+                      }]);
+                  } else {
+                      let lastResponse = toolResponse;
+                      
+                      while (lastResponse.candidates?.[0]?.content?.parts?.some(p => p.functionCall) && turns < MAX_TURNS) {
+                           turns++;
+                           const newCalls = lastResponse.candidates?.[0]?.content?.parts?.filter(p => p.functionCall) || [];
+                           const newResponses: any[] = [];
+
+                           for (const part of newCalls) {
+                               const call = part.functionCall!;
+                               setAgentSteps(prev => [...prev, {
+                                    id: Math.random().toString(),
+                                    type: 'call',
+                                    text: `Running ${call.name}...`,
+                                    toolName: call.name,
+                                    toolArgs: call.args,
+                                    timestamp: Date.now()
+                                }]);
+                                const res = await onAgentAction(call.name, call.args);
+                                setAgentSteps(prev => [...prev, {
+                                    id: Math.random().toString(),
+                                    type: 'result',
+                                    text: res.length > 200 ? res.slice(0, 200) + '...' : res,
+                                    timestamp: Date.now()
+                                }]);
+                                newResponses.push({ result: res });
+                           }
+
+                           const newToolParts = newCalls.map((call, idx) => ({
+                                functionResponse: {
+                                    name: call.functionCall!.name,
+                                    response: newResponses[idx]
+                                }
+                            }));
+                            
+                           // Corrected: sendMessage takes an object with message property
+                           lastResponse = await chat.sendMessage({ message: newToolParts });
+                           
+                           if (lastResponse.text) {
+                                setAgentSteps(prev => [...prev, {
+                                    id: Math.random().toString(),
+                                    type: 'thought',
+                                    text: lastResponse.text,
+                                    timestamp: Date.now()
+                                }]);
+                           }
+                      }
+                      
+                      keepGoing = false;
+                  }
+              } else {
+                  keepGoing = false;
+                  setAgentSteps(prev => [...prev, {
+                      id: Math.random().toString(),
+                      type: 'response',
+                      text: "Done.",
+                      timestamp: Date.now()
+                  }]);
+              }
+          }
+
+      } catch (e: any) {
+          console.error(e);
+          setAgentSteps(prev => [...prev, {
+              id: Date.now().toString(),
+              type: 'error',
+              text: `Error: ${e.message}`,
+              timestamp: Date.now()
+          }]);
+      } finally {
+          setIsAgentRunning(false);
+      }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -134,6 +341,54 @@ const AIPanel: React.FC<AIPanelProps> = ({
     );
   };
 
+  const renderAgentStep = (step: AgentStep) => {
+      switch(step.type) {
+          case 'user':
+              return (
+                  <div className="bg-vibe-accent/20 border border-vibe-accent/30 rounded-lg p-3 text-white text-sm">
+                      <div className="text-[10px] text-vibe-glow font-bold uppercase mb-1">Goal</div>
+                      {step.text}
+                  </div>
+              );
+          case 'thought':
+              return (
+                  <div className="pl-3 border-l-2 border-slate-700 text-slate-300 text-sm py-1">
+                      {step.text}
+                  </div>
+              );
+          case 'call':
+              return (
+                  <div className="flex items-center gap-2 text-yellow-400/80 text-xs font-mono py-1 px-3 bg-yellow-400/5 rounded border border-yellow-400/10">
+                      <IconWand size={12} />
+                      <span className="font-bold">{step.toolName}</span>
+                      <span className="opacity-50 truncate max-w-[200px]">{JSON.stringify(step.toolArgs)}</span>
+                  </div>
+              );
+          case 'result':
+              return (
+                  <div className="flex items-center gap-2 text-green-400/80 text-xs font-mono py-1 px-3 bg-green-400/5 rounded border border-green-400/10">
+                      <IconCheck size={12} />
+                      <span className="truncate opacity-70">Result received</span>
+                  </div>
+              );
+          case 'error':
+               return (
+                  <div className="text-red-400 text-xs bg-red-400/10 p-2 rounded border border-red-400/20">
+                      {step.text}
+                  </div>
+               );
+          case 'response':
+               return (
+                   <div className="text-vibe-glow text-sm font-medium py-2 flex items-center gap-2">
+                       <IconCheck size={16} />
+                       {step.text}
+                   </div>
+               );
+          default:
+              return null;
+      }
+  };
+
   return (
     <div 
       className={`
@@ -147,12 +402,12 @@ const AIPanel: React.FC<AIPanelProps> = ({
           <div className="flex items-center justify-between p-4 pb-2">
             <div className="flex items-center gap-2.5">
               <div className="relative">
-                  <IconSparkles size={20} className="text-vibe-glow animate-pulse-slow" />
+                  {isAgentRunning ? <IconCpu size={20} className="text-orange-400 animate-spin-slow" /> : <IconSparkles size={20} className="text-vibe-glow animate-pulse-slow" />}
                   <div className="absolute inset-0 bg-vibe-accent blur-md opacity-20"></div>
               </div>
               <div>
-                  <h3 className="font-bold tracking-wide text-white text-sm">Gemini Vibe</h3>
-                  <p className="text-[10px] text-vibe-accent">AI Architect</p>
+                  <h3 className="font-bold tracking-wide text-white text-sm">{mode === 'chat' ? 'Gemini Vibe' : 'Vibe Agent'}</h3>
+                  <p className="text-[10px] text-vibe-accent">{mode === 'chat' ? 'AI Architect' : 'Autonomous Mode'}</p>
               </div>
             </div>
             <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-lg">
@@ -160,96 +415,139 @@ const AIPanel: React.FC<AIPanelProps> = ({
             </button>
           </div>
 
-          {/* Context Scope Toggle */}
+          {/* Mode Switcher */}
           <div className="px-4 pb-4 pt-1 flex items-center justify-between">
               <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 w-full">
                   <button 
-                    onClick={() => setContextScope('file')}
+                    onClick={() => setMode('chat')}
                     className={`
                       flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
-                      ${contextScope === 'file' ? 'bg-white/10 text-white shadow-sm border border-white/5' : 'text-slate-500 hover:text-slate-300'}
+                      ${mode === 'chat' ? 'bg-white/10 text-white shadow-sm border border-white/5' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
-                    <IconFileCode size={12} />
-                    Current File
+                    <IconSparkles size={12} />
+                    Chat
                   </button>
                   <button 
-                    onClick={() => setContextScope('project')}
+                    onClick={() => setMode('agent')}
                     className={`
                        flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
-                      ${contextScope === 'project' ? 'bg-vibe-accent/20 text-vibe-glow shadow-sm border border-vibe-accent/20' : 'text-slate-500 hover:text-slate-300'}
+                      ${mode === 'agent' ? 'bg-orange-500/20 text-orange-400 shadow-sm border border-orange-500/20' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
-                    <IconFolderOpen size={12} />
-                    Full Project
+                    <IconBug size={12} />
+                    Agent
                   </button>
               </div>
           </div>
+          
+          {mode === 'chat' && (
+             <div className="px-4 pb-2 flex justify-center">
+                  <div className="flex gap-2 text-[10px] text-slate-500">
+                      <button onClick={() => setContextScope('file')} className={`hover:text-white transition-colors ${contextScope === 'file' ? 'text-vibe-glow underline' : ''}`}>Current File</button>
+                      <span>|</span>
+                      <button onClick={() => setContextScope('project')} className={`hover:text-white transition-colors ${contextScope === 'project' ? 'text-vibe-glow underline' : ''}`}>Full Project</button>
+                  </div>
+             </div>
+          )}
       </div>
 
-      {/* Messages */}
+      {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/20">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-6 opacity-60">
-            <div className="relative group cursor-pointer">
-                <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-20 group-hover:opacity-40 transition-opacity rounded-full"></div>
-                <div className="relative bg-black/50 p-6 rounded-full border border-vibe-border shadow-2xl">
-                    <IconSparkles size={40} className="text-vibe-glow" />
+        
+        {/* Chat Mode View */}
+        {mode === 'chat' && (
+            <>
+                {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-6 opacity-60">
+                    <div className="relative group cursor-pointer">
+                        <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-20 group-hover:opacity-40 transition-opacity rounded-full"></div>
+                        <div className="relative bg-black/50 p-6 rounded-full border border-vibe-border shadow-2xl">
+                            <IconSparkles size={40} className="text-vibe-glow" />
+                        </div>
+                    </div>
+                    <div className="text-center space-y-2">
+                        <p className="text-sm font-semibold text-white">How can I help you code today?</p>
+                        <p className="text-xs max-w-[240px] mx-auto leading-relaxed">
+                            {contextScope === 'project' 
+                                ? 'I have full visibility of your project structure. Ask me anything.' 
+                                : 'I am focused on the active file context.'}
+                        </p>
+                    </div>
                 </div>
-            </div>
-            <div className="text-center space-y-2">
-                <p className="text-sm font-semibold text-white">How can I help you code today?</p>
-                <p className="text-xs max-w-[240px] mx-auto leading-relaxed">
-                    {contextScope === 'project' 
-                        ? 'I have full visibility of your project structure. Ask me anything.' 
-                        : 'I am focused on the active file context.'}
-                </p>
-            </div>
-          </div>
+                )}
+                {messages.map((msg) => (
+                <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
+                    <div 
+                    className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-sm border ${
+                        msg.role === MessageRole.USER 
+                        ? 'bg-vibe-accent/90 text-white rounded-br-sm border-indigo-400/30' 
+                        : 'bg-[#181824]/80 text-slate-200 rounded-bl-sm border-white/5'
+                    }`}
+                    >
+                    {renderMessageContent(msg.text, msg.role)}
+                    </div>
+                    <span className="text-[10px] text-slate-600 mt-1.5 px-1 font-mono">
+                    {msg.role === 'user' ? 'You' : 'Gemini 2.5'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                    </span>
+                </div>
+                ))}
+                {isGenerating && (
+                <div className="flex items-center gap-3 text-vibe-glow text-xs px-2 animate-pulse">
+                    <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce delay-75"></div>
+                    <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce delay-150"></div>
+                    <span className="font-mono ml-2 opacity-70">Thinking...</span>
+                </div>
+                )}
+            </>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
-            <div 
-              className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-sm border ${
-                msg.role === MessageRole.USER 
-                  ? 'bg-vibe-accent/90 text-white rounded-br-sm border-indigo-400/30' 
-                  : 'bg-[#181824]/80 text-slate-200 rounded-bl-sm border-white/5'
-              }`}
-            >
-              {renderMessageContent(msg.text, msg.role)}
+
+        {/* Agent Mode View */}
+        {mode === 'agent' && (
+            <div className="space-y-4">
+                 {agentSteps.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-slate-500 space-y-4 opacity-60">
+                        <IconTerminal size={32} className="text-orange-400" />
+                        <div className="text-center">
+                            <p className="text-sm font-semibold text-white">Autonomous Agent</p>
+                            <p className="text-xs mt-2 max-w-[250px]">Give me a goal. I will explore, plan, and edit files to complete it.</p>
+                        </div>
+                    </div>
+                 )}
+                 {agentSteps.map(step => (
+                     <div key={step.id} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                         {renderAgentStep(step)}
+                     </div>
+                 ))}
+                 {isAgentRunning && (
+                    <div className="flex items-center gap-2 text-orange-400 text-xs px-2 pt-2">
+                        <div className="w-2 h-2 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="font-mono">Agent is working...</span>
+                    </div>
+                 )}
             </div>
-            <span className="text-[10px] text-slate-600 mt-1.5 px-1 font-mono">
-               {msg.role === 'user' ? 'You' : 'Gemini 2.5'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-            </span>
-          </div>
-        ))}
-        {isGenerating && (
-          <div className="flex items-center gap-3 text-vibe-glow text-xs px-2 animate-pulse">
-            <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce"></div>
-            <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce delay-75"></div>
-            <div className="w-2 h-2 bg-vibe-glow rounded-full animate-bounce delay-150"></div>
-            <span className="font-mono ml-2 opacity-70">Thinking...</span>
-          </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
       <div className="p-4 bg-black/20 border-t border-white/5 backdrop-blur-md">
         <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-vibe-accent to-purple-600 rounded-xl opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200 blur"></div>
+          <div className={`absolute -inset-0.5 bg-gradient-to-r rounded-xl opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200 blur ${mode === 'agent' ? 'from-orange-500 to-red-500' : 'from-vibe-accent to-purple-600'}`}></div>
           <div className="relative">
             <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={contextScope === 'project' ? "Ask about any file..." : "Ask about this code..."}
+                placeholder={mode === 'agent' ? "Describe a complex task (e.g., 'Refactor all CSS to use Tailwind')..." : (contextScope === 'project' ? "Ask about any file..." : "Ask about this code...")}
                 className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-sm text-white focus:outline-none placeholder-slate-600 transition-all resize-none h-14 focus:h-24 shadow-inner"
             />
             <button 
                 onClick={handleSend}
-                disabled={!input.trim() || isGenerating}
-                className="absolute right-2 bottom-2 p-2 bg-vibe-accent hover:bg-indigo-400 disabled:bg-slate-800 disabled:text-slate-600 rounded-lg text-white transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)]"
+                disabled={!input.trim() || isGenerating || isAgentRunning}
+                className={`absolute right-2 bottom-2 p-2 rounded-lg text-white transition-all shadow-lg hover:shadow-xl disabled:bg-slate-800 disabled:text-slate-600 ${mode === 'agent' ? 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/30' : 'bg-vibe-accent hover:bg-indigo-400 shadow-indigo-500/30'}`}
             >
                 <IconZap size={18} fill={input.trim() ? "currentColor" : "none"} />
             </button>

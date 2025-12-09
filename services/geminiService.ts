@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Chat, Content, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Chat, Content, GenerateContentResponse, FunctionDeclaration, Type, Tool } from "@google/genai";
 import { Message, MessageRole } from '../types';
 
 // Helper to get a fresh client instance with the latest env key
@@ -7,14 +7,66 @@ const getAI = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 };
 
-export const createChatSession = (systemInstruction: string, history?: Content[]): Chat => {
+// Define Agent Tools
+export const AGENT_TOOLS: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "listFiles",
+        description: "List all files and folders in the project structure to understand the hierarchy.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+             root: { type: Type.STRING, description: "Optional root path to list from" }
+          },
+        }
+      },
+      {
+        name: "readFile",
+        description: "Read the content of a file.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            path: { type: Type.STRING, description: "The full path of the file to read (e.g., 'src/components/App.tsx')" }
+          },
+          required: ["path"]
+        }
+      },
+      {
+        name: "writeFile",
+        description: "Create or overwrite a file with new content.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            path: { type: Type.STRING, description: "The full path of the file" },
+            content: { type: Type.STRING, description: "The full content to write to the file" }
+          },
+          required: ["path", "content"]
+        }
+      },
+      {
+        name: "runCommand",
+        description: "Run a system command.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            command: { type: Type.STRING, description: "The shell command to execute" }
+          },
+          required: ["command"]
+        }
+      }
+    ]
+  }
+];
+
+export const createChatSession = (systemInstruction: string, history?: Content[], tools?: Tool[]): Chat => {
   return getAI().chats.create({
     model: 'gemini-2.5-flash',
     history: history,
     config: {
       systemInstruction,
       temperature: 0.7,
-      // Removed maxOutputTokens per guidelines to avoid conflicts
+      tools: tools
     },
   });
 };

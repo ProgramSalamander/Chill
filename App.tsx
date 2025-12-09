@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconMenu, 
@@ -189,6 +190,13 @@ function App() {
   const lastContentRef = useRef<string>('');
   const lastActiveFileIdForEffect = useRef<string | null>(null);
 
+  // We need refs to latest files for the Agent callbacks to work without stale closures
+  const filesRef = useRef(files);
+
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
   useEffect(() => {
     messagesRef.current = messages;
     localStorage.setItem('vibe_chat_history', JSON.stringify(messages));
@@ -233,6 +241,92 @@ function App() {
 
   const activeFile = files.find(f => f.id === activeFileId && f.type === 'file') || null;
 
+  // --- Helper to resolve paths ---
+  const resolveFileByPath = useCallback((path: string, currentFiles: File[]) => {
+      // Very basic resolution: matches partial name or exact name
+      // Ideally we reconstruct full paths, but for this demo, matching name is safer
+      const normalize = (p: string) => p.replace(/^\.\//, '').replace(/\//g, '');
+      
+      // Try exact name match first
+      const exact = currentFiles.find(f => f.name === path || f.name === path.split('/').pop());
+      if (exact) return exact;
+
+      return null;
+  }, []);
+
+  const getFilePath = useCallback((file: File, allFiles: File[]): string => {
+    let path = file.name;
+    let current = file;
+    let depth = 0;
+    while (current.parentId && depth < 10) { 
+        const parent = allFiles.find(f => f.id === current.parentId);
+        if (parent) {
+            path = `${parent.name}/${path}`;
+            current = parent;
+        } else {
+            break;
+        }
+        depth++;
+    }
+    return path;
+  }, []);
+
+  const handleAgentAction = useCallback(async (action: string, args: any): Promise<string> => {
+      const currentFiles = filesRef.current;
+      
+      switch (action) {
+          case 'listFiles': {
+             // Generate a tree string
+             const filePaths = currentFiles.map(f => {
+                 const type = f.type === 'folder' ? '[DIR]' : '[FILE]';
+                 const path = getFilePath(f, currentFiles);
+                 return `${type} ${path}`;
+             });
+             return filePaths.sort().join('\n');
+          }
+          
+          case 'readFile': {
+             const path = args.path;
+             if (!path) return "Error: path is required";
+             const file = resolveFileByPath(path, currentFiles);
+             if (file) {
+                 if (file.type === 'folder') return "Error: Path points to a folder, not a file.";
+                 return file.content;
+             }
+             return `Error: File not found at path ${path}`;
+          }
+
+          case 'writeFile': {
+             const { path, content } = args;
+             if (!path || content === undefined) return "Error: path and content are required";
+             
+             // Check if exists
+             const existing = resolveFileByPath(path, currentFiles);
+             if (existing) {
+                 // Update content
+                 handleFileChange(content, true, existing.id);
+                 return `Updated file: ${existing.name}`;
+             } else {
+                 // Create new
+                 // Simplified: Create in root or deduce folder. 
+                 // For now, creates in root if simple name.
+                 const name = path.split('/').pop() || 'untitled';
+                 handleCreateNode('file', null, name, content);
+                 return `Created new file: ${name}`;
+             }
+          }
+
+          case 'runCommand': {
+              const cmd = args.command;
+              addTerminalLine(`Agent Executing: ${cmd}`, 'command');
+              return `Command executed (simulation): ${cmd}\nExit Code: 0`;
+          }
+          
+          default:
+              return `Unknown tool: ${action}`;
+      }
+  }, [addTerminalLine, getFilePath, resolveFileByPath]); // Note: handleFileChange/handleCreateNode need to be accessible, let's move them or ensure they are stable
+
   // --- File System Access API ---
   const handleOpenFolder = async () => {
     try {
@@ -265,35 +359,18 @@ function App() {
   };
   // -----------------------------
 
-  const getFilePath = useCallback((file: File): string => {
-    let path = file.name;
-    let current = file;
-    let depth = 0;
-    while (current.parentId && depth < 10) { 
-        const parent = files.find(f => f.id === current.parentId);
-        if (parent) {
-            path = `${parent.name}/${path}`;
-            current = parent;
-        } else {
-            break;
-        }
-        depth++;
-    }
-    return path;
-  }, [files]);
-
   const getProjectContext = useCallback(() => {
      const structure = files.map(f => {
-        const path = getFilePath(f);
+        const path = getFilePath(f, files);
         return `${f.type === 'folder' ? '[DIR]' : '[FILE]'} ${path}`;
      }).sort().join('\n');
 
      const contents = files
         .filter(f => f.type === 'file')
         .map(f => `
-// --- START OF FILE: ${getFilePath(f)} ---
+// --- START OF FILE: ${getFilePath(f, files)} ---
 ${f.content}
-// --- END OF FILE: ${getFilePath(f)} ---
+// --- END OF FILE: ${getFilePath(f, files)} ---
         `).join('\n');
      
      return `PROJECT STRUCTURE:\n${structure}\n\nPROJECT FILES CONTENT:\n${contents}`;
@@ -406,12 +483,15 @@ ${f.content}
     setDiagnostics([]);
   };
 
-  const handleFileChange = (newContent: string, forceHistory: boolean = false) => {
-    // Clear selection if content changes, preventing stale context bar
-    if (selectedCode) setSelectedCode('');
+  const handleFileChange = (newContent: string, forceHistory: boolean = false, targetId?: string) => {
+    const idToUpdate = targetId || activeFileId;
+    if (!idToUpdate) return;
+
+    // Clear selection if content changes on active file
+    if (idToUpdate === activeFileId && selectedCode) setSelectedCode('');
 
     setFiles(prev => prev.map(f => {
-        if (f.id !== activeFileId) return f;
+        if (f.id !== idToUpdate) return f;
         
         const now = Date.now();
         const history = f.history || { past: [], future: [], lastSaved: 0 };
@@ -437,15 +517,19 @@ ${f.content}
             isModified: true
         };
     }));
-    setSuggestion(null);
+    
+    if (idToUpdate === activeFileId) {
+        setSuggestion(null);
 
-    // Trigger Linting if Python
-    if (activeFile?.language === 'python') {
-        if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
-        lintTimerRef.current = setTimeout(() => {
-            const diags = runPythonLint(newContent);
-            setDiagnostics(diags);
-        }, 500);
+        // Trigger Linting if Python
+        const updatedFile = files.find(f => f.id === idToUpdate);
+        if (updatedFile?.language === 'python' || (updatedFile === undefined && activeFile?.language === 'python')) {
+            if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
+            lintTimerRef.current = setTimeout(() => {
+                const diags = runPythonLint(newContent);
+                setDiagnostics(diags);
+            }, 500);
+        }
     }
   };
 
@@ -654,8 +738,8 @@ ${f.content}
       fetchCodeSuggestion(false);
   };
 
-  const handleCreateNode = async (type: 'file' | 'folder', parentId: string | null = null, name: string) => {
-    if (files.some(f => f.parentId === parentId && f.name === name)) {
+  const handleCreateNode = async (type: 'file' | 'folder', parentId: string | null = null, name: string, initialContent?: string) => {
+    if (filesRef.current.some(f => f.parentId === parentId && f.name === name)) {
         addTerminalLine(`Error: ${type} "${name}" already exists in this location.`, 'error');
         return;
     }
@@ -667,7 +751,7 @@ ${f.content}
         try {
             let parentHandle = projectHandle;
             if (parentId) {
-                const parentFile = files.find(f => f.id === parentId);
+                const parentFile = filesRef.current.find(f => f.id === parentId);
                 if (parentFile && parentFile.handle) {
                     parentHandle = parentFile.handle;
                 }
@@ -691,7 +775,7 @@ ${f.content}
       parentId: parentId,
       isOpen: type === 'folder' ? true : undefined,
       language: type === 'file' ? getLanguage(name) : '',
-      content: type === 'file' ? (type === 'file' && getLanguage(name) === 'python' ? '# Python File\n' : '// Start coding...') : '',
+      content: initialContent || (type === 'file' ? (type === 'file' && getLanguage(name) === 'python' ? '# Python File\n' : '// Start coding...') : ''),
       isModified: type === 'file',
       history: type === 'file' ? { past: [], future: [], lastSaved: 0 } : undefined,
       handle: handle
@@ -700,9 +784,11 @@ ${f.content}
     setFiles(prev => [...prev, newFile]);
     
     if (type === 'file') {
-        setOpenFileIds(prev => [...prev, newFile.id]);
-        setActiveFileId(newFile.id);
-        setSelectedCode('');
+        if (!initialContent) {
+            setOpenFileIds(prev => [...prev, newFile.id]);
+            setActiveFileId(newFile.id);
+            setSelectedCode('');
+        }
     }
     
     addTerminalLine(`Created ${type}: ${newFile.name}`, 'success');
@@ -1045,7 +1131,7 @@ ${text}
                   onFileClick={handleFileClick}
                   onDelete={(f) => setFileToDelete(f)}
                   onRename={handleRenameNode}
-                  onCreate={handleCreateNode}
+                  onCreate={(type, parentId, name) => handleCreateNode(type, parentId, name)}
                   onToggleFolder={handleToggleFolder}
                />
              </>
@@ -1133,7 +1219,7 @@ ${text}
                   <CodeEditor 
                      code={activeFile.content}
                      language={activeFile.language}
-                     onChange={handleFileChange}
+                     onChange={(code) => handleFileChange(code, false)}
                      cursorOffset={cursorPosition}
                      onCursorChange={handleCursorChange}
                      onSelectionChange={handleSelectionChange}
@@ -1199,6 +1285,8 @@ ${text}
          onInsertCode={handleInsertCode}
          contextScope={contextScope}
          setContextScope={setContextScope}
+         files={files}
+         onAgentAction={handleAgentAction}
       />
 
       <SettingsModal 
