@@ -85,8 +85,9 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
   const node = files.find(f => f.id === nodeId);
   if (!node) return null;
 
-  // Determine if file is modified relative to committed content
-  const hasGitChanges = node.type === 'file' && node.content !== (node.committedContent || '');
+  // Determine git status
+  const isAdded = node.type === 'file' && node.committedContent === undefined;
+  const isModified = node.type === 'file' && !isAdded && node.content !== (node.committedContent || '');
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -139,7 +140,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
           )}
         </span>
 
-        <span className={`mr-2 flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (hasGitChanges ? 'text-amber-400' : 'text-slate-500')}`}>
+        <span className={`mr-2 flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (isModified ? 'text-amber-400' : (isAdded ? 'text-green-400' : 'text-slate-500'))}`}>
           {node.type === 'folder' ? (
              node.isOpen ? <IconFolderOpen size={16} /> : <IconFolder size={16} />
           ) : (
@@ -164,9 +165,12 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             </div>
         ) : (
             <>
-              <span className={`truncate text-sm flex-1 ${hasGitChanges ? 'text-amber-200' : ''}`}>{node.name}</span>
-              {hasGitChanges && (
-                 <span className="text-[10px] font-bold text-amber-400 font-mono mr-2" title="Unstaged Changes">M</span>
+              <span className={`truncate text-sm flex-1 ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')}`}>{node.name}</span>
+              {isModified && (
+                 <span className="text-[10px] font-bold text-amber-400 font-mono mr-2" title="Modified">M</span>
+              )}
+              {isAdded && (
+                 <span className="text-[10px] font-bold text-green-400 font-mono mr-2" title="Added (Untracked)">U</span>
               )}
             </>
         )}

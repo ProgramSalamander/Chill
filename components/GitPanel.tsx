@@ -9,11 +9,14 @@ import {
   IconCheck, 
   IconClock, 
   IconGitBranch,
-  IconSparkles
+  IconSparkles,
+  IconTrash,
+  IconFilePlus
 } from './Icons';
 
 interface GitPanelProps {
   files: File[];
+  deletedFiles: File[];
   stagedFileIds: string[];
   commits: Commit[];
   onStage: (fileId: string) => void;
@@ -24,6 +27,7 @@ interface GitPanelProps {
 
 const GitPanel: React.FC<GitPanelProps> = ({ 
   files, 
+  deletedFiles,
   stagedFileIds, 
   commits, 
   onStage, 
@@ -33,36 +37,54 @@ const GitPanel: React.FC<GitPanelProps> = ({
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Determine modified files (difference between content and committedContent)
-  // We only care about files, not folders
+  // Categorize changes
   const modifiedFiles = files.filter(f => 
     f.type === 'file' && 
-    (f.content !== (f.committedContent || '')) && // Content changed from HEAD
-    !stagedFileIds.includes(f.id) // Not already staged
+    f.committedContent !== undefined && 
+    f.content !== f.committedContent &&
+    !stagedFileIds.includes(f.id)
   );
 
-  const stagedFiles = files.filter(f => stagedFileIds.includes(f.id));
+  const addedFiles = files.filter(f => 
+    f.type === 'file' && 
+    f.committedContent === undefined &&
+    !stagedFileIds.includes(f.id)
+  );
+  
+  const deletedFilesUnstaged = deletedFiles.filter(f => !stagedFileIds.includes(f.id));
+
+  // Combine all unstaged changes
+  const allUnstaged = [
+      ...modifiedFiles.map(f => ({ ...f, status: 'M' })),
+      ...addedFiles.map(f => ({ ...f, status: 'A' })),
+      ...deletedFilesUnstaged.map(f => ({ ...f, status: 'D' }))
+  ];
+
+  // Combine all staged changes
+  const stagedFilesList = [
+      ...files.filter(f => stagedFileIds.includes(f.id)).map(f => ({ ...f, status: f.committedContent === undefined ? 'A' : 'M' })),
+      ...deletedFiles.filter(f => stagedFileIds.includes(f.id)).map(f => ({ ...f, status: 'D' }))
+  ];
 
   const handleCommit = () => {
-    if (!commitMessage.trim() || stagedFiles.length === 0) return;
+    if (!commitMessage.trim() || stagedFilesList.length === 0) return;
     onCommit(commitMessage);
     setCommitMessage('');
   };
 
   const handleGenerateMessage = async () => {
-    if (stagedFiles.length === 0) return;
+    if (stagedFilesList.length === 0) return;
     setIsGenerating(true);
     
     try {
-      // Construct a simple context for the AI
-      // In a real app, this would be a proper diff. Here we send the file content + info.
-      const changes = stagedFiles.map(f => {
-         const oldContent = f.committedContent || '';
-         const newContent = f.content;
-         const isNew = !f.committedContent;
-         
-         return `File: ${f.name} (${isNew ? 'New' : 'Modified'})\nCode:\n${newContent}\n`; 
-      }).join('\n---\n');
+      const changes = stagedFilesList.map(f => {
+         let prefix = '';
+         if (f.status === 'A') prefix = 'New File';
+         else if (f.status === 'M') prefix = 'Modified';
+         else if (f.status === 'D') prefix = 'Deleted';
+
+         return `File: ${f.name} (${prefix})\n`; 
+      }).join('\n');
 
       const msg = await generateCommitMessage(changes);
       if (msg) setCommitMessage(msg);
@@ -71,6 +93,37 @@ const GitPanel: React.FC<GitPanelProps> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const renderFileItem = (file: any, isStaged: boolean) => {
+     let icon = <span className="text-yellow-500/70 text-[10px] font-mono font-bold">M</span>;
+     let colorClass = "text-amber-200";
+
+     if (file.status === 'A') {
+         icon = <span className="text-green-500/70 text-[10px] font-mono font-bold">A</span>;
+         colorClass = "text-green-200";
+     } else if (file.status === 'D') {
+         icon = <span className="text-red-500/70 text-[10px] font-mono font-bold">D</span>;
+         colorClass = "text-red-300 decoration-line-through decoration-red-500/30";
+     }
+
+     return (
+        <div key={file.id} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-white/5 text-sm text-slate-300">
+            <div className="flex items-center gap-2 truncate">
+                {icon}
+                <span className={`truncate ${colorClass}`}>{file.name}</span>
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                    onClick={() => isStaged ? onUnstage(file.id) : onStage(file.id)}
+                    className="text-slate-500 hover:text-white"
+                    title={isStaged ? "Unstage Changes" : "Stage Changes"}
+                >
+                    {isStaged ? <IconMinusCircle size={14} /> : <IconPlusCircle size={14} />}
+                </button>
+            </div>
+        </div>
+     );
   };
 
   return (
@@ -101,7 +154,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
                 />
                 <button 
                     onClick={handleGenerateMessage}
-                    disabled={isGenerating || stagedFiles.length === 0}
+                    disabled={isGenerating || stagedFilesList.length === 0}
                     className="absolute right-2 top-2 p-1.5 rounded-md text-slate-500 hover:text-vibe-glow hover:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500"
                     title="Generate AI Commit Message"
                 >
@@ -110,7 +163,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
             </div>
             <button 
                 onClick={handleCommit}
-                disabled={stagedFiles.length === 0 || !commitMessage.trim()}
+                disabled={stagedFilesList.length === 0 || !commitMessage.trim()}
                 className="w-full py-1.5 bg-vibe-accent hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-vibe-accent text-white text-xs font-medium rounded transition-colors flex items-center justify-center gap-2"
             >
                 <IconCheck size={14} />
@@ -121,57 +174,26 @@ const GitPanel: React.FC<GitPanelProps> = ({
         {/* Staged Changes */}
         <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                <span>Staged Changes ({stagedFiles.length})</span>
+                <span>Staged Changes ({stagedFilesList.length})</span>
             </div>
             <div className="space-y-0.5">
-                {stagedFiles.length === 0 && (
+                {stagedFilesList.length === 0 && (
                     <div className="text-[10px] text-slate-600 italic px-2">No files staged</div>
                 )}
-                {stagedFiles.map(file => (
-                    <div key={file.id} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-white/5 text-sm text-slate-300">
-                        <div className="flex items-center gap-2 truncate">
-                            <IconGitCommit size={14} className="text-green-400/70" />
-                            <span className="truncate">{file.name}</span>
-                        </div>
-                        <button 
-                            onClick={() => onUnstage(file.id)}
-                            className="text-slate-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Unstage Changes"
-                        >
-                            <IconMinusCircle size={14} />
-                        </button>
-                    </div>
-                ))}
+                {stagedFilesList.map(f => renderFileItem(f, true))}
             </div>
         </div>
 
         {/* Changes */}
         <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                <span>Changes ({modifiedFiles.length})</span>
+                <span>Changes ({allUnstaged.length})</span>
             </div>
             <div className="space-y-0.5">
-                {modifiedFiles.length === 0 && (
+                {allUnstaged.length === 0 && (
                     <div className="text-[10px] text-slate-600 italic px-2">Working tree clean</div>
                 )}
-                {modifiedFiles.map(file => (
-                    <div key={file.id} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-white/5 text-sm text-slate-300">
-                        <div className="flex items-center gap-2 truncate">
-                            <span className="text-yellow-500/70 text-[10px] font-mono font-bold">M</span>
-                            <span className="truncate">{file.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {/* Potential Discard button could go here */}
-                            <button 
-                                onClick={() => onStage(file.id)}
-                                className="text-slate-500 hover:text-white"
-                                title="Stage Changes"
-                            >
-                                <IconPlusCircle size={14} />
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                {allUnstaged.map(f => renderFileItem(f, false))}
             </div>
         </div>
 
@@ -196,6 +218,9 @@ const GitPanel: React.FC<GitPanelProps> = ({
                                 </span>
                                 <span>•</span>
                                 <span>{commit.author}</span>
+                                {commit.stats.added > 0 && <span className="text-green-500">+{commit.stats.added}</span>}
+                                {commit.stats.modified > 0 && <span className="text-yellow-500">~{commit.stats.modified}</span>}
+                                {commit.stats.deleted > 0 && <span className="text-red-500">-{commit.stats.deleted}</span>}
                             </div>
                         </div>
                     ))}

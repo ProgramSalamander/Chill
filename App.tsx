@@ -139,6 +139,7 @@ You have access to the project structure and contents when the user enables full
 
 function App() {
   const [files, setFiles] = useState<File[]>(INITIAL_FILES);
+  const [deletedFiles, setDeletedFiles] = useState<File[]>([]);
   const [activeFileId, setActiveFileId] = useState<string>(''); 
   const [openFileIds, setOpenFileIds] = useState<string[]>([]);
   const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'git' | null>('explorer');
@@ -250,6 +251,7 @@ function App() {
       setActiveFileId('');
       setOpenFileIds([]);
       setStagedFileIds([]);
+      setDeletedFiles([]);
       setCommits([]);
       
       addTerminalLine(`Loaded project: ${dirHandle.name} with ${loadedFiles.length} items.`, 'success');
@@ -522,6 +524,7 @@ ${f.content}
   const handleGitCommit = (message: string) => {
     const timestamp = Date.now();
     
+    // Process modified/added files
     const stagedFilesList = files.filter(f => stagedFileIds.includes(f.id));
     
     setFiles(prev => prev.map(f => {
@@ -531,15 +534,19 @@ ${f.content}
         return f;
     }));
 
+    // Process deleted files
+    const stagedDeletions = deletedFiles.filter(f => stagedFileIds.includes(f.id));
+    setDeletedFiles(prev => prev.filter(f => !stagedFileIds.includes(f.id)));
+
     const newCommit: Commit = {
         id: Math.random().toString(36).slice(2, 11),
         message,
         timestamp,
         author: 'User',
         stats: {
-            added: 0,
-            modified: stagedFilesList.length,
-            deleted: 0
+            added: stagedFilesList.filter(f => !f.committedContent).length,
+            modified: stagedFilesList.filter(f => f.committedContent).length,
+            deleted: stagedDeletions.length
         }
     };
 
@@ -745,11 +752,23 @@ ${f.content}
 
     const idsToDelete = [fileToDelete.id, ...getDescendantIds(fileToDelete.id, files)];
     
+    // Capture files to be deleted for Git tracking before removing them
+    const filesBeingDeleted = files.filter(f => idsToDelete.includes(f.id));
+    
+    // Only track deletions for files that were previously committed
+    const trackedDeletions = filesBeingDeleted.filter(f => f.type === 'file' && f.committedContent !== undefined);
+    
+    if (trackedDeletions.length > 0) {
+        setDeletedFiles(prev => [...prev, ...trackedDeletions]);
+    }
+    
     const newFiles = files.filter(f => !idsToDelete.includes(f.id));
     setFiles(newFiles);
 
     const newOpenIds = openFileIds.filter(id => !idsToDelete.includes(id));
     setOpenFileIds(newOpenIds);
+    
+    // Unstage deleted files if they were staged as modified/added
     setStagedFileIds(prev => prev.filter(id => !idsToDelete.includes(id)));
 
     if (activeFileId && idsToDelete.includes(activeFileId)) {
@@ -1001,6 +1020,7 @@ ${text}
            {activeSidebarView === 'git' && (
              <GitPanel 
                 files={files}
+                deletedFiles={deletedFiles}
                 stagedFileIds={stagedFileIds}
                 commits={commits}
                 onStage={handleGitStage}
