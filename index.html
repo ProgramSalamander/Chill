@@ -120,20 +120,11 @@
         color: white;
       }
 
-      /* Editor Overrides */
-      .prism-editor textarea {
-        outline: none !important;
-      }
-      
-      pre[class*="language-"] {
-        text-shadow: none !important;
-        background: transparent !important;
-      }
-
-      .squiggle-error {
-        text-decoration: underline wavy #ef4444;
-        text-decoration-thickness: 1.5px;
-        text-underline-offset: 4px;
+      /* Ghost Text Animation */
+      .ghost-text {
+        opacity: 0.5;
+        color: #818cf8 !important;
+        font-style: italic;
       }
     </style>
   <script type="importmap">
@@ -144,9 +135,7 @@
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "prismjs/": "https://aistudiocdn.com/prismjs@^1.30.0/",
-    "prismjs": "https://aistudiocdn.com/prismjs@^1.30.0",
-    "react-simple-code-editor": "https://aistudiocdn.com/react-simple-code-editor@^0.14.1",
+    "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@4.6.0?bundle",
     "@astral-sh/ruff-api/web": "https://esm.sh/@astral-sh/ruff-api@0.0.4/web/index.js",
     "@astral-sh/ruff-wasm-web": "https://aistudiocdn.com/@astral-sh/ruff-wasm-web@^0.14.8",
     "isomorphic-git": "https://esm.sh/isomorphic-git@1.27.0",

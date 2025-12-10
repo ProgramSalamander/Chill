@@ -1,15 +1,6 @@
 
-import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
-import Editor from 'react-simple-code-editor';
-// We need to import Prism specifically to use it for highlighting
-import Prism from 'prismjs';
-import 'prismjs/components/prism-javascript';
-import 'prismjs/components/prism-typescript';
-import 'prismjs/components/prism-css';
-import 'prismjs/components/prism-json';
-import 'prismjs/components/prism-jsx';
-import 'prismjs/components/prism-tsx';
-import 'prismjs/components/prism-python';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import Editor, { OnMount, useMonaco } from '@monaco-editor/react';
 import { IconRefresh } from './Icons';
 import { Diagnostic } from '../types';
 
@@ -49,138 +40,156 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   previewContent = '',
   diagnostics = []
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  
-  const [hoveredDiagnostic, setHoveredDiagnostic] = useState<Diagnostic | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{x: number, y: number} | null>(null);
-  const [charWidth, setCharWidth] = useState(0);
+  const decorationsRef = useRef<string[]>([]);
 
+  // Map app languages to Monaco languages
+  const getMonacoLanguage = (lang: string) => {
+    if (lang === 'js') return 'javascript';
+    if (lang === 'ts') return 'typescript';
+    if (lang === 'jsx') return 'javascript'; // Monaco handles JSX in JS
+    if (lang === 'tsx') return 'typescript'; // Monaco handles TSX in TS
+    return lang;
+  };
+
+  const handleEditorDidMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+
+    // --- Vibe Theme Definition ---
+    monaco.editor.defineTheme('vibe-theme', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: 'comment', foreground: '6272a4', fontStyle: 'italic' },
+        { token: 'keyword', foreground: 'ff79c6', fontStyle: 'bold' },
+        { token: 'string', foreground: 'f1fa8c' },
+        { token: 'number', foreground: 'bd93f9' },
+        { token: 'type', foreground: '8be9fd' },
+        { token: 'class', foreground: '8be9fd' },
+        { token: 'function', foreground: '50fa7b' },
+        { token: 'variable', foreground: 'f8f8f2' },
+        { token: 'delimiter', foreground: 'f8f8f2' },
+      ],
+      colors: {
+        'editor.background': '#05050800', // Transparent for glass effect
+        'editor.foreground': '#f8f8f2',
+        'editor.lineHighlightBackground': '#181824',
+        'editor.selectionBackground': '#818cf840',
+        'editorCursor.foreground': '#818cf8',
+        'editorWhitespace.foreground': '#3b3a32',
+        'editorIndentGuide.background': '#ffffff10',
+        'editorIndentGuide.activeBackground': '#ffffff30',
+        'editorLineNumber.foreground': '#6272a4',
+        'editorLineNumber.activeForeground': '#f8f8f2',
+        'scrollbarSlider.background': '#ffffff10',
+        'scrollbarSlider.hoverBackground': '#ffffff20',
+        'scrollbarSlider.activeBackground': '#ffffff30',
+      }
+    });
+
+    monaco.editor.setTheme('vibe-theme');
+
+    // Context key for suggestion visibility to bind Tab key
+    const suggestionVisible = editor.createContextKey('suggestionVisible', false);
+
+    // Keybindings
+    editor.addCommand(monaco.KeyCode.Tab, () => {
+       if (onAcceptSuggestion) onAcceptSuggestion();
+    }, 'suggestionVisible');
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
+       if (onTriggerSuggestion) onTriggerSuggestion();
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+        if (onUndo) onUndo();
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {
+        if (onRedo) onRedo();
+    });
+
+    // Event Listeners
+    editor.onDidChangeCursorPosition((e: any) => {
+      const offset = editor.getModel()?.getOffsetAt(e.position) || 0;
+      if (onCursorChange) onCursorChange(offset);
+      
+      // Sync suggestion visibility context
+      suggestionVisible.set(!!suggestion);
+    });
+
+    editor.onDidChangeCursorSelection((e: any) => {
+        const selection = editor.getModel()?.getValueInRange(e.selection);
+        if (onSelectionChange && selection) onSelectionChange(selection);
+        if (onSelectionChange && !selection) onSelectionChange('');
+    });
+  };
+
+  // --- Suggestion / Ghost Text ---
   useEffect(() => {
-    const measure = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-            ctx.font = '14px "JetBrains Mono", monospace';
-            const metrics = ctx.measureText('M');
-            setCharWidth(metrics.width);
+    if (!editorRef.current || !monacoRef.current) return;
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+
+    // We use context keys to enable the Tab command only when suggestion is active
+    // But context keys are hard to update from useEffect outside the mount. 
+    // We updated it in cursor change, let's also update active state here if possible, 
+    // but React props -> Monaco context is async. 
+    // Easier: The Tab command logic handles the call, if no suggestion onAcceptSuggestion is no-op or handled by parent.
+
+    if (suggestion) {
+        const position = editor.getPosition();
+        if (position) {
+            // Render Ghost Text
+            // Note: Monaco's decorations `after` content is somewhat limited for multiline.
+            // We will render the first line or a "preview" indicator.
+            // For a robust implementation, we might stick to single-line or use `setDecorations`.
+            
+            const newDecorations = [
+                {
+                    range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                    options: {
+                        after: {
+                            content: suggestion, // Note: newlines might render as symbols or spaces depending on version
+                            inlineClassName: 'ghost-text',
+                        },
+                        description: 'ai-suggestion'
+                    }
+                }
+            ];
+            decorationsRef.current = editor.deltaDecorations(decorationsRef.current, newDecorations);
         }
-    };
+    } else {
+        decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
+    }
+  }, [suggestion]);
+
+  // --- Diagnostics ---
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+    const monaco = monacoRef.current;
+    const model = editorRef.current.getModel();
     
-    document.fonts.ready.then(measure);
-    measure();
-  }, []);
-
-  // Map our internal language keys to Prism keys
-  const getPrismLanguage = (lang: string) => {
-    const map: Record<string, any> = {
-      'typescript': Prism.languages.typescript,
-      'javascript': Prism.languages.javascript,
-      'html': Prism.languages.html,
-      'css': Prism.languages.css,
-      'json': Prism.languages.json,
-      'python': Prism.languages.python,
-    };
-    return map[lang] || Prism.languages.javascript;
-  };
-
-  const handleStateChange = useCallback((e: React.SyntheticEvent<any>) => {
-    const target = e.currentTarget as HTMLTextAreaElement;
-    const val = target.value || '';
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-
-    if (onCursorChange) {
-      onCursorChange(start);
+    if (model && diagnostics) {
+        const markers = diagnostics.map(d => ({
+            severity: d.severity === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+            message: d.message,
+            startLineNumber: d.startLine,
+            startColumn: d.startColumn,
+            endLineNumber: d.endLine,
+            endColumn: d.endColumn,
+            source: 'Vibe Lint'
+        }));
+        monaco.editor.setModelMarkers(model, 'owner', markers);
     }
+  }, [diagnostics]);
 
-    if (onSelectionChange) {
-      // If start === end, selection is collapsed (empty)
-      const selectedText = start !== end ? val.substring(start, end) : '';
-      onSelectionChange(selectedText);
-    }
-  }, [onCursorChange, onSelectionChange]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<any>) => {
-    // Tab for completion
-    if (e.key === 'Tab' && suggestion && onAcceptSuggestion) {
-      e.preventDefault();
-      onAcceptSuggestion();
-      return;
-    }
-
-    // Manual Trigger: Ctrl+Space or Cmd+Space
-    if ((e.metaKey || e.ctrlKey) && e.key === ' ') {
-      e.preventDefault();
-      onTriggerSuggestion?.();
-      return;
-    }
-
-    // Undo: Ctrl+Z or Cmd+Z
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      onUndo?.();
-      return;
-    }
-
-    // Redo: Ctrl+Shift+Z or Cmd+Shift+Z or Ctrl+Y or Cmd+Y
-    if (
-      ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'z') ||
-      ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y')
-    ) {
-      e.preventDefault();
-      onRedo?.();
-      return;
-    }
-  }, [suggestion, onAcceptSuggestion, onTriggerSuggestion, onUndo, onRedo]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-     if (!contentRef.current || charWidth === 0) return;
-     
-     const rect = contentRef.current.getBoundingClientRect();
-     const x = e.clientX - rect.left - 20; // 20px padding
-     const y = e.clientY - rect.top - 20; // 20px padding
-     
-     if (x < 0 || y < 0) {
-         setHoveredDiagnostic(null);
-         return;
-     }
-
-     const lineHeight = 14 * 1.5;
-     const line = Math.floor(y / lineHeight) + 1;
-     const col = Math.floor(x / charWidth) + 1;
-
-     const found = diagnostics.find(d => {
-         if (line < d.startLine || line > d.endLine) return false;
-         
-         if (d.startLine === d.endLine) {
-             return col >= d.startColumn && col < d.endColumn; 
-         }
-         
-         if (line === d.startLine) return col >= d.startColumn;
-         if (line === d.endLine) return col < d.endColumn;
-         return true; 
-     });
-
-     if (found) {
-         setHoveredDiagnostic(found);
-         setTooltipPos({
-             x: e.clientX - rect.left,
-             y: (line * lineHeight) + 20 
-         });
-     } else {
-         setHoveredDiagnostic(null);
-     }
-  };
-
-  const handleMouseLeave = () => {
-      setHoveredDiagnostic(null);
-  };
 
   const handleRefreshPreview = () => {
     if (iframeRef.current) {
-        // Force refresh by resetting srcDoc
         const content = iframeRef.current.srcdoc;
         iframeRef.current.srcdoc = '';
         setTimeout(() => {
@@ -189,201 +198,42 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   };
 
-  // Convert line/column to index
-  const getIndexFromPos = (line: number, col: number, code: string): number => {
-    const lines = code.split('\n');
-    let index = 0;
-    for (let i = 0; i < line - 1; i++) {
-        index += lines[i].length + 1; // +1 for newline
-    }
-    return index + (col - 1);
-  };
-
-  // Build content segments for diagnostics overlay
-  const diagnosticSegments = useMemo(() => {
-    if (!diagnostics || diagnostics.length === 0) return [{ text: code, isError: false }];
-
-    // Sort diagnostics by start position
-    const sorted = [...diagnostics].sort((a, b) => {
-        const idxA = getIndexFromPos(a.startLine, a.startColumn, code);
-        const idxB = getIndexFromPos(b.startLine, b.startColumn, code);
-        return idxA - idxB;
-    });
-
-    const segments: { text: string; isError: boolean }[] = [];
-    let currentIndex = 0;
-
-    for (const diag of sorted) {
-        const startIdx = getIndexFromPos(diag.startLine, diag.startColumn, code);
-        const endIdx = getIndexFromPos(diag.endLine, diag.endColumn, code);
-        
-        // Skip if out of order or invalid
-        if (startIdx < currentIndex) continue;
-
-        // Add clean text before error
-        if (startIdx > currentIndex) {
-            segments.push({ text: code.slice(currentIndex, startIdx), isError: false });
-        }
-
-        // Add error text
-        segments.push({ text: code.slice(startIdx, endIdx), isError: true });
-        currentIndex = endIdx;
-    }
-
-    // Add remaining text
-    if (currentIndex < code.length) {
-        segments.push({ text: code.slice(currentIndex), isError: false });
-    }
-
-    return segments;
-  }, [code, diagnostics]);
-
-  // Logic to split the code for the ghost overlay
-  const prefix = code.slice(0, cursorOffset);
-  const suffix = code.slice(cursorOffset);
-
-  const commonStyles = {
-    fontFamily: '"JetBrains Mono", monospace',
-    fontSize: 14,
-    lineHeight: '1.5', 
-    tabSize: 2,
-    whiteSpace: 'pre' as const
-  };
-
-  const lineCount = useMemo(() => code.split('\n').length, [code]);
-  const lines = useMemo(() => Array.from({ length: lineCount }, (_, i) => i + 1), [lineCount]);
-  
-  const currentLineNumber = useMemo(() => {
-    return code.slice(0, cursorOffset).split('\n').length;
-  }, [code, cursorOffset]);
-
   return (
     <div className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
-        
-        {/* Editor Pane */}
-        <div ref={containerRef} className={`relative h-full font-mono text-sm overflow-auto transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-white/10' : 'w-full'}`}>
-            <div className="flex min-h-full min-w-full">
-                
-                {/* Gutter */}
-                <div 
-                  className="sticky left-0 z-40 flex flex-col items-end border-r border-white/5 text-slate-600 select-none py-[20px] p-4 text-xs bg-[#050508]"
-                  style={{
-                    fontFamily: commonStyles.fontFamily,
-                    fontSize: commonStyles.fontSize,
-                    lineHeight: commonStyles.lineHeight,
-                    minWidth: '3.5rem',
-                  }}
-                >
-                    {lines.map(i => (
-                        <div 
-                          key={i} 
-                          className={`w-full text-right ${i === currentLineNumber ? 'text-vibe-glow font-bold' : 'hover:text-slate-400'}`}
-                        >
-                            {i}
-                        </div>
-                    ))}
-                </div>
+      {/* Editor Pane */}
+      <div className={`relative h-full transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-white/10' : 'w-full'}`}>
+         <Editor
+            height="100%"
+            language={getMonacoLanguage(language)}
+            value={code}
+            onChange={(value) => onChange(value || '')}
+            onMount={handleEditorDidMount}
+            theme="vibe-theme"
+            options={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 14,
+                lineHeight: 22,
+                fontLigatures: true,
+                minimap: { enabled: false }, // Keep it clean
+                scrollBeyondLastLine: false,
+                smoothScrolling: true,
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                folding: true,
+                roundedSelection: true,
+                renderLineHighlight: 'all',
+                contextmenu: true,
+                bracketPairColorization: { enabled: true },
+                padding: { top: 20, bottom: 20 },
+                suggest: {
+                    showWords: false // Let AI handle most or use native Intellisense
+                }
+            }}
+         />
+      </div>
 
-                {/* Content */}
-                <div 
-                    ref={contentRef}
-                    className="relative flex-1 min-w-0"
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseLeave}
-                >
-                    
-                    {/* Diagnostics Overlay - Renders squiggles */}
-                    <pre
-                        className="absolute inset-0 pointer-events-none z-10"
-                        aria-hidden="true"
-                        style={{
-                            ...commonStyles,
-                            margin: 0,
-                            border: 0,
-                            background: 'none',
-                            boxSizing: 'border-box',
-                            padding: 20,
-                            color: 'transparent',
-                        }}
-                    >
-                        {diagnosticSegments.map((seg, i) => (
-                            <span key={i} className={seg.isError ? "squiggle-error" : ""}>{seg.text}</span>
-                        ))}
-                    </pre>
-
-                    {/* Ghost Overlay - For Suggestions */}
-                    <pre 
-                    className="absolute inset-0 pointer-events-none z-20"
-                    aria-hidden="true"
-                    style={{
-                        ...commonStyles,
-                        margin: 0,
-                        border: 0,
-                        background: 'none',
-                        boxSizing: 'border-box',
-                        padding: 20, 
-                        color: 'transparent',
-                    }}
-                    >
-                    <span>{prefix}</span>
-                    {suggestion && (
-                        <span className="text-vibe-glow opacity-50 relative italic">
-                        {suggestion}
-                        <span className="absolute -top-5 left-0 text-[10px] bg-vibe-accent text-white px-1.5 rounded shadow-lg font-sans whitespace-nowrap opacity-100 not-italic border border-white/10">
-                            TAB
-                        </span>
-                        </span>
-                    )}
-                    <span>{suffix}</span>
-                    </pre>
-
-                    <Editor
-                    value={code}
-                    onValueChange={onChange}
-                    highlight={(code) => Prism.highlight(code, getPrismLanguage(language), language)}
-                    padding={20}
-                    onKeyDown={handleKeyDown}
-                    onSelect={handleStateChange}
-                    onClick={handleStateChange}
-                    onKeyUp={handleStateChange}
-                    onMouseUp={handleStateChange}
-                    textareaClassName="focus:outline-none z-30"
-                    style={{
-                        ...commonStyles,
-                        backgroundColor: 'transparent',
-                        minHeight: '100%',
-                    }}
-                    />
-
-                    {/* Tooltip */}
-                    {hoveredDiagnostic && tooltipPos && (
-                        <div 
-                            className="absolute z-50 bg-[#0f0f16]/90 backdrop-blur border border-red-500/30 rounded-lg shadow-2xl p-3 max-w-sm animate-in fade-in zoom-in-95 duration-100 pointer-events-none"
-                            style={{
-                                top: tooltipPos.y,
-                                left: Math.min(tooltipPos.x, (contentRef.current?.clientWidth || 500) - 300),
-                            }}
-                        >
-                            <div className="flex items-start gap-2">
-                                <span className="text-red-500 mt-0.5">✖</span>
-                                <div>
-                                    <div className="text-sm text-slate-200 font-medium">
-                                        {hoveredDiagnostic.message}
-                                    </div>
-                                    <div className="text-xs text-slate-500 mt-1 flex gap-2">
-                                        <span>Line {hoveredDiagnostic.startLine}</span>
-                                        <span className="text-vibe-glow">{hoveredDiagnostic.code || 'Error'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-
-        {/* Live Preview Pane */}
-        {showPreview && (
+       {/* Live Preview Pane */}
+       {showPreview && (
             <div className="w-1/2 h-full flex flex-col bg-white/5 animate-in slide-in-from-right-5 fade-in duration-300 backdrop-blur-sm border-l border-white/10">
                 <div className="h-9 bg-black/20 border-b border-white/10 flex items-center justify-between px-3 select-none">
                     <div className="flex items-center gap-2">
