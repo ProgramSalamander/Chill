@@ -1,7 +1,9 @@
 
+
 import { GoogleGenAI, Chat, Content, GenerateContentResponse, Tool, Type } from "@google/genai";
-import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse } from '../types';
+import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File } from '../types';
 import { getAIConfig } from './configService';
+import { ragService } from './ragService';
 
 // Safely get env var
 const ENV_API_KEY = typeof process !== 'undefined' ? process.env.API_KEY : '';
@@ -300,7 +302,8 @@ export const getCodeCompletion = async (
   code: string, 
   cursorOffset: number, 
   language: string,
-  projectContext: string = ''
+  activeFile: File | null,
+  allFiles: File[]
 ): Promise<string> => {
   const config = getAIConfig();
   
@@ -310,9 +313,12 @@ export const getCodeCompletion = async (
   const contextPrefix = prefix.slice(-2500);
   const contextSuffix = suffix.slice(0, 1000);
 
+  const ragQuery = contextPrefix;
+  const projectContext = ragService.getContext(ragQuery, activeFile, allFiles, 3);
+
   const prompt = `You are a super-fast, intelligent coding assistant. 
-  ${projectContext ? `[GLOBAL CONTEXT]\n${projectContext}\n` : ''}
-  [FILE: ${language}]
+  ${projectContext ? `[SMART CONTEXT]\n${projectContext}\n` : ''}
+  [CURRENT FILE: ${language}]
   ${contextPrefix}[CURSOR]${contextSuffix}
 
   Instructions:
@@ -372,13 +378,17 @@ export const editCode = async (
   selectedText: string,
   suffix: string,
   instruction: string,
-  projectContext: string = ''
+  activeFile: File | null,
+  allFiles: File[]
 ): Promise<string> => {
    const config = getAIConfig();
    
+   const ragQuery = instruction + "\n" + selectedText;
+   const projectContext = ragService.getContext(ragQuery, activeFile, allFiles);
+   
    const prompt = `
    You are an AI code editor.
-   ${projectContext ? `[PROJECT CONTEXT]\n${projectContext}\n` : ''}
+   ${projectContext ? `[SMART CONTEXT]\n${projectContext}\n` : ''}
    
    [CODE_BEFORE]
    ${prefix.slice(-2000)}

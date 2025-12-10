@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconPlay, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -22,8 +23,9 @@ import { createChatSession, sendMessageStream, getCodeCompletion, editCode } fro
 import { initRuff, runPythonLint } from './services/lintingService';
 import { gitService } from './services/gitService';
 import { projectService } from './services/projectService';
+import { ragService } from './services/ragService';
 import { File, Message, MessageRole, TerminalLine, Diagnostic, AISession, ProjectMeta } from './types';
-import { getFilePath, resolveFileByPath, generateProjectContext } from './utils/fileUtils';
+import { getFilePath, resolveFileByPath, generateProjectStructureContext } from './utils/fileUtils';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { useFileSystem } from './hooks/useFileSystem';
 import { useGit } from './hooks/useGit';
@@ -80,10 +82,12 @@ function App() {
   const [fileToDelete, setFileToDelete] = useState<File | null>(null);
   const [selectedCode, setSelectedCode] = useState<string>('');
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [isIndexing, setIsIndexing] = useState(false);
   
   // Refs & Timers
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceIndexRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatSessionRef = useRef<AISession | null>(null);
   const messagesRef = useRef(messages);
   const lastCursorPosRef = useRef(0);
@@ -102,6 +106,22 @@ function App() {
   useEffect(() => { localStorage.setItem('vibe_layout_sidebar', JSON.stringify(activeSidebarView)); }, [activeSidebarView]);
   useEffect(() => { localStorage.setItem('vibe_layout_terminal', JSON.stringify(isTerminalOpen)); }, [isTerminalOpen]);
   useEffect(() => { localStorage.setItem('vibe_context_scope', contextScope); }, [contextScope]);
+
+  // RAG Indexing Effect
+  useEffect(() => {
+    if (debounceIndexRef.current) clearTimeout(debounceIndexRef.current);
+    debounceIndexRef.current = setTimeout(() => {
+      if (fs.files.length > 0) {
+        setIsIndexing(true);
+        addTerminalLine('Building smart context index...', 'info');
+        ragService.updateIndex(fs.files).then(() => {
+          setIsIndexing(false);
+          addTerminalLine('Smart context ready.', 'success');
+        });
+      }
+    }, 2000); // Debounce for 2s
+  }, [fs.files, addTerminalLine]);
+
 
   // Load active project on mount
   useEffect(() => {
@@ -295,10 +315,9 @@ function App() {
                 setDiagnostics(runPythonLint(fs.activeFile.content));
             }
             // Auto Suggestion
-            if (!isGenerating && !suggestion) {
+            if (!isGenerating && !suggestion && !isIndexing) {
                 try {
-                    const ctx = generateProjectContext(fs.files);
-                    const sugg = await getCodeCompletion(fs.activeFile.content, lastCursorPosRef.current, fs.activeFile.language, ctx);
+                    const sugg = await getCodeCompletion(fs.activeFile.content, lastCursorPosRef.current, fs.activeFile.language, fs.activeFile, fs.files);
                     if (sugg) setSuggestion(sugg);
                 } catch(e) {}
             }
@@ -311,7 +330,7 @@ function App() {
         lastContentRef.current = fs.activeFile.content;
         setSuggestion(null);
     }
-  }, [fs.activeFile, fs.files, isGenerating, suggestion]);
+  }, [fs.activeFile, fs.files, isGenerating, suggestion, isIndexing]);
 
   const handleSendMessage = async (text: string) => {
     if (!chatSessionRef.current) return;
@@ -322,7 +341,8 @@ function App() {
     try {
       let prompt = text;
       if (contextScope === 'project') {
-          prompt = `[PROJECT CONTEXT]\n${generateProjectContext(fs.files)}\n\n[QUERY]\n${text}`;
+          const context = ragService.getContext(text, fs.activeFile, fs.files);
+          prompt = `[SMART CONTEXT]\n${context}\n\n[QUERY]\n${text}`;
       } else if (fs.activeFile) {
           prompt = `[FILE: ${fs.activeFile.name}]\n${fs.activeFile.content}\n\n[QUERY]\n${text}`;
       }
@@ -352,11 +372,6 @@ function App() {
           // Monaco ranges are 1-based, we use offset based splitting usually or line splitting.
           // range: { startLineNumber, startColumn, endLineNumber, endColumn }
           
-          // Simple approach: Get full content, and the selected text.
-          // Since we don't have easy line-to-offset here without Monaco instance, we rely on string replacement if possible
-          // OR we re-implement logic to find offset.
-          // BUT, CodeEditor updates state 'content'. 
-          
           // Let's rely on splitting by lines which is robust enough for now.
           const lines = file.content.split('\n');
           const startLine = range.startLineNumber - 1;
@@ -383,8 +398,7 @@ function App() {
               selectedText += lines[endLine].substring(0, endCol);
           }
 
-          const ctx = generateProjectContext(fs.files);
-          const newCode = await editCode(prefix, selectedText, suffix, instruction, ctx);
+          const newCode = await editCode(prefix, selectedText, suffix, instruction, fs.activeFile, fs.files);
           
           if (newCode) {
               const updatedContent = prefix + newCode + suffix;
@@ -545,10 +559,12 @@ function App() {
                           <IconTerminal size={14} className="text-slate-400" />
                           <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Terminal</span>
                        </div>
-                       {diagnostics.length > 0 && (
-                          <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
-                             <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                             <span className="text-[10px] text-red-400 font-medium">{diagnostics.length} Problems</span>
+                       {(diagnostics.length > 0 || isIndexing) && (
+                          <div className={`flex items-center gap-2 px-2 py-0.5 rounded-full ${isIndexing ? 'bg-blue-500/10 border-blue-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                             <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isIndexing ? 'bg-blue-400' : 'bg-red-500'}`} />
+                             <span className={`text-[10px] font-medium ${isIndexing ? 'text-blue-300' : 'text-red-400'}`}>
+                                 {isIndexing ? 'Indexing...' : `${diagnostics.length} Problems`}
+                              </span>
                           </div>
                        )}
                    </div>

@@ -40,19 +40,11 @@ export const getFilePath = (file: File, allFiles: File[]): string => {
   return path;
 };
 
-export const generateProjectContext = (files: File[]): string => {
+export const generateProjectStructureContext = (files: File[]): string => {
   const structure = files.map(f => {
      const path = getFilePath(f, files);
      return `${f.type === 'folder' ? '[DIR]' : '[FILE]'} ${path}`;
   }).sort().join('\n');
 
-  const contents = files
-     .filter(f => f.type === 'file')
-     .map(f => `
-// --- START OF FILE: ${getFilePath(f, files)} ---
-${f.content}
-// --- END OF FILE: ${getFilePath(f, files)} ---
-     `).join('\n');
-  
-  return `PROJECT STRUCTURE:\n${structure}\n\nPROJECT FILES CONTENT:\n${contents}`;
+  return `PROJECT STRUCTURE:\n${structure}`;
 };
