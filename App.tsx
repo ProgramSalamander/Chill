@@ -35,6 +35,7 @@ import { gitService, GitStatus } from './services/gitService';
 import { File, Message, MessageRole, TerminalLine, Commit, Diagnostic, AISession } from './types';
 import { getLanguage, getFilePath, processDirectoryHandle, resolveFileByPath, generateProjectContext } from './utils/fileUtils';
 import { generatePreviewHtml } from './utils/previewUtils';
+import ignore from 'ignore';
 
 const INITIAL_FILES: File[] = [];
 
@@ -191,11 +192,6 @@ function App() {
   useEffect(() => {
     initRuff().then(() => console.log('Ruff Linter initialized'));
     initChat();
-    
-    // We do NOT auto-init git here anymore.
-    // Standard behavior: Wait for user to open folder or create project.
-    // If files loaded from LS, we could theoretically check if we want to restore git state, 
-    // but without persistent FS handle to .git, we treat as fresh session uninitialized.
   }, [initChat]);
 
   const activeFile = files.find(f => f.id === activeFileId && f.type === 'file') || null;
@@ -289,18 +285,64 @@ function App() {
       // Reset Git State completely for new project
       setGitStatus([]);
       setCommits([]);
-      setIsGitInitialized(false); // Default to not initialized until we know or user inits
+      
+      // Git Detection Logic
+      let gitDetected = false;
+      try {
+          // Attempt to find .git folder
+          await dirHandle.getDirectoryHandle('.git');
+          gitDetected = true;
+      } catch (e: any) {
+          // Some browsers throw SecurityError if they block access to .git, 
+          // implying it might exist but we can't touch it. 
+          // NotFoundError means it definitely doesn't exist.
+          if (e.name === 'SecurityError') {
+              gitDetected = true;
+              addTerminalLine('Git repository detected (Hidden by browser security).', 'info');
+          } else {
+              gitDetected = false;
+          }
+      }
 
-      const loadedFiles = await processDirectoryHandle(dirHandle);
+      // Initialize Ignore Manager
+      const ig = ignore();
+      try {
+          // Try to read .gitignore to setup filtering
+          const gitignoreHandle = await dirHandle.getFileHandle('.gitignore');
+          const file = await gitignoreHandle.getFile();
+          const content = await file.text();
+          ig.add(content);
+          addTerminalLine('.gitignore found and applied.', 'info');
+      } catch (e) {
+          // No gitignore, safe to proceed
+      }
+
+      // Load Files with Ignore Logic
+      const loadedFiles = await processDirectoryHandle(dirHandle, null, '', ig);
       
       setFiles(loadedFiles);
       setProjectHandle(dirHandle);
       setActiveFileId('');
       setOpenFileIds([]);
 
-      // Note: We cannot easily detect valid .git repos via File System Access API 
-      // because browser restrictions often hide .git folders or block access.
-      // We assume "No Git" by default. User must Initialize if they want tracking in this IDE.
+      // Initialize Git Service if detected
+      if (gitDetected) {
+          setIsGitInitialized(true);
+          await gitService.init(); 
+          // Sync loaded files to our in-memory git implementation 
+          // (Treating current state as working directory)
+          for (const f of loadedFiles) {
+             if (f.type === 'file') {
+                 const path = getFilePath(f, loadedFiles);
+                 await gitService.writeFile(path, f.content);
+             }
+          }
+          refreshGit();
+          addTerminalLine('Source control initialized from workspace.', 'success');
+      } else {
+          setIsGitInitialized(false);
+          addTerminalLine('No git repository detected.', 'info');
+      }
       
       addTerminalLine(`Loaded project: ${dirHandle.name} with ${loadedFiles.length} items.`, 'success');
     } catch (err: any) {

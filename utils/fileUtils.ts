@@ -1,5 +1,6 @@
 
 import { File } from '../types';
+import ignore from 'ignore';
 
 // Infer language from extension
 export const getLanguage = (filename: string) => {
@@ -39,12 +40,28 @@ export const getFilePath = (file: File, allFiles: File[]): string => {
 };
 
 // Recursively read directory handle
-export const processDirectoryHandle = async (dirHandle: any, parentId: string | null = null): Promise<File[]> => {
+export const processDirectoryHandle = async (
+    dirHandle: any, 
+    parentId: string | null = null, 
+    pathPrefix: string = '',
+    ig: any = null // ignore instance
+): Promise<File[]> => {
   let entries: File[] = [];
   // @ts-ignore
   for await (const entry of dirHandle.values()) {
       const id = Math.random().toString(36).slice(2, 11);
+      const relativePath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
       
+      // Check .git and explicit ignores
+      if (entry.name === '.git') continue;
+      
+      // Check .gitignore rules
+      if (ig && ig.ignores(relativePath)) {
+          // Special check: ensure we don't accidentally ignore the .gitignore file itself if it's needed later,
+          // but generally if it's ignored we skip.
+          if (entry.name !== '.gitignore') continue;
+      }
+
       if (entry.kind === 'file') {
           // Filter out annoying system files
           if (['.DS_Store', 'thumbs.db'].includes(entry.name)) continue;
@@ -80,8 +97,8 @@ export const processDirectoryHandle = async (dirHandle: any, parentId: string | 
           }
 
       } else if (entry.kind === 'directory') {
-           // Skip heavy folders for this demo
-           if (['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv'].includes(entry.name)) {
+           // Skip heavy folders for this demo if not already caught by gitignore
+           if (['node_modules', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv'].includes(entry.name)) {
                entries.push({
                   id,
                   name: entry.name,
@@ -96,19 +113,22 @@ export const processDirectoryHandle = async (dirHandle: any, parentId: string | 
            }
            
            const folderHandle = await dirHandle.getDirectoryHandle(entry.name);
-           entries.push({
+           
+           // We create the folder object first
+           const folderFile: File = {
               id,
               name: entry.name,
               type: 'folder',
               parentId,
-              isOpen: false,
+              isOpen: false, // Default closed to reduce noise
               language: '',
               content: '',
               handle: folderHandle
-           });
+           };
+           entries.push(folderFile);
            
            // Recursion
-           const children = await processDirectoryHandle(folderHandle, id);
+           const children = await processDirectoryHandle(folderHandle, id, relativePath, ig);
            entries = [...entries, ...children];
       }
   }
