@@ -4,9 +4,7 @@ import {
   IconFileCode, 
   IconFolder, 
   IconFolderOpen, 
-  IconChevronRight, 
   IconChevronDown, 
-  IconMore,
   IconEdit,
   IconTrash,
   IconFilePlus,
@@ -247,7 +245,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
 
       {/* Render Children */}
       {node.type === 'folder' && node.isOpen && (
-        <div className="flex flex-col border-l border-white/5 ml-[calc(100%-8px)]">
+        <div className="flex flex-col">
           {children.map(child => (
             <FileTreeNode 
               key={child.id} 
