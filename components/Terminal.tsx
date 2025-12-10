@@ -8,9 +8,10 @@ interface TerminalProps {
   isOpen: boolean;
   diagnostics?: Diagnostic[];
   onSelectDiagnostic?: (line: number, col: number) => void;
+  onToggle?: () => void;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ lines, isOpen, diagnostics = [], onSelectDiagnostic }) => {
+const Terminal: React.FC<TerminalProps> = ({ lines, isOpen, diagnostics = [], onSelectDiagnostic, onToggle }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'terminal' | 'problems'>('terminal');
 
@@ -41,10 +42,17 @@ const Terminal: React.FC<TerminalProps> = ({ lines, isOpen, diagnostics = [], on
                 Problems {diagnostics.length > 0 && `(${diagnostics.length})`}
              </button>
         </div>
-        <div className="flex gap-2 opacity-50">
-           <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
-           <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
-           <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+        <div className="flex items-center gap-4">
+          <div className="flex gap-2 opacity-50">
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+          </div>
+          {onToggle && (
+            <button onClick={onToggle} className="text-slate-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10">
+              <IconClose size={16} />
+            </button>
+          )}
         </div>
       </div>
       
