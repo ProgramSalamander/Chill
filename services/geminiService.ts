@@ -294,7 +294,7 @@ export const sendMessageStream = async (
   return await session.sendMessageStream({ message });
 };
 
-// --- Completion ---
+// --- Completion & Editing ---
 
 export const getCodeCompletion = async (
   code: string, 
@@ -365,6 +365,51 @@ export const getCodeCompletion = async (
       console.error("Completion Error:", error);
       return "";
   }
+};
+
+export const editCode = async (
+  prefix: string,
+  selectedText: string,
+  suffix: string,
+  instruction: string,
+  projectContext: string = ''
+): Promise<string> => {
+   const config = getAIConfig();
+   
+   const prompt = `
+   You are an AI code editor.
+   ${projectContext ? `[PROJECT CONTEXT]\n${projectContext}\n` : ''}
+   
+   [CODE_BEFORE]
+   ${prefix.slice(-2000)}
+   
+   [CODE_TO_EDIT_OR_INSERT_LOCATION]
+   ${selectedText || '(Cursor is here)'}
+   
+   [CODE_AFTER]
+   ${suffix.slice(0, 2000)}
+   
+   [INSTRUCTION]
+   ${instruction}
+   
+   TASK: Return ONLY the code that should replace [CODE_TO_EDIT_OR_INSERT_LOCATION]. 
+   If it is an insertion, return the inserted code.
+   Do NOT return the before/after context.
+   Do NOT use markdown block ticks (\`\`\`).
+   `;
+
+   try {
+       const session = createChatSession("You are a strict code editor. Output raw code only.", []);
+       const response = await session.sendMessage({ message: prompt });
+       let text = response.text || "";
+       
+       // Cleanup if model adds markdown despite instructions
+       text = text.replace(/^```\w*\n/, '').replace(/```$/, '');
+       return text;
+   } catch (e) {
+       console.error("Edit Code Error", e);
+       return "";
+   }
 };
 
 export const generateCommitMessage = async (diff: string): Promise<string> => {

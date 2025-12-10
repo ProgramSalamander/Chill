@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconPlay, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -17,7 +18,7 @@ import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
 import CloneModal from './components/CloneModal';
 
-import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
+import { createChatSession, sendMessageStream, getCodeCompletion, editCode } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { gitService } from './services/gitService';
 import { projectService } from './services/projectService';
@@ -343,6 +344,60 @@ function App() {
     } finally { setIsGenerating(false); }
   };
 
+  const handleInlineAssist = async (instruction: string, range: any) => {
+      if (!fs.activeFile) return;
+      const file = fs.activeFile;
+      
+      try {
+          // Monaco ranges are 1-based, we use offset based splitting usually or line splitting.
+          // range: { startLineNumber, startColumn, endLineNumber, endColumn }
+          
+          // Simple approach: Get full content, and the selected text.
+          // Since we don't have easy line-to-offset here without Monaco instance, we rely on string replacement if possible
+          // OR we re-implement logic to find offset.
+          // BUT, CodeEditor updates state 'content'. 
+          
+          // Let's rely on splitting by lines which is robust enough for now.
+          const lines = file.content.split('\n');
+          const startLine = range.startLineNumber - 1;
+          const endLine = range.endLineNumber - 1;
+          const startCol = range.startColumn - 1;
+          const endCol = range.endColumn - 1;
+
+          // Extract prefix (up to start)
+          let prefix = "";
+          for(let i=0; i<startLine; i++) prefix += lines[i] + "\n";
+          prefix += lines[startLine].substring(0, startCol);
+
+          // Extract suffix (from end)
+          let suffix = lines[endLine].substring(endCol) + "\n";
+          for(let i=endLine+1; i<lines.length; i++) suffix += lines[i] + "\n";
+          
+          // Extract selection
+          let selectedText = "";
+          if (startLine === endLine) {
+              selectedText = lines[startLine].substring(startCol, endCol);
+          } else {
+              selectedText = lines[startLine].substring(startCol) + "\n";
+              for(let i=startLine+1; i<endLine; i++) selectedText += lines[i] + "\n";
+              selectedText += lines[endLine].substring(0, endCol);
+          }
+
+          const ctx = generateProjectContext(fs.files);
+          const newCode = await editCode(prefix, selectedText, suffix, instruction, ctx);
+          
+          if (newCode) {
+              const updatedContent = prefix + newCode + suffix;
+              fs.updateFileContent(updatedContent);
+              addTerminalLine('Inline Edit Applied', 'success');
+          }
+
+      } catch (e) {
+          console.error(e);
+          addTerminalLine('Inline Edit Failed', 'error');
+      }
+  };
+
   const handleRunCode = () => {
       if (!fs.activeFile) return;
       addTerminalLine(`Running ${fs.activeFile.name}...`, 'command');
@@ -446,6 +501,7 @@ function App() {
                                onSelectionChange={setSelectedCode} suggestion={suggestion}
                                onAcceptSuggestion={() => { if(suggestion) { fs.updateFileContent(activeFile.content.slice(0, cursorPosition) + suggestion + activeFile.content.slice(cursorPosition)); setSuggestion(null); } }}
                                onUndo={fs.undo} onRedo={fs.redo} showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
+                               onInlineAssist={handleInlineAssist}
                            />
                            
                            {/* Floating Context Bar */}

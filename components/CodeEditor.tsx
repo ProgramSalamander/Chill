@@ -3,6 +3,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Editor, { OnMount, useMonaco } from '@monaco-editor/react';
 import { IconRefresh } from './Icons';
 import { Diagnostic } from '../types';
+import { InlineInput } from './InlineInput';
 
 interface CodeEditorProps {
   code: string;
@@ -21,6 +22,8 @@ interface CodeEditorProps {
   showPreview?: boolean;
   previewContent?: string;
   diagnostics?: Diagnostic[];
+  // Inline AI
+  onInlineAssist?: (instruction: string, range: any) => Promise<void>;
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
@@ -38,12 +41,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onRedo,
   showPreview = false,
   previewContent = '',
-  diagnostics = []
+  diagnostics = [],
+  onInlineAssist
 }) => {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const decorationsRef = useRef<string[]>([]);
+  
+  // Inline Input State
+  const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
+  const [isProcessingInline, setIsProcessingInline] = useState(false);
+  const [savedSelection, setSavedSelection] = useState<any>(null);
 
   // Map app languages to Monaco languages
   const getMonacoLanguage = (lang: string) => {
@@ -112,10 +121,30 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         if (onRedo) onRedo();
     });
 
+    // Cmd+K for Inline AI
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+        const position = editor.getPosition();
+        if (position) {
+            const scrolledPos = editor.getScrolledVisiblePosition(position);
+            const selection = editor.getSelection();
+            if (scrolledPos) {
+                setInlineInputPos({ 
+                    top: scrolledPos.top, 
+                    left: scrolledPos.left, 
+                    lineHeight: 20 // Approx line height
+                });
+                setSavedSelection(selection);
+            }
+        }
+    });
+
     // Event Listeners
     editor.onDidChangeCursorPosition((e: any) => {
       const offset = editor.getModel()?.getOffsetAt(e.position) || 0;
       if (onCursorChange) onCursorChange(offset);
+      
+      // Close inline input on cursor move if it's open (optional UX choice)
+      // setInlineInputPos(null);
       
       // Sync suggestion visibility context
       suggestionVisible.set(!!suggestion);
@@ -128,32 +157,35 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     });
   };
 
+  const handleInlineSubmit = async (text: string) => {
+      if (!onInlineAssist || !savedSelection) return;
+      setIsProcessingInline(true);
+      try {
+          await onInlineAssist(text, savedSelection);
+          setInlineInputPos(null);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setIsProcessingInline(false);
+          editorRef.current?.focus();
+      }
+  };
+
   // --- Suggestion / Ghost Text ---
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
     const editor = editorRef.current;
     const monaco = monacoRef.current;
 
-    // We use context keys to enable the Tab command only when suggestion is active
-    // But context keys are hard to update from useEffect outside the mount. 
-    // We updated it in cursor change, let's also update active state here if possible, 
-    // but React props -> Monaco context is async. 
-    // Easier: The Tab command logic handles the call, if no suggestion onAcceptSuggestion is no-op or handled by parent.
-
     if (suggestion) {
         const position = editor.getPosition();
         if (position) {
-            // Render Ghost Text
-            // Note: Monaco's decorations `after` content is somewhat limited for multiline.
-            // We will render the first line or a "preview" indicator.
-            // For a robust implementation, we might stick to single-line or use `setDecorations`.
-            
             const newDecorations = [
                 {
                     range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
                     options: {
                         after: {
-                            content: suggestion, // Note: newlines might render as symbols or spaces depending on version
+                            content: suggestion,
                             inlineClassName: 'ghost-text',
                         },
                         description: 'ai-suggestion'
@@ -202,6 +234,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     <div className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
       {/* Editor Pane */}
       <div className={`relative h-full transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-white/10' : 'w-full'}`}>
+         
+         <InlineInput 
+            position={inlineInputPos} 
+            onClose={() => setInlineInputPos(null)} 
+            onSubmit={handleInlineSubmit}
+            isProcessing={isProcessingInline}
+         />
+
          <Editor
             height="100%"
             language={getMonacoLanguage(language)}
