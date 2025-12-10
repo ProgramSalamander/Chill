@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconPlay, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -95,10 +96,12 @@ function App() {
   const lastContentRef = useRef<string>('');
   const lastActiveFileIdForEffect = useRef<string | null>(null);
   const filesRef = useRef(fs.files);
+  const suggestionRef = useRef(suggestion);
 
   // --- Effects ---
   useEffect(() => { filesRef.current = fs.files; }, [fs.files]);
   useEffect(() => { activeFileIdRef.current = fs.activeFileId; }, [fs.activeFileId]);
+  useEffect(() => { suggestionRef.current = suggestion; }, [suggestion]);
   useEffect(() => { 
       messagesRef.current = messages; 
       localStorage.setItem('vibe_chat_history', JSON.stringify(messages));
@@ -304,7 +307,6 @@ function App() {
   useEffect(() => {
     if (!fs.activeFile) return;
 
-    // Linting on content change
     if (fs.activeFile.content !== lastContentRef.current) {
         lastContentRef.current = fs.activeFile.content;
         setSuggestion(null);
@@ -314,23 +316,30 @@ function App() {
             if (fs.activeFile?.language === 'python') {
                 setDiagnostics(runPythonLint(fs.activeFile.content));
             }
-            // Auto Suggestion
-            if (!isGenerating && !suggestion && !isIndexing) {
+
+            const currentFileId = activeFileIdRef.current;
+            const currentFile = filesRef.current.find(f => f.id === currentFileId);
+            if (!currentFile) return;
+
+            if (!isGenerating && !suggestionRef.current && !isIndexing) {
                 try {
-                    const sugg = await getCodeCompletion(fs.activeFile.content, lastCursorPosRef.current, fs.activeFile.language, fs.activeFile, fs.files);
-                    if (sugg) setSuggestion(sugg);
-                } catch(e) {}
+                    const sugg = await getCodeCompletion(currentFile.content, lastCursorPosRef.current, currentFile.language, currentFile, filesRef.current);
+                    if (activeFileIdRef.current === currentFileId && sugg) {
+                        setSuggestion(sugg);
+                    }
+                } catch(e) {
+                    console.error("Suggestion fetch failed:", e);
+                }
             }
         }, 1000);
     }
     
-    // File Switch
     if (fs.activeFile.id !== lastActiveFileIdForEffect.current) {
         lastActiveFileIdForEffect.current = fs.activeFile.id;
         lastContentRef.current = fs.activeFile.content;
         setSuggestion(null);
     }
-  }, [fs.activeFile, fs.files, isGenerating, suggestion, isIndexing]);
+  }, [fs.activeFile, fs.files, isGenerating, isIndexing]);
 
   const handleSendMessage = async (text: string) => {
     if (!chatSessionRef.current) return;

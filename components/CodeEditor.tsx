@@ -48,6 +48,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const monacoRef = useRef<any>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const decorationsRef = useRef<string[]>([]);
+  const contextKeyRef = useRef<any>(null);
   
   // Inline Input State
   const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
@@ -103,6 +104,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     // Context key for suggestion visibility to bind Tab key
     const suggestionVisible = editor.createContextKey('suggestionVisible', false);
+    contextKeyRef.current = suggestionVisible;
 
     // Keybindings
     editor.addCommand(monaco.KeyCode.Tab, () => {
@@ -145,9 +147,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       
       // Close inline input on cursor move if it's open (optional UX choice)
       // setInlineInputPos(null);
-      
-      // Sync suggestion visibility context
-      suggestionVisible.set(!!suggestion);
     });
 
     editor.onDidChangeCursorSelection((e: any) => {
@@ -193,9 +192,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 }
             ];
             decorationsRef.current = editor.deltaDecorations(decorationsRef.current, newDecorations);
+            if (contextKeyRef.current) {
+                contextKeyRef.current.set(true);
+            }
         }
     } else {
         decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
+        if (contextKeyRef.current) {
+            contextKeyRef.current.set(false);
+        }
     }
   }, [suggestion]);
 
