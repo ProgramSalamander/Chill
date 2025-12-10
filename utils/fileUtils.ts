@@ -1,4 +1,5 @@
 
+
 import { File } from '../types';
 import ignore from 'ignore';
 
@@ -54,68 +55,4 @@ ${f.content}
      `).join('\n');
   
   return `PROJECT STRUCTURE:\n${structure}\n\nPROJECT FILES CONTENT:\n${contents}`;
-};
-
-export const processDirectoryHandle = async (
-  dirHandle: any, 
-  parentId: string | null, 
-  pathPrefix: string,
-  ig: any
-): Promise<File[]> => {
-  let files: File[] = [];
-  
-  for await (const entry of dirHandle.values()) {
-    const fullPath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
-    
-    // Check ignore
-    if (ig && (ig.ignores(fullPath) || entry.name === '.git')) continue;
-
-    const id = Math.random().toString(36).slice(2, 11);
-
-    if (entry.kind === 'file') {
-      const file = await entry.getFile();
-      
-      // Skip binary/large files check (simplified)
-      if (file.size > 1024 * 1024 * 2) continue; // 2MB limit
-
-      let content = '';
-      try {
-          content = await file.text();
-      } catch (e) {
-          console.warn(`Could not read file ${entry.name}`, e);
-          continue;
-      }
-      
-      files.push({
-        id,
-        name: entry.name,
-        type: 'file',
-        parentId,
-        language: getLanguage(entry.name),
-        content,
-        handle: entry,
-        isModified: false,
-        history: { past: [], future: [], lastSaved: Date.now() }
-      });
-    } else if (entry.kind === 'directory') {
-      const folder: File = {
-        id,
-        name: entry.name,
-        type: 'folder',
-        parentId,
-        isOpen: false,
-        language: '',
-        content: '',
-        handle: entry
-      };
-      
-      files.push(folder);
-      
-      // Recursive call
-      const children = await processDirectoryHandle(entry, id, fullPath, ig);
-      files = [...files, ...children];
-    }
-  }
-  
-  return files;
 };

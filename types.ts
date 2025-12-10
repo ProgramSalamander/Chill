@@ -1,4 +1,5 @@
 
+
 export interface File {
   id: string;
   name: string;
@@ -14,7 +15,6 @@ export interface File {
     future: string[];
     lastSaved: number;
   };
-  handle?: any; // FileSystemFileHandle | FileSystemDirectoryHandle
 }
 
 export enum MessageRole {

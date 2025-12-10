@@ -1,8 +1,8 @@
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import { File } from '../types';
-import { processDirectoryHandle, getLanguage, getFilePath, resolveFileByPath } from '../utils/fileUtils';
-import ignore from 'ignore';
+import { getLanguage } from '../utils/fileUtils';
 
 const INITIAL_FILES: File[] = [];
 
@@ -17,53 +17,19 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
 
   const [activeFileId, setActiveFileId] = useState<string>(''); 
   const [openFileIds, setOpenFileIds] = useState<string[]>([]);
-  const [projectHandle, setProjectHandle] = useState<any>(null);
 
   // --- Persistence ---
   useEffect(() => {
-    // Strip non-serializable FS handles before saving to LS
-    const safeFiles = files.map(({ handle, ...rest }) => ({ ...rest, handle: undefined }));
-    localStorage.setItem('vibe_files_backup', JSON.stringify(safeFiles));
+    // Save to LS (handled purely in-memory/browser now)
+    localStorage.setItem('vibe_files_backup', JSON.stringify(files));
   }, [files]);
 
   // --- Actions ---
-
-  const handleOpenFolder = useCallback(async () => {
-    try {
-      // @ts-ignore
-      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-      addTerminalLine(`Opening local directory: ${dirHandle.name}...`, 'command');
-      
-      const ig = ignore();
-      try {
-          const gitignoreHandle = await dirHandle.getFileHandle('.gitignore');
-          const file = await gitignoreHandle.getFile();
-          const content = await file.text();
-          ig.add(content);
-      } catch (e) { /* No .gitignore */ }
-
-      const loadedFiles = await processDirectoryHandle(dirHandle, null, '', ig);
-      
-      setFiles(loadedFiles);
-      setProjectHandle(dirHandle);
-      setActiveFileId('');
-      setOpenFileIds([]);
-      
-      addTerminalLine(`Loaded project: ${dirHandle.name} with ${loadedFiles.length} items.`, 'success');
-      return loadedFiles;
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-         addTerminalLine(`Error opening folder: ${err.message}`, 'error');
-      }
-      return null;
-    }
-  }, [addTerminalLine]);
 
   const resetProject = useCallback(() => {
       setFiles([]);
       setActiveFileId('');
       setOpenFileIds([]);
-      setProjectHandle(null);
   }, []);
 
   const createNode = useCallback(async (type: 'file' | 'folder', parentId: string | null, name: string, initialContent?: string) => {
@@ -71,22 +37,6 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
     if (existing) {
         addTerminalLine(`Error: ${type} "${name}" already exists.`, 'error');
         return null;
-    }
-
-    let handle: any = undefined;
-    if (projectHandle) {
-        try {
-            let parentHandle = projectHandle;
-            if (parentId) {
-                const parentFile = files.find(f => f.id === parentId);
-                if (parentFile && parentFile.handle) parentHandle = parentFile.handle;
-            }
-            if (type === 'file') handle = await parentHandle.getFileHandle(name, { create: true });
-            else handle = await parentHandle.getDirectoryHandle(name, { create: true });
-        } catch (e) {
-             addTerminalLine(`FS Create Error: ${e}`, 'error');
-             return null;
-        }
     }
 
     const newFile: File = {
@@ -97,9 +47,8 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
       isOpen: type === 'folder' ? true : undefined,
       language: type === 'file' ? getLanguage(name) : '',
       content: initialContent || (type === 'file' ? (type === 'file' && getLanguage(name) === 'python' ? '# Python File\n' : '// Start coding...') : ''),
-      isModified: type === 'file' && !initialContent ? false : true, // If created with content, assume modified until saved? Or synced.
-      history: type === 'file' ? { past: [], future: [], lastSaved: 0 } : undefined,
-      handle
+      isModified: type === 'file' && !initialContent ? false : true, // If created with content, assume modified until saved
+      history: type === 'file' ? { past: [], future: [], lastSaved: 0 } : undefined
     };
     
     setFiles(prev => [...prev, newFile]);
@@ -111,36 +60,17 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
     
     addTerminalLine(`Created ${type}: ${newFile.name}`, 'success');
     return newFile;
-  }, [files, projectHandle, addTerminalLine]);
+  }, [files, addTerminalLine]);
 
   const renameNode = useCallback(async (id: string, newName: string) => {
       const file = files.find(f => f.id === id);
       if (!file) return;
-
-      if (projectHandle && file.handle && file.handle.move) {
-          try { await file.handle.move(newName); } 
-          catch (e) { addTerminalLine(`FS Rename Error: ${e} (Memory only)`, 'error'); }
-      }
       
       setFiles(prev => prev.map(f => f.id === id ? { ...f, name: newName, language: f.type === 'file' ? getLanguage(newName) : f.language } : f));
       addTerminalLine(`Renamed to ${newName}`, 'info');
-  }, [files, projectHandle, addTerminalLine]);
+  }, [files, addTerminalLine]);
 
   const deleteNode = useCallback(async (file: File) => {
-      if (projectHandle) {
-         try {
-             let parentHandle = projectHandle;
-             if (file.parentId) {
-                 const parent = files.find(f => f.id === file.parentId);
-                 if (parent && parent.handle) parentHandle = parent.handle;
-             }
-             await parentHandle.removeEntry(file.name, { recursive: file.type === 'folder' });
-         } catch (e) {
-             addTerminalLine(`FS Delete Error: ${e}`, 'error');
-             return;
-         }
-      }
-
       const getDescendants = (id: string, list: File[]): string[] => {
           const children = list.filter(f => f.parentId === id);
           return [...children.map(c => c.id), ...children.flatMap(c => getDescendants(c.id, list))];
@@ -155,7 +85,7 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
       }
       addTerminalLine(`Deleted ${file.type}: ${file.name}`, 'info');
       return idsToDelete;
-  }, [files, projectHandle, activeFileId, addTerminalLine]);
+  }, [files, activeFileId, addTerminalLine]);
 
   const updateFileContent = useCallback((content: string, forceHistory: boolean = false, targetId?: string) => {
     const idToUpdate = targetId || activeFileId;
@@ -186,16 +116,7 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
   }, [activeFileId]);
 
   const saveFile = useCallback(async (file: File) => {
-    if (file.handle) {
-        try {
-            const writable = await file.handle.createWritable();
-            await writable.write(file.content);
-            await writable.close();
-        } catch (err) {
-            addTerminalLine(`Error saving to disk: ${err}`, 'error');
-            return false;
-        }
-    }
+    // Purely state update for cloud/browser native environment
     setFiles(prev => prev.map(f => f.id === file.id ? { ...f, isModified: false } : f));
     addTerminalLine(`Saved file: ${file.name}`, 'success');
     return true;
@@ -286,8 +207,6 @@ export const useFileSystem = (addTerminalLine: (msg: string, type?: any) => void
       activeFile,
       activeFileId,
       openFileIds,
-      projectHandle,
-      handleOpenFolder,
       resetProject,
       createNode,
       renameNode,

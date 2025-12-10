@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconPlay, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -110,33 +111,6 @@ function App() {
   }, [addTerminalLine]);
 
   // --- Handlers ---
-
-  const handleOpenProject = async () => {
-      const loaded = await fs.handleOpenFolder();
-      if (!loaded) return;
-      
-      // Git Detection
-      if (fs.projectHandle) {
-          try {
-             // @ts-ignore
-             await fs.projectHandle.getDirectoryHandle('.git');
-             git.setIsInitialized(true);
-             await gitService.init(); // Soft init to load git state
-             // Sync loaded files to git in-memory
-             for (const f of loaded) {
-                if (f.type === 'file') {
-                    const path = getFilePath(f, loaded);
-                    await gitService.writeFile(path, f.content);
-                }
-             }
-             git.refresh();
-             addTerminalLine('Git repository detected.', 'info');
-          } catch(e) {
-             git.reset();
-             addTerminalLine('No git repository detected.', 'info');
-          }
-      }
-  };
 
   const handleNewProject = async () => {
       if (fs.files.length > 0 && !window.confirm("Start new project? Unsaved memory changes lost.")) return;
@@ -302,9 +276,8 @@ function App() {
       
       <MenuBar 
         onNewProject={handleNewProject}
-        onOpenProject={handleOpenProject}
         onSaveAll={handleSaveAll}
-        projectName={fs.projectHandle?.name}
+        projectName={fs.files.length > 0 ? "Cloud Workspace" : undefined}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenCloneModal={() => setIsCloneModalOpen(true)}
       />
@@ -330,7 +303,9 @@ function App() {
                       <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
                           <IconFolderOpen size={32} />
                           <p className="text-xs">No project</p>
-                          <button onClick={handleOpenProject} className="text-vibe-accent text-xs hover:underline">Open Folder</button>
+                          <button onClick={() => setIsCloneModalOpen(true)} className="text-vibe-accent text-xs hover:underline">Clone Repository</button>
+                          <span className="text-[10px] text-slate-500">or</span>
+                          <button onClick={handleNewProject} className="text-vibe-accent text-xs hover:underline">Create New</button>
                       </div>
                   ) : (
                       <FileExplorer 
