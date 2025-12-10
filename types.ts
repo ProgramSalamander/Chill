@@ -1,5 +1,6 @@
 
 
+
 export interface File {
   id: string;
   name: string;
@@ -81,6 +82,12 @@ export interface AgentStep {
   toolName?: string;
   toolArgs?: any;
   timestamp: number;
+}
+
+export interface ProjectMeta {
+  id: string;
+  name: string;
+  lastOpened: number;
 }
 
 // --- AI Provider Types ---

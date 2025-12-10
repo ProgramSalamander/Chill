@@ -1,13 +1,16 @@
 
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   IconPlus, 
   IconSave, 
   IconFolder,
   IconSettings,
-  IconGitBranch
+  IconGitBranch,
+  IconClock
 } from './Icons';
+import { ProjectMeta } from '../types';
 
 interface MenuBarProps {
   onNewProject: () => void;
@@ -15,6 +18,8 @@ interface MenuBarProps {
   projectName?: string;
   onOpenSettings: () => void;
   onOpenCloneModal: () => void;
+  recentProjects?: ProjectMeta[];
+  onLoadProject?: (project: ProjectMeta) => void;
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ 
@@ -22,7 +27,9 @@ const MenuBar: React.FC<MenuBarProps> = ({
   onSaveAll, 
   projectName,
   onOpenSettings,
-  onOpenCloneModal
+  onOpenCloneModal,
+  recentProjects = [],
+  onLoadProject
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -65,7 +72,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                 Projects
             </button>
             {activeMenu === 'projects' && (
-                <div className="absolute top-[calc(100%+4px)] left-0 w-56 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
+                <div className="absolute top-[calc(100%+4px)] left-0 w-64 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
                     <button onClick={() => { onNewProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                         <IconPlus size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
                         <span>New Project</span>
@@ -79,6 +86,33 @@ const MenuBar: React.FC<MenuBarProps> = ({
                          <IconSave size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
                          <span>Save All</span>
                     </button>
+
+                    {recentProjects.length > 0 && (
+                      <>
+                        <div className="h-[1px] bg-white/5 my-1 mx-2" />
+                        <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Recent Projects
+                        </div>
+                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                          {recentProjects.map(proj => (
+                            <button 
+                              key={proj.id}
+                              onClick={() => { if(onLoadProject) onLoadProject(proj); closeMenu(); }} 
+                              className="w-full group px-3 py-2 text-xs text-left text-slate-300 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg"
+                            >
+                                <IconFolder size={14} className="text-slate-600 group-hover:text-vibe-accent" /> 
+                                <div className="flex flex-col truncate">
+                                  <span className="truncate">{proj.name}</span>
+                                  <span className="text-[9px] text-slate-600 font-normal flex items-center gap-1">
+                                    <IconClock size={8} />
+                                    {new Date(proj.lastOpened).toLocaleDateString()}
+                                  </span>
+                                </div>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                 </div>
             )}
         </div>

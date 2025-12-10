@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconPlay, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -22,7 +24,8 @@ import CloneModal from './components/CloneModal';
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { gitService } from './services/gitService';
-import { File, Message, MessageRole, TerminalLine, Diagnostic, AISession } from './types';
+import { projectService } from './services/projectService';
+import { File, Message, MessageRole, TerminalLine, Diagnostic, AISession, ProjectMeta } from './types';
 import { getFilePath, resolveFileByPath, generateProjectContext } from './utils/fileUtils';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { useFileSystem } from './hooks/useFileSystem';
@@ -62,6 +65,11 @@ function App() {
   const fs = useFileSystem(addTerminalLine);
   const git = useGit(fs.files, addTerminalLine);
 
+  // --- Project Management State ---
+  const [activeProject, setActiveProject] = useState<ProjectMeta | null>(null);
+  const [recentProjects, setRecentProjects] = useState<ProjectMeta[]>([]);
+  const debounceSaveProjectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // --- Editor State ---
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
@@ -98,6 +106,42 @@ function App() {
   useEffect(() => { localStorage.setItem('vibe_layout_terminal', JSON.stringify(isTerminalOpen)); }, [isTerminalOpen]);
   useEffect(() => { localStorage.setItem('vibe_context_scope', contextScope); }, [contextScope]);
 
+  // Load active project on mount
+  useEffect(() => {
+    setRecentProjects(projectService.getRecents());
+    const lastProjectId = projectService.getActiveProjectId();
+    
+    if (lastProjectId) {
+      const recents = projectService.getRecents();
+      const meta = recents.find(p => p.id === lastProjectId);
+      if (meta) {
+        const savedFiles = projectService.loadProject(lastProjectId);
+        if (savedFiles) {
+           fs.setAllFiles(savedFiles);
+           setActiveProject(meta);
+           addTerminalLine(`Loaded project: ${meta.name}`, 'info');
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save project files
+  useEffect(() => {
+    if (!activeProject) return;
+
+    if (debounceSaveProjectRef.current) clearTimeout(debounceSaveProjectRef.current);
+    debounceSaveProjectRef.current = setTimeout(() => {
+      projectService.saveProject(fs.files, activeProject);
+      // Update recents list to reflect new lastOpened time or order if changed
+      setRecentProjects(projectService.getRecents());
+    }, 2000);
+
+    return () => {
+       if (debounceSaveProjectRef.current) clearTimeout(debounceSaveProjectRef.current);
+    };
+  }, [fs.files, activeProject]);
+
   // Init Services
   useEffect(() => {
     initRuff().then(() => console.log('Ruff Linter initialized'));
@@ -113,16 +157,66 @@ function App() {
   // --- Handlers ---
 
   const handleNewProject = async () => {
-      if (fs.files.length > 0 && !window.confirm("Start new project? Unsaved memory changes lost.")) return;
+      // Prompt for name
+      const name = window.prompt("Enter project name:", "Untitled Project");
+      if (!name) return;
+
+      // Save current if active
+      if (activeProject) {
+        projectService.saveProject(fs.files, activeProject);
+      }
+
+      // Create new
+      const newMeta = projectService.createProject(name);
+      setActiveProject(newMeta);
+      setRecentProjects(projectService.getRecents()); // Update list with new one
+      
       fs.resetProject();
       git.reset();
       setMessages([]);
       setTerminalLines([]);
-      addTerminalLine('New project created.', 'info');
+      addTerminalLine(`New project created: ${name}`, 'success');
+  };
+
+  const handleLoadProject = async (project: ProjectMeta) => {
+    if (activeProject?.id === project.id) return;
+    
+    // Save current
+    if (activeProject) {
+       projectService.saveProject(fs.files, activeProject);
+    }
+
+    // Load new
+    const files = projectService.loadProject(project.id);
+    if (files) {
+       fs.setAllFiles(files);
+       setActiveProject(project);
+       projectService.saveProject(files, project); // Bump timestamp
+       setRecentProjects(projectService.getRecents());
+       
+       git.reset(); // Reset git state as we switched context
+       // Optional: Try to re-init git if we had persistent .git storage
+       
+       addTerminalLine(`Switched to project: ${project.name}`, 'info');
+    } else {
+       addTerminalLine(`Failed to load project: ${project.name}`, 'error');
+    }
   };
 
   const handleClone = async (url: string) => {
       setIsCloneModalOpen(false);
+      
+      // If no active project, create one derived from URL
+      if (!activeProject) {
+          const name = url.split('/').pop()?.replace('.git', '') || 'Cloned Repo';
+          const newMeta = projectService.createProject(name);
+          setActiveProject(newMeta);
+      } else {
+          // If active project is empty, use it. If not, maybe warn? 
+          // Current behavior: overwrite active project.
+          addTerminalLine(`Overwriting current project with clone...`, 'warning');
+      }
+
       const newFiles = await git.clone(url);
       if (newFiles) {
           fs.setAllFiles(newFiles);
@@ -135,6 +229,9 @@ function App() {
       for (const f of modified) {
           await fs.saveFile(f);
           await git.syncFile(f);
+      }
+      if (activeProject) {
+         projectService.saveProject(fs.files, activeProject);
       }
       if (modified.length > 0) addTerminalLine(`Saved ${modified.length} files.`, 'success');
   };
@@ -277,9 +374,11 @@ function App() {
       <MenuBar 
         onNewProject={handleNewProject}
         onSaveAll={handleSaveAll}
-        projectName={fs.files.length > 0 ? "Cloud Workspace" : undefined}
+        projectName={activeProject?.name || (fs.files.length > 0 ? "Draft Workspace" : undefined)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenCloneModal={() => setIsCloneModalOpen(true)}
+        recentProjects={recentProjects}
+        onLoadProject={handleLoadProject}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -302,10 +401,10 @@ function App() {
                   {fs.files.length === 0 ? (
                       <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
                           <IconFolderOpen size={32} />
-                          <p className="text-xs">No project</p>
+                          <p className="text-xs">No files</p>
                           <button onClick={() => setIsCloneModalOpen(true)} className="text-vibe-accent text-xs hover:underline">Clone Repository</button>
                           <span className="text-[10px] text-slate-500">or</span>
-                          <button onClick={handleNewProject} className="text-vibe-accent text-xs hover:underline">Create New</button>
+                          <button onClick={handleNewProject} className="text-vibe-accent text-xs hover:underline">Create New Project</button>
                       </div>
                   ) : (
                       <FileExplorer 
