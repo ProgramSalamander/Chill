@@ -1003,7 +1003,7 @@ ${text}
           onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      <div className="flex-1 flex min-h-0 w-full relative">
+      <div className="flex-1 flex min-h-0 min-w-0 w-full relative">
         <Sidebar 
           activeView={activeSidebarView}
           setActiveView={setActiveSidebarView}
@@ -1049,7 +1049,7 @@ ${text}
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 relative m-2 gap-2">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 relative m-2 gap-2">
             
             <EditorTabs 
                openFileIds={openFileIds}
@@ -1066,9 +1066,9 @@ ${text}
             />
 
             {/* Editor & Content */}
-            <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl">
+            <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl min-h-0">
                 {activeFile ? (
-                <div className="flex-1 relative">
+                <div className="flex-1 relative min-h-0">
                     <CodeEditor 
                         code={activeFile.content}
                         language={activeFile.language}

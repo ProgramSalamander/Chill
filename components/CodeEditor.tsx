@@ -1,3 +1,4 @@
+
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import Editor from 'react-simple-code-editor';
 // We need to import Prism specifically to use it for highlighting
@@ -265,7 +266,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 
                 {/* Gutter */}
                 <div 
-                  className="sticky left-0 z-30 flex flex-col items-end border-r border-white/5 text-slate-600 select-none py-[20px] p-4 text-xs bg-black/20 backdrop-blur-sm"
+                  className="sticky left-0 z-40 flex flex-col items-end border-r border-white/5 text-slate-600 select-none py-[20px] p-4 text-xs bg-[#050508]"
                   style={{
                     fontFamily: commonStyles.fontFamily,
                     fontSize: commonStyles.fontSize,
