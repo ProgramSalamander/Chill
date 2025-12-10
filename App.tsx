@@ -28,6 +28,7 @@ import ContextBar from './components/ContextBar';
 import MenuBar from './components/MenuBar';
 import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
+import CloneModal from './components/CloneModal'; // New import
 
 import { createChatSession, sendMessageStream, getCodeCompletion } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
@@ -82,6 +83,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isCloneModalOpen, setIsCloneModalOpen] = useState(false); // New state for clone modal
   
   const [contextScope, setContextScope] = useState<'project' | 'file'>(() => {
        try {
@@ -392,6 +394,7 @@ function App() {
   const handleClone = async (url: string) => {
     setIsCloning(true);
     addTerminalLine(`Cloning from ${url}...`, 'command');
+    setIsCloneModalOpen(false); // Close modal immediately
     try {
         await gitService.clear(); // Clear existing FS first
         await gitService.clone(url);
@@ -1027,6 +1030,7 @@ ${text}
         onSaveAll={handleSaveAll}
         projectName={projectHandle?.name}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenCloneModal={() => setIsCloneModalOpen(true)} // Pass new prop here
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -1219,6 +1223,13 @@ ${text}
          fileName={fileToDelete?.name || ''} 
          onClose={() => setFileToDelete(null)}
          onConfirm={handleConfirmDelete}
+      />
+
+      <CloneModal
+        isOpen={isCloneModalOpen}
+        onClose={() => setIsCloneModalOpen(false)}
+        onClone={handleClone}
+        isCloning={isCloning}
       />
 
       <CommandPalette 

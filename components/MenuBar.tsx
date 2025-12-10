@@ -8,7 +8,8 @@ import {
   IconSettings,
   IconClose,
   IconLayout,
-  IconMenu
+  IconMenu,
+  IconGitBranch
 } from './Icons';
 
 interface MenuBarProps {
@@ -17,6 +18,7 @@ interface MenuBarProps {
   onSaveAll?: () => void;
   projectName?: string;
   onOpenSettings: () => void;
+  onOpenCloneModal: () => void; // New prop for clone modal
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ 
@@ -24,7 +26,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
   onOpenProject, 
   onSaveAll, 
   projectName,
-  onOpenSettings
+  onOpenSettings,
+  onOpenCloneModal
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -74,7 +77,11 @@ const MenuBar: React.FC<MenuBarProps> = ({
                     </button>
                     <button onClick={() => { onOpenProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                         <IconFolderOpen size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
-                        <span>Open Folder...</span>
+                        <span>Open Local Folder...</span>
+                    </button>
+                    <button onClick={() => { onOpenCloneModal(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                        <IconGitBranch size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
+                        <span>Clone Project...</span>
                     </button>
                     <div className="h-[1px] bg-white/5 my-1 mx-2" />
                     <button onClick={() => { if(onSaveAll) onSaveAll(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
