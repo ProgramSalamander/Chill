@@ -97,7 +97,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     
     // --- Inline Completions Provider ---
     providerRef.current = monaco.languages.registerInlineCompletionsProvider(getMonacoLanguage(language), {
-      provideInlineCompletions: async (model, position) => {
+      provideInlineCompletions: async (model, position, context, token) => {
         const code = model.getValue();
         const offset = model.getOffsetAt(position);
         try {
@@ -112,7 +112,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
         return { items: [] };
       },
-      freeInlineCompletions: () => {}
+      disposeInlineCompletions: async (completions, reason) => {},
     });
 
     // Keybindings
