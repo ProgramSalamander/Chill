@@ -92,6 +92,7 @@ function App() {
   // --------------------------------
 
   // Git State
+  const [isGitInitialized, setIsGitInitialized] = useState(false);
   const [gitStatus, setGitStatus] = useState<GitStatus[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
 
@@ -186,33 +187,21 @@ function App() {
     }
   }, [addTerminalLine]);
 
-  // Init Service & Git
+  // Init Service
   useEffect(() => {
     initRuff().then(() => console.log('Ruff Linter initialized'));
     initChat();
     
-    // Init Git
-    gitService.init().then(async () => {
-        addTerminalLine('Isomorphic-git initialized in browser memory.', 'info');
-        
-        // If files were loaded from local storage but Git is empty (new session in memory),
-        // we should sync files TO git so they exist in the FS for git ops.
-        if (files.length > 0) {
-            for (const f of files) {
-                if (f.type === 'file') {
-                    const path = getFilePath(f, files);
-                    await gitService.writeFile(path, f.content);
-                }
-            }
-        }
-        
-        refreshGit();
-    });
+    // We do NOT auto-init git here anymore.
+    // Standard behavior: Wait for user to open folder or create project.
+    // If files loaded from LS, we could theoretically check if we want to restore git state, 
+    // but without persistent FS handle to .git, we treat as fresh session uninitialized.
   }, [initChat]);
 
   const activeFile = files.find(f => f.id === activeFileId && f.type === 'file') || null;
 
   const refreshGit = useCallback(async () => {
+     if (!isGitInitialized) return;
      try {
          const status = await gitService.status();
          setGitStatus(status);
@@ -222,10 +211,11 @@ function App() {
      } catch (e) {
          console.error('Git Refresh Error', e);
      }
-  }, []);
+  }, [isGitInitialized]);
 
   // Sync virtual files to git fs
   const syncFileToGit = async (file: File) => {
+      if (!isGitInitialized) return;
       const path = getFilePath(file, filesRef.current);
       await gitService.writeFile(path, file.content);
       refreshGit();
@@ -296,26 +286,22 @@ function App() {
       addTerminalLine(`Opening local directory: ${dirHandle.name}...`, 'command');
       setIsGenerating(true); 
 
+      // Reset Git State completely for new project
+      setGitStatus([]);
+      setCommits([]);
+      setIsGitInitialized(false); // Default to not initialized until we know or user inits
+
       const loadedFiles = await processDirectoryHandle(dirHandle);
       
       setFiles(loadedFiles);
       setProjectHandle(dirHandle);
       setActiveFileId('');
       setOpenFileIds([]);
-      setGitStatus([]);
-      setCommits([]);
-      
-      // Re-init git and sync files
-      await gitService.init();
-      // Bulk write to git FS to sync
-      for (const f of loadedFiles) {
-          if (f.type === 'file') {
-              const path = getFilePath(f, loadedFiles);
-              await gitService.writeFile(path, f.content);
-          }
-      }
-      refreshGit();
 
+      // Note: We cannot easily detect valid .git repos via File System Access API 
+      // because browser restrictions often hide .git folders or block access.
+      // We assume "No Git" by default. User must Initialize if they want tracking in this IDE.
+      
       addTerminalLine(`Loaded project: ${dirHandle.name} with ${loadedFiles.length} items.`, 'success');
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -340,9 +326,24 @@ function App() {
       setCommits([]);
       setMessages([]);
       setTerminalLines([]);
+      setIsGitInitialized(false);
 
+      addTerminalLine('New project created. Git not initialized.', 'info');
+  };
+
+  const handleInitializeGit = async () => {
       await gitService.init(); 
-      addTerminalLine('Initialized new empty project.', 'success');
+      setIsGitInitialized(true);
+      
+      // Sync all current files to git
+      for (const f of files) {
+          if (f.type === 'file') {
+              const path = getFilePath(f, files);
+              await gitService.writeFile(path, f.content);
+          }
+      }
+      refreshGit();
+      addTerminalLine('Git repository initialized.', 'success');
   };
   // -----------------------------
 
@@ -536,6 +537,7 @@ function App() {
   };
 
   const handleGitStage = async (fileId: string) => {
+    if (!isGitInitialized) return;
     const file = files.find(f => f.id === fileId);
     if (!file) return;
     const path = getFilePath(file, files);
@@ -544,6 +546,7 @@ function App() {
   };
 
   const handleGitUnstage = async (fileId: string) => {
+    if (!isGitInitialized) return;
     const file = files.find(f => f.id === fileId);
     if (!file) return;
     const path = getFilePath(file, files);
@@ -552,6 +555,7 @@ function App() {
   };
 
   const handleGitCommit = async (message: string) => {
+    if (!isGitInitialized) return;
     const sha = await gitService.commit(message);
     addTerminalLine(`Commit ${sha.slice(0, 7)}: ${message}`, 'success');
     refreshGit();
@@ -668,9 +672,11 @@ function App() {
     setFiles(prev => [...prev, newFile]);
     
     if (type === 'file') {
-        const path = getFilePath(newFile, [...filesRef.current, newFile]);
-        await gitService.writeFile(path, newFile.content);
-        refreshGit();
+        if (isGitInitialized) {
+            const path = getFilePath(newFile, [...filesRef.current, newFile]);
+            await gitService.writeFile(path, newFile.content);
+            refreshGit();
+        }
 
         if (!initialContent) {
             setOpenFileIds(prev => [...prev, newFile.id]);
@@ -700,11 +706,9 @@ function App() {
       }
       
       const oldPath = getFilePath(file, files);
-      // We'd need to move it in git too, but isomorphic-git move is manual (copy + delete). 
-      // For simplicity, we just delete old and add new in git logic implicitly via delete/create?
-      // Better: just sync the new file name.
-      
-      await gitService.deleteFile(oldPath);
+      if (isGitInitialized) {
+          await gitService.deleteFile(oldPath);
+      }
 
       setFiles(prev => prev.map(f => {
           if (f.id === id) {
@@ -716,9 +720,12 @@ function App() {
       // We need to re-find the file to get new path
       const updatedFiles = files.map(f => f.id === id ? { ...f, name: newName } : f);
       const updatedFile = updatedFiles.find(f => f.id === id)!;
-      const newPath = getFilePath(updatedFile, updatedFiles);
-      await gitService.writeFile(newPath, updatedFile.content);
-      refreshGit();
+      
+      if (isGitInitialized) {
+          const newPath = getFilePath(updatedFile, updatedFiles);
+          await gitService.writeFile(newPath, updatedFile.content);
+          refreshGit();
+      }
 
       addTerminalLine(`Renamed to ${newName}`, 'info');
   };
@@ -798,7 +805,7 @@ function App() {
     const idsToDelete = [fileToDelete.id, ...getDescendantIds(fileToDelete.id, files)];
     
     // Remove from Git
-    if (fileToDelete.type === 'file') {
+    if (fileToDelete.type === 'file' && isGitInitialized) {
         const path = getFilePath(fileToDelete, files);
         await gitService.deleteFile(path);
         // Note: deleting in FS shows as 'deleted' in git status.
@@ -1037,12 +1044,14 @@ ${text}
             )}
             {activeSidebarView === 'git' && (
                 <GitPanel 
+                    isInitialized={isGitInitialized}
                     files={files}
                     gitStatus={gitStatus}
                     commits={commits}
                     onStage={handleGitStage}
                     onUnstage={handleGitUnstage}
                     onCommit={handleGitCommit}
+                    onInitialize={handleInitializeGit}
                 />
             )}
             </div>

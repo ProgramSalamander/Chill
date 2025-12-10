@@ -15,11 +15,30 @@ export interface GitStatus {
 }
 
 export const gitService = {
+  // Clear the FS manually when switching projects
+  clear: async () => {
+      // lightning-fs doesn't have a simple "clear all" public API readily available on the instance 
+      // without re-creating it or recursively deleting. 
+      // Re-initialization with wipe: true is usually done at import time.
+      // For runtime clearing, we can try to unlink root items.
+      try {
+          const files = await fs.promises.readdir('/');
+          for (const file of files) {
+             const stat = await fs.promises.stat(`/${file}`);
+             if (stat.isDirectory()) {
+                 // recursive delete is not standard in this fs promises API, assume we rely on app logic to not mix projects
+             } else {
+                 await fs.promises.unlink(`/${file}`);
+             }
+          }
+      } catch (e) {
+          // ignore
+      }
+  },
+
   init: async () => {
     try {
         await git.init({ fs, dir: '/' });
-        // Create initial commit to avoid HEAD error on first status check if empty
-        // But isomorphic-git init handles empty repo fine.
     } catch (e) {
         console.error("Git Init Error", e);
     }

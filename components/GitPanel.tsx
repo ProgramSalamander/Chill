@@ -16,21 +16,25 @@ import {
 } from './Icons';
 
 interface GitPanelProps {
+  isInitialized: boolean;
   files: File[];
   gitStatus: GitStatus[];
   commits: Commit[];
   onStage: (fileId: string) => void;
   onUnstage: (fileId: string) => void;
   onCommit: (message: string) => void;
+  onInitialize: () => void;
 }
 
 const GitPanel: React.FC<GitPanelProps> = ({ 
+  isInitialized,
   files, 
   gitStatus,
   commits, 
   onStage, 
   onUnstage, 
-  onCommit 
+  onCommit,
+  onInitialize
 }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -114,6 +118,34 @@ const GitPanel: React.FC<GitPanelProps> = ({
         </div>
      );
   };
+
+  if (!isInitialized) {
+      return (
+          <div className="flex flex-col h-full bg-vibe-800/30">
+              <div className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider flex justify-between items-center bg-black/10">
+                <div className="flex items-center gap-2">
+                    <IconGitBranch size={14} className="text-vibe-accent" />
+                    <span>Source Control</span>
+                </div>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                      <IconGitBranch size={24} className="text-slate-500 opacity-50" />
+                  </div>
+                  <h3 className="text-sm font-medium text-slate-300 mb-2">No Repository</h3>
+                  <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                      The current workspace is not a git repository. Initialize one to start tracking changes.
+                  </p>
+                  <button 
+                      onClick={onInitialize}
+                      className="px-4 py-2 bg-vibe-accent hover:bg-indigo-500 text-white text-xs font-medium rounded-lg shadow-lg shadow-indigo-500/20 transition-all"
+                  >
+                      Initialize Repository
+                  </button>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="flex flex-col h-full bg-vibe-800/30">
