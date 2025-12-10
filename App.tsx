@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconPlay, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -368,8 +364,7 @@ function App() {
   const getPreviewContent = useMemo(() => isPreviewOpen ? generatePreviewHtml(fs.files, activeFile) : '', [fs.files, activeFile, isPreviewOpen]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#050508] text-slate-300 font-sans overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-vibe-accent/30 to-transparent"></div>
+    <div className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent">
       
       <MenuBar 
         onNewProject={handleNewProject}
@@ -381,51 +376,57 @@ function App() {
         onLoadProject={handleLoadProject}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar 
-          activeView={activeSidebarView} 
-          setActiveView={setActiveSidebarView} 
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          gitStatus={git.status}
-        />
+      {/* Main Workspace Area with Floating "Islands" */}
+      <div className="flex-1 flex overflow-hidden p-3 gap-3">
+        
+        {/* Floating Sidebar */}
+        <div className="flex flex-col gap-3 h-full">
+           <Sidebar 
+            activeView={activeSidebarView} 
+            setActiveView={setActiveSidebarView} 
+            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            gitStatus={git.status}
+          />
+          
+          {/* Expanded Sidebar Panel (Explorer/Git) */}
+          {activeSidebarView && (
+            <div className="w-64 glass-panel rounded-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 h-full overflow-hidden shadow-2xl">
+               {activeSidebarView === 'explorer' && (
+                 <div className="flex flex-col h-full">
+                    <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between tracking-wider border-b border-white/5">
+                      <span>Explorer</span>
+                      <button onClick={() => fs.createNode('file', null, `untitled_${fs.files.length}.ts`)} className="hover:text-white transition-colors"><IconFilePlus size={14} /></button>
+                    </div>
+                    {fs.files.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
+                            <IconFolderOpen size={32} />
+                            <p className="text-xs">No files</p>
+                            <button onClick={() => setIsCloneModalOpen(true)} className="text-vibe-accent text-xs hover:underline">Clone Repo</button>
+                        </div>
+                    ) : (
+                        <FileExplorer 
+                          files={fs.files} activeFileId={fs.activeFileId} onFileClick={handleFileClick}
+                          onDelete={setFileToDelete} onRename={fs.renameNode} onCreate={fs.createNode} onToggleFolder={fs.toggleFolder}
+                        />
+                    )}
+                 </div>
+               )}
+               {activeSidebarView === 'git' && (
+                   <GitPanel 
+                      isInitialized={git.isInitialized} files={fs.files} gitStatus={git.status} commits={git.commits}
+                      onStage={git.stage} onUnstage={git.unstage} onCommit={git.commit} onInitialize={() => git.init(fs.files)}
+                      onClone={handleClone} isCloning={git.isCloning}
+                   />
+               )}
+            </div>
+          )}
+        </div>
 
-        {activeSidebarView && (
-          <div className="w-64 bg-[#0a0a0f]/80 backdrop-blur-xl border-r border-white/5 flex flex-col animate-in slide-in-from-left-4 duration-300">
-             {activeSidebarView === 'explorer' && (
-               <div className="flex flex-col h-full">
-                  <div className="p-3 text-xs font-bold text-slate-500 uppercase flex justify-between">
-                    <span>Explorer</span>
-                    <button onClick={() => fs.createNode('file', null, `untitled_${fs.files.length}.ts`)}><IconFilePlus size={14} /></button>
-                  </div>
-                  {fs.files.length === 0 ? (
-                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
-                          <IconFolderOpen size={32} />
-                          <p className="text-xs">No files</p>
-                          <button onClick={() => setIsCloneModalOpen(true)} className="text-vibe-accent text-xs hover:underline">Clone Repository</button>
-                          <span className="text-[10px] text-slate-500">or</span>
-                          <button onClick={handleNewProject} className="text-vibe-accent text-xs hover:underline">Create New Project</button>
-                      </div>
-                  ) : (
-                      <FileExplorer 
-                        files={fs.files} activeFileId={fs.activeFileId} onFileClick={handleFileClick}
-                        onDelete={setFileToDelete} onRename={fs.renameNode} onCreate={fs.createNode} onToggleFolder={fs.toggleFolder}
-                      />
-                  )}
-               </div>
-             )}
-             {activeSidebarView === 'git' && (
-                 <GitPanel 
-                    isInitialized={git.isInitialized} files={fs.files} gitStatus={git.status} commits={git.commits}
-                    onStage={git.stage} onUnstage={git.unstage} onCommit={git.commit} onInitialize={() => git.init(fs.files)}
-                    onClone={handleClone} isCloning={git.isCloning}
-                 />
-             )}
-          </div>
-        )}
-
-        <div className="flex-1 flex flex-col min-w-0 bg-[#050508] relative">
-           <div className="px-2 pt-2 pb-0">
+        {/* Main Editor Island */}
+        <div className="flex-1 flex flex-col min-w-0 relative gap-3">
+           {/* Tab Bar */}
+           <div className="shrink-0">
                <EditorTabs 
                   openFileIds={fs.openFileIds} activeFileId={fs.activeFileId} files={fs.files} setActiveFileId={fs.setActiveFileId}
                   onCloseTab={(e, id) => { e.stopPropagation(); fs.closeFile(id); }} onClearSelection={() => setSelectedCode('')}
@@ -433,29 +434,39 @@ function App() {
                />
            </div>
 
-           <div className="flex-1 relative overflow-hidden m-2 mt-0 rounded-2xl border border-white/5 shadow-2xl bg-[#0a0a0f]">
+           {/* Editor Container */}
+           <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
                {activeFile ? (
                    <>
-                       <CodeEditor 
-                           code={activeFile.content} language={activeFile.language}
-                           onChange={(c) => fs.updateFileContent(c)}
-                           cursorOffset={cursorPosition} onCursorChange={(p) => { setCursorPosition(p); lastCursorPosRef.current = p; }}
-                           onSelectionChange={setSelectedCode} suggestion={suggestion}
-                           onAcceptSuggestion={() => { if(suggestion) { fs.updateFileContent(activeFile.content.slice(0, cursorPosition) + suggestion + activeFile.content.slice(cursorPosition)); setSuggestion(null); } }}
-                           onUndo={fs.undo} onRedo={fs.redo} showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
-                       />
-                       {selectedCode && (
-                          <div className="absolute bottom-6 right-8 z-50">
-                              <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); handleSendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
-                          </div>
-                       )}
+                       <div className="flex-1 relative overflow-hidden">
+                           <CodeEditor 
+                               code={activeFile.content} language={activeFile.language}
+                               onChange={(c) => fs.updateFileContent(c)}
+                               cursorOffset={cursorPosition} onCursorChange={(p) => { setCursorPosition(p); lastCursorPosRef.current = p; }}
+                               onSelectionChange={setSelectedCode} suggestion={suggestion}
+                               onAcceptSuggestion={() => { if(suggestion) { fs.updateFileContent(activeFile.content.slice(0, cursorPosition) + suggestion + activeFile.content.slice(cursorPosition)); setSuggestion(null); } }}
+                               onUndo={fs.undo} onRedo={fs.redo} showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
+                           />
+                           
+                           {/* Floating Context Bar */}
+                           {selectedCode && (
+                              <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
+                                  <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); handleSendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                              </div>
+                           )}
+                       </div>
                    </>
                ) : (
-                   <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4">
-                       <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float"><IconSparkles size={32} className="text-vibe-glow opacity-50" /></div>
-                       <p className="text-sm font-medium">Select a file</p>
+                   <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
+                       <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">
+                          <IconSparkles size={40} className="text-vibe-glow opacity-60" />
+                       </div>
+                       <p className="text-sm font-medium tracking-wide">Select a file to start vibing</p>
+                       <p className="text-xs opacity-50">Cmd+P to search files</p>
                    </div>
                )}
+               
+               {/* AI Panel Overlay - Floating */}
                <AIPanel 
                   isOpen={isAIOpen} messages={messages} onSendMessage={handleSendMessage} isGenerating={isGenerating}
                   activeFile={activeFile} onClose={() => setIsAIOpen(false)}
@@ -465,22 +476,32 @@ function App() {
                />
            </div>
 
-           <div className={`transition-all duration-300 ease-in-out border-t border-white/5 bg-[#050508] ${isTerminalOpen ? 'h-48' : 'h-8'}`}>
+           {/* Terminal Panel (Collapsible) */}
+           <div className={`transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] glass-panel rounded-2xl overflow-hidden ${isTerminalOpen ? 'h-48 shadow-xl' : 'h-10 opacity-80 hover:opacity-100'}`}>
               {isTerminalOpen ? (
                    <div className="h-full flex flex-col relative">
-                       <button onClick={() => setIsTerminalOpen(false)} className="absolute top-2 right-4 text-slate-500 hover:text-white z-20"><IconClose size={14}/></button>
+                       <button onClick={() => setIsTerminalOpen(false)} className="absolute top-3 right-4 text-slate-500 hover:text-white z-20"><IconClose size={14}/></button>
                        <Terminal lines={terminalLines} isOpen={true} diagnostics={diagnostics} />
                    </div>
               ) : (
-                   <div className="h-full flex items-center px-4 bg-[#0a0a0f] cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setIsTerminalOpen(true)}>
-                       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500"><IconTerminal size={12} /><span>Terminal</span></div>
-                       {diagnostics.length > 0 && <div className="ml-4 text-xs text-red-400">{diagnostics.length} Problems</div>}
+                   <div className="h-full flex items-center px-4 cursor-pointer hover:bg-white/5 transition-colors justify-between" onClick={() => setIsTerminalOpen(true)}>
+                       <div className="flex items-center gap-3">
+                          <IconTerminal size={14} className="text-slate-400" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Terminal</span>
+                       </div>
+                       {diagnostics.length > 0 && (
+                          <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
+                             <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                             <span className="text-[10px] text-red-400 font-medium">{diagnostics.length} Problems</span>
+                          </div>
+                       )}
                    </div>
               )}
            </div>
         </div>
       </div>
 
+      {/* Modals */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onKeyUpdate={initChat} />
       <DeleteConfirmModal isOpen={!!fileToDelete} fileName={fileToDelete?.name || ''} onClose={() => setFileToDelete(null)} onConfirm={handleConfirmDelete} />
       <CloneModal isOpen={isCloneModalOpen} onClose={() => setIsCloneModalOpen(false)} onClone={handleClone} isCloning={git.isCloning} />

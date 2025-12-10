@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, MessageRole, File, AgentStep, AISession, AIToolCall } from '../types';
 import { IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, IconInsert, IconWand, IconTerminal, IconBug } from './Icons';
@@ -350,37 +349,51 @@ const AIPanel: React.FC<AIPanelProps> = ({
   return (
     <div 
       className={`
-        w-[450px] flex flex-col glass-panel-heavy h-[calc(100%-16px)] absolute right-2 top-2 z-50 rounded-2xl shadow-2xl 
-        transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) transform border-none ring-1 ring-white/10
-        ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[120%] opacity-0 pointer-events-none'}
+        w-[450px] flex flex-col glass-panel absolute right-4 top-4 bottom-4 z-50 rounded-2xl shadow-2xl 
+        transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) transform border border-white/10 overflow-hidden
+        ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'}
       `}
     >
+      {/* Background Noise Texture */}
+      <div className="absolute inset-0 z-[-1] opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat opacity-20 mix-blend-overlay"></div>
+      
       {/* Header */}
-      <div className="flex flex-col border-b border-white/5 bg-gradient-to-r from-vibe-900/50 to-transparent p-1">
+      <div className="flex flex-col border-b border-white/5 bg-white/5 backdrop-blur-md">
           <div className="flex items-center justify-between p-4 pb-2">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <div className="relative">
-                  {isAgentRunning ? <IconCpu size={20} className="text-orange-400 animate-spin-slow" /> : <IconSparkles size={20} className="text-vibe-glow animate-pulse-slow" />}
-                  <div className="absolute inset-0 bg-vibe-accent blur-md opacity-20"></div>
+                  {isAgentRunning ? (
+                    <div className="relative">
+                       <div className="absolute inset-0 bg-orange-500 blur-lg opacity-40 animate-pulse"></div>
+                       <IconCpu size={24} className="text-orange-400 relative z-10 animate-spin-slow" />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                       <div className="absolute inset-0 bg-vibe-accent blur-lg opacity-40 animate-pulse"></div>
+                       <IconSparkles size={24} className="text-vibe-glow relative z-10" />
+                    </div>
+                  )}
               </div>
               <div>
-                  <h3 className="font-bold tracking-wide text-white text-sm">{mode === 'chat' ? 'Vibe Chat' : 'Vibe Agent'}</h3>
-                  <p className="text-[10px] text-vibe-accent">{mode === 'chat' ? 'AI Assistant' : 'Autonomous Mode'}</p>
+                  <h3 className="font-bold tracking-wide text-white text-sm flex items-center gap-2">
+                      {mode === 'chat' ? 'Vibe Chat' : 'Vibe Agent'}
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono">v2.5</span>
+                  </h3>
               </div>
             </div>
-            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-lg">
+            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
               <IconClose size={18} />
             </button>
           </div>
 
           {/* Mode Switcher */}
           <div className="px-4 pb-4 pt-1 flex items-center justify-between">
-              <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 w-full">
+              <div className="flex bg-black/20 p-1 rounded-xl border border-white/5 w-full backdrop-blur-sm">
                   <button 
                     onClick={() => setMode('chat')}
                     className={`
-                      flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
-                      ${mode === 'chat' ? 'bg-white/10 text-white shadow-sm border border-white/5' : 'text-slate-500 hover:text-slate-300'}
+                      flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
+                      ${mode === 'chat' ? 'bg-vibe-accent/20 text-white shadow-sm border border-vibe-accent/30' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
                     <IconSparkles size={12} />
@@ -389,8 +402,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
                   <button 
                     onClick={() => setMode('agent')}
                     className={`
-                       flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all
-                      ${mode === 'agent' ? 'bg-orange-500/20 text-orange-400 shadow-sm border border-orange-500/20' : 'text-slate-500 hover:text-slate-300'}
+                       flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
+                      ${mode === 'agent' ? 'bg-orange-500/20 text-orange-300 shadow-sm border border-orange-500/30' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
                     <IconBug size={12} />
@@ -398,35 +411,25 @@ const AIPanel: React.FC<AIPanelProps> = ({
                   </button>
               </div>
           </div>
-          
-          {mode === 'chat' && (
-             <div className="px-4 pb-2 flex justify-center">
-                  <div className="flex gap-2 text-[10px] text-slate-500">
-                      <button onClick={() => setContextScope('file')} className={`hover:text-white transition-colors ${contextScope === 'file' ? 'text-vibe-glow underline' : ''}`}>Current File</button>
-                      <span>|</span>
-                      <button onClick={() => setContextScope('project')} className={`hover:text-white transition-colors ${contextScope === 'project' ? 'text-vibe-glow underline' : ''}`}>Full Project</button>
-                  </div>
-             </div>
-          )}
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/20">
+      <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/30">
         
         {/* Chat Mode View */}
         {mode === 'chat' && (
             <>
                 {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-6 opacity-60">
-                    <div className="relative group cursor-pointer">
-                        <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-20 group-hover:opacity-40 transition-opacity rounded-full"></div>
-                        <div className="relative bg-black/50 p-6 rounded-full border border-vibe-border shadow-2xl">
-                            <IconSparkles size={40} className="text-vibe-glow" />
+                <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-6 opacity-80">
+                    <div className="relative group cursor-pointer hover:scale-105 transition-transform duration-500">
+                        <div className="absolute inset-0 bg-vibe-accent blur-2xl opacity-20 group-hover:opacity-40 transition-opacity rounded-full"></div>
+                        <div className="relative bg-white/5 p-8 rounded-full border border-vibe-border shadow-2xl backdrop-blur-md">
+                            <IconSparkles size={48} className="text-vibe-glow" />
                         </div>
                     </div>
                     <div className="text-center space-y-2">
                         <p className="text-sm font-semibold text-white">How can I help you code today?</p>
-                        <p className="text-xs max-w-[240px] mx-auto leading-relaxed">
+                        <p className="text-xs max-w-[240px] mx-auto leading-relaxed text-slate-400">
                             {contextScope === 'project' 
                                 ? 'I have full visibility of your project structure. Ask me anything.' 
                                 : 'I am focused on the active file context.'}
@@ -435,18 +438,18 @@ const AIPanel: React.FC<AIPanelProps> = ({
                 </div>
                 )}
                 {messages.map((msg) => (
-                <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'}`}>
+                <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 duration-300`}>
                     <div 
-                    className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-sm border ${
+                    className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-md border ${
                         msg.role === MessageRole.USER 
-                        ? 'bg-vibe-accent/90 text-white rounded-br-sm border-indigo-400/30' 
-                        : 'bg-[#181824]/80 text-slate-200 rounded-bl-sm border-white/5'
+                        ? 'bg-vibe-accent/80 text-white rounded-br-sm border-indigo-400/30 shadow-[0_4px_15px_rgba(99,102,241,0.2)]' 
+                        : 'bg-[#181824]/60 text-slate-200 rounded-bl-sm border-white/5'
                     }`}
                     >
                     {renderMessageContent(msg.text, msg.role)}
                     </div>
-                    <span className="text-[10px] text-slate-600 mt-1.5 px-1 font-mono">
-                    {msg.role === 'user' ? 'You' : 'AI'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                    <span className="text-[10px] text-slate-500 mt-1.5 px-1 font-mono opacity-70">
+                    {msg.role === 'user' ? 'You' : 'Vibe AI'} • {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                     </span>
                 </div>
                 ))}
@@ -491,7 +494,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-black/20 border-t border-white/5 backdrop-blur-md">
+      <div className="p-4 bg-white/5 border-t border-white/5 backdrop-blur-md">
         <div className="relative group">
           <div className={`absolute -inset-0.5 bg-gradient-to-r rounded-xl opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200 blur ${mode === 'agent' ? 'from-orange-500 to-red-500' : 'from-vibe-accent to-purple-600'}`}></div>
           <div className="relative">
@@ -499,8 +502,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={mode === 'agent' ? "Describe a complex task (e.g., 'Refactor all CSS to use Tailwind')..." : (contextScope === 'project' ? "Ask about any file..." : "Ask about this code...")}
-                className="w-full bg-[#0a0a0f] border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-sm text-white focus:outline-none placeholder-slate-600 transition-all resize-none h-14 focus:h-24 shadow-inner"
+                placeholder={mode === 'agent' ? "Describe a complex task..." : (contextScope === 'project' ? "Ask Vibe AI about your project..." : "Ask about this file...")}
+                className="w-full bg-[#0a0a0f]/80 border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-sm text-white focus:outline-none placeholder-slate-600 transition-all resize-none h-14 focus:h-24 shadow-inner"
             />
             <button 
                 onClick={handleSend}
@@ -511,6 +514,15 @@ const AIPanel: React.FC<AIPanelProps> = ({
             </button>
           </div>
         </div>
+        {mode === 'chat' && (
+             <div className="mt-2 flex justify-center">
+                  <div className="flex gap-2 text-[9px] text-slate-500 font-mono uppercase tracking-wide">
+                      <button onClick={() => setContextScope('file')} className={`hover:text-white transition-colors ${contextScope === 'file' ? 'text-vibe-glow' : ''}`}>Current File</button>
+                      <span className="opacity-30">|</span>
+                      <button onClick={() => setContextScope('project')} className={`hover:text-white transition-colors ${contextScope === 'project' ? 'text-vibe-glow' : ''}`}>Full Project</button>
+                  </div>
+             </div>
+        )}
       </div>
     </div>
   );
