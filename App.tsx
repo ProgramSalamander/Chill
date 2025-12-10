@@ -96,6 +96,7 @@ function App() {
   const [isGitInitialized, setIsGitInitialized] = useState(false);
   const [gitStatus, setGitStatus] = useState<GitStatus[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
+  const [isCloning, setIsCloning] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
@@ -386,6 +387,31 @@ function App() {
       }
       refreshGit();
       addTerminalLine('Git repository initialized.', 'success');
+  };
+  
+  const handleClone = async (url: string) => {
+    setIsCloning(true);
+    addTerminalLine(`Cloning from ${url}...`, 'command');
+    try {
+        await gitService.clear(); // Clear existing FS first
+        await gitService.clone(url);
+        
+        // Refresh file list from git FS
+        const newFiles = await gitService.loadFilesToMemory();
+        setFiles(newFiles);
+        setGitStatus([]);
+        setIsGitInitialized(true);
+        refreshGit();
+        
+        setActiveFileId('');
+        setOpenFileIds([]);
+        addTerminalLine('Repository cloned successfully.', 'success');
+    } catch (e: any) {
+        addTerminalLine(`Clone failed: ${e.message}`, 'error');
+        console.error(e);
+    } finally {
+        setIsCloning(false);
+    }
   };
   // -----------------------------
 
@@ -943,149 +969,108 @@ ${text}
   };
 
   const handleApplyCode = (code: string) => {
-    if (!activeFile) return;
+    if (!activeFileId || !activeFile) return;
     handleFileChange(code, true);
-    addTerminalLine(`Applied (Replaced) AI generated code to ${activeFile.name}`, 'command');
+    addTerminalLine(`Applied code to ${activeFile.name}`, 'success');
   };
 
   const handleInsertCode = (code: string) => {
+    if (!activeFileId || !activeFile) return;
+    const currentContent = activeFile.content;
+    const newContent = currentContent.slice(0, cursorPosition) + code + currentContent.slice(cursorPosition);
+    handleFileChange(newContent, true);
+    addTerminalLine(`Inserted code at cursor`, 'success');
+  };
+
+  const handleRunCode = async () => {
     if (!activeFile) return;
-    const currentContent = activeFile.content;
-    const insertPos = Math.min(Math.max(0, cursorPosition), currentContent.length);
-    const newContent = currentContent.slice(0, insertPos) + code + currentContent.slice(insertPos);
-    handleFileChange(newContent, true);
-    addTerminalLine(`Inserted code at line ${activeFile.content.slice(0, insertPos).split('\n').length}`, 'success');
-  };
-
-  const handleAcceptSuggestion = () => {
-    if (!activeFile || !suggestion) return;
-    const currentContent = activeFile.content;
-    const prefix = currentContent.slice(0, cursorPosition);
-    const suffix = currentContent.slice(cursorPosition);
+    addTerminalLine(`Running ${activeFile.name}...`, 'command');
     
-    const newContent = prefix + suggestion + suffix;
-    const newCursorPos = cursorPosition + suggestion.length;
-
-    handleFileChange(newContent, true);
-    setCursorPosition(newCursorPos);
-    lastCursorPosRef.current = newCursorPos;
-    
-    setSuggestion(null);
-    addTerminalLine('Autocomplete applied.', 'success');
-  };
-
-  const runCode = () => {
-    addTerminalLine(`Running ${activeFile?.name}...`, 'command');
-    if (activeFile?.language === 'typescript' || activeFile?.language === 'javascript') {
+    if (activeFile.language === 'javascript' || activeFile.language === 'typescript') {
         try {
-            const log = console.log;
-            const logs: string[] = [];
-            console.log = (...args) => logs.push(args.join(' '));
-            
-            let jsCode = activeFile.content
-              .replace(/:\s*[a-zA-Z0-9_<>\[\]]+/g, '') 
-              .replace(/<[^>]+>/g, ''); 
-
-            // eslint-disable-next-line no-new-func
-            new Function(jsCode)();
-            
-            console.log = log;
-            
-            if (logs.length > 0) {
+             const logs: string[] = [];
+             const originalLog = console.log;
+             console.log = (...args) => {
+                 logs.push(args.map(a => JSON.stringify(a)).join(' '));
+                 originalLog(...args);
+             };
+             
+             try {
+                // eslint-disable-next-line no-eval
+                eval(activeFile.content);
                 logs.forEach(l => addTerminalLine(l, 'info'));
-            }
-            addTerminalLine('Execution finished successfully.', 'success');
-        } catch (e: any) {
-            addTerminalLine(`Runtime Error: ${e.message}`, 'error');
+                addTerminalLine('Execution completed.', 'success');
+             } catch (e: any) {
+                 addTerminalLine(`Runtime Error: ${e.message}`, 'error');
+             } finally {
+                 console.log = originalLog;
+             }
+        } catch (e) {
+            addTerminalLine(`Error: ${e}`, 'error');
         }
+    } else if (activeFile.language === 'html') {
+        setIsPreviewOpen(true);
+        addTerminalLine('Preview refreshed.', 'info');
     } else {
-        addTerminalLine(`Execution for ${activeFile?.language} not supported in browser yet.`, 'error');
+        addTerminalLine(`Running ${activeFile.language} not fully supported in browser environment yet.`, 'warning');
     }
   };
 
-  const commandActions = [
-      { id: 'save', label: 'Save File', icon: <IconSave size={16}/>, shortcut: 'Cmd+S', run: handleSave },
-      { id: 'format', label: 'Format Document', icon: <IconSparkles size={16}/>, run: () => addTerminalLine('Formatting not implemented', 'info') },
-      { id: 'run', label: 'Run Code', icon: <IconPlay size={16}/>, shortcut: 'Cmd+Enter', run: runCode },
-      { id: 'toggle-terminal', label: 'Toggle Terminal', icon: <IconTerminal size={16}/>, shortcut: 'Cmd+J', run: () => setIsTerminalOpen(v => !v) },
-      { id: 'toggle-ai', label: 'Toggle AI Assistant', icon: <IconSparkles size={16}/>, run: () => setIsAIOpen(v => !v) },
-      { id: 'new-file', label: 'New File', icon: <IconFilePlus size={16}/>, run: handleCreateRootFile },
-      { id: 'open-folder', label: 'Open Folder', icon: <IconFolderOpen size={16}/>, run: handleOpenFolder },
-  ];
-
-  // Global Shortcuts
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        handleSave();
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
-        e.preventDefault();
-        setIsCommandPaletteOpen(true);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
-        e.preventDefault();
-        setActiveSidebarView(v => v ? null : 'explorer');
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
-        e.preventDefault();
-        setIsTerminalOpen(v => !v);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-         e.preventDefault();
-         runCode();
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeFile]);
-
   return (
-    <div className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-[#050508] relative">
+    <div className="flex flex-col h-screen w-screen bg-[#050508] text-slate-300 font-sans overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-vibe-accent/30 to-transparent"></div>
+      
+      {/* Menu Bar */}
       <MenuBar 
-          onNewProject={handleNewProject}
-          onOpenProject={handleOpenFolder}
-          onSaveAll={handleSaveAll}
-          projectName={projectHandle?.name || (files.length > 0 ? 'Untitled Project' : undefined)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+        onNewProject={handleNewProject}
+        onOpenProject={handleOpenFolder}
+        onSaveAll={handleSaveAll}
+        projectName={projectHandle?.name}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      <div className="flex-1 flex min-h-0 min-w-0 w-full relative">
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* Activity Bar / Sidebar */}
         <Sidebar 
-          activeView={activeSidebarView}
-          setActiveView={setActiveSidebarView}
+          activeView={activeSidebarView} 
+          setActiveView={setActiveSidebarView} 
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           gitStatus={gitStatus}
         />
 
-        {/* Sidebar Panel (Floating Glass) */}
+        {/* Side Panel (Explorer / Git) */}
         {activeSidebarView && (
-            <div className="w-72 glass-panel flex flex-col animate-in slide-in-from-left-5 duration-300 ml-2 my-2 rounded-2xl z-30">
-            {activeSidebarView === 'explorer' && (
-                <>
-                <div className="p-5 flex items-center justify-between border-b border-vibe-border h-16">
-                    <span className="text-xs font-bold text-vibe-glow uppercase tracking-widest drop-shadow-sm">Explorer</span>
-                    <div className="flex items-center gap-1">
-                        <button onClick={handleCreateRootFile} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFilePlus size={16} /></button>
-                        <button onClick={handleOpenFolder} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"><IconFolderOpen size={16} /></button>
-                    </div>
-                </div>
-                <FileExplorer 
-                    files={files} 
-                    activeFileId={activeFileId} 
-                    onFileClick={handleFileClick}
-                    onDelete={(f) => setFileToDelete(f)}
-                    onRename={handleRenameNode}
-                    onCreate={(type, parentId, name) => handleCreateNode(type, parentId, name)}
-                    onToggleFolder={handleToggleFolder}
-                />
-                </>
-            )}
-            {activeSidebarView === 'git' && (
-                <GitPanel 
+          <div className="w-64 bg-[#0a0a0f]/80 backdrop-blur-xl border-r border-white/5 flex flex-col animate-in slide-in-from-left-4 duration-300">
+             {activeSidebarView === 'explorer' && (
+               <div className="flex flex-col h-full">
+                  <div className="p-3 text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                    <span>Explorer</span>
+                    <button onClick={handleCreateRootFile} className="hover:text-white transition-colors"><IconFilePlus size={14} /></button>
+                  </div>
+                  {files.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
+                          <IconFolderOpen size={32} />
+                          <p className="text-xs">No project open</p>
+                          <button onClick={handleOpenFolder} className="text-vibe-accent text-xs hover:underline">Open Local Folder</button>
+                      </div>
+                  ) : (
+                      <FileExplorer 
+                        files={files}
+                        activeFileId={activeFileId}
+                        onFileClick={handleFileClick}
+                        onDelete={setFileToDelete}
+                        onRename={handleRenameNode}
+                        onCreate={handleCreateNode}
+                        onToggleFolder={handleToggleFolder}
+                      />
+                  )}
+               </div>
+             )}
+
+             {activeSidebarView === 'git' && (
+                 <GitPanel 
                     isInitialized={isGitInitialized}
                     files={files}
                     gitStatus={gitStatus}
@@ -1094,140 +1079,166 @@ ${text}
                     onUnstage={handleGitUnstage}
                     onCommit={handleGitCommit}
                     onInitialize={handleInitializeGit}
-                />
-            )}
-            </div>
+                    onClone={handleClone}
+                    isCloning={isCloning}
+                 />
+             )}
+          </div>
         )}
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 relative m-2 gap-2">
-            
-            <EditorTabs 
-               openFileIds={openFileIds}
-               activeFileId={activeFileId}
-               files={files}
-               setActiveFileId={setActiveFileId}
-               onCloseTab={handleCloseTab}
-               onClearSelection={() => setSelectedCode('')}
-               isPreviewOpen={isPreviewOpen}
-               setIsPreviewOpen={setIsPreviewOpen}
-               isAIOpen={isAIOpen}
-               setIsAIOpen={setIsAIOpen}
-               onRunCode={runCode}
-            />
+        {/* Main Editor Area */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#050508] relative">
+           
+           {/* Editor Tabs */}
+           <div className="px-2 pt-2 pb-0">
+               <EditorTabs 
+                  openFileIds={openFileIds}
+                  activeFileId={activeFileId}
+                  files={files}
+                  setActiveFileId={setActiveFileId}
+                  onCloseTab={handleCloseTab}
+                  onClearSelection={() => setSelectedCode('')}
+                  isPreviewOpen={isPreviewOpen}
+                  setIsPreviewOpen={setIsPreviewOpen}
+                  isAIOpen={isAIOpen}
+                  setIsAIOpen={setIsAIOpen}
+                  onRunCode={handleRunCode}
+               />
+           </div>
 
-            {/* Editor & Content */}
-            <div className="flex-1 relative overflow-hidden flex flex-col glass-panel rounded-2xl min-h-0">
-                {activeFile ? (
-                <div className="flex-1 relative min-h-0">
-                    <CodeEditor 
-                        code={activeFile.content}
-                        language={activeFile.language}
-                        onChange={(code) => handleFileChange(code, false)}
-                        cursorOffset={cursorPosition}
-                        onCursorChange={handleCursorChange}
-                        onSelectionChange={handleSelectionChange}
-                        suggestion={suggestion}
-                        onAcceptSuggestion={handleAcceptSuggestion}
-                        onTriggerSuggestion={handleManualTriggerSuggestion}
-                        onUndo={handleUndo}
-                        onRedo={handleRedo}
-                        showPreview={isPreviewOpen}
-                        previewContent={getPreviewContent}
-                        diagnostics={diagnostics}
-                    />
-                    
-                    {/* Floating Action Bar for Selection - UPDATED to ContextBar */}
-                    {selectedCode && (
-                        <div className="absolute top-4 right-8 z-40 animate-in fade-in slide-in-from-top-2">
-                            <ContextBar 
-                                language={activeFile.language}
-                                onAction={handleContextAction}
-                            />
-                        </div>
-                    )}
-                </div>
-                ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
-                    <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
-                        <IconCommand size={40} className="text-vibe-accent opacity-50" />
-                    </div>
-                    <p className="text-sm font-medium text-slate-400 tracking-wide">Select a file to start your vibe coding session</p>
-                    <div className="mt-4 flex gap-2">
-                        <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+P to search</span>
-                        <span className="text-xs bg-white/5 px-2 py-1 rounded text-slate-500">Cmd+B to explorer</span>
-                    </div>
-                </div>
-                )}
+           {/* Editor / Content */}
+           <div className="flex-1 relative overflow-hidden m-2 mt-0 rounded-2xl border border-white/5 shadow-2xl bg-[#0a0a0f]">
+               {activeFile ? (
+                   <>
+                       <CodeEditor 
+                           code={activeFile.content}
+                           language={activeFile.language}
+                           onChange={handleFileChange}
+                           cursorOffset={cursorPosition}
+                           onCursorChange={handleCursorChange}
+                           onSelectionChange={handleSelectionChange}
+                           suggestion={suggestion}
+                           onAcceptSuggestion={() => {
+                               if (suggestion && activeFileId) {
+                                   const newContent = activeFile.content.slice(0, cursorPosition) + suggestion + activeFile.content.slice(cursorPosition);
+                                   handleFileChange(newContent, true);
+                                   setSuggestion(null);
+                                   setCursorPosition(cursorPosition + suggestion.length);
+                               }
+                           }}
+                           onTriggerSuggestion={handleManualTriggerSuggestion}
+                           onUndo={handleUndo}
+                           onRedo={handleRedo}
+                           showPreview={isPreviewOpen}
+                           previewContent={getPreviewContent}
+                           diagnostics={diagnostics}
+                       />
+                       
+                       {selectedCode && (
+                          <div className="absolute bottom-6 right-8 z-50">
+                              <ContextBar language={activeFile.language} onAction={handleContextAction} />
+                          </div>
+                       )}
+                   </>
+               ) : (
+                   <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4">
+                       <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float">
+                           <IconSparkles size={32} className="text-vibe-glow opacity-50" />
+                       </div>
+                       <p className="text-sm font-medium">Select a file to start coding</p>
+                       <div className="flex gap-4 text-xs opacity-50">
+                           <span className="flex items-center gap-1"><kbd className="bg-white/10 px-1.5 rounded">Cmd+P</kbd> Search</span>
+                           <span className="flex items-center gap-1"><kbd className="bg-white/10 px-1.5 rounded">Cmd+B</kbd> Sidebar</span>
+                       </div>
+                   </div>
+               )}
 
-                {/* Terminal Panel */}
-                <div className={`transition-all duration-300 border-t border-vibe-border ${isTerminalOpen ? 'h-56' : 'h-0 overflow-hidden'}`}>
-                    <Terminal 
-                    lines={terminalLines} 
-                    isOpen={isTerminalOpen} 
-                    diagnostics={diagnostics}
-                    onSelectDiagnostic={(line, col) => {
-                        if (activeFile) {
-                            console.log(`Jump to ${line}:${col}`);
-                        }
-                    }}
-                    />
-                </div>
-            </div>
+               {/* AI Panel Overlay */}
+               <AIPanel 
+                  isOpen={isAIOpen}
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  isGenerating={isGenerating}
+                  activeFile={activeFile}
+                  onClose={() => setIsAIOpen(false)}
+                  onApplyCode={handleApplyCode}
+                  onInsertCode={handleInsertCode}
+                  contextScope={contextScope}
+                  setContextScope={setContextScope}
+                  files={files}
+                  onAgentAction={handleAgentAction}
+               />
+           </div>
 
+           {/* Terminal Panel */}
+           <div 
+             className={`
+                transition-all duration-300 ease-in-out border-t border-white/5 bg-[#050508]
+                ${isTerminalOpen ? 'h-48' : 'h-8'}
+             `}
+           >
+              {isTerminalOpen ? (
+                   <div className="h-full flex flex-col relative">
+                       <button onClick={() => setIsTerminalOpen(false)} className="absolute top-2 right-4 text-slate-500 hover:text-white z-20"><IconClose size={14}/></button>
+                       <Terminal 
+                           lines={terminalLines} 
+                           isOpen={true} 
+                           diagnostics={diagnostics}
+                           onSelectDiagnostic={(line, col) => {
+                               // Jump to line logic would go here if we exposed editor ref
+                           }}
+                       />
+                   </div>
+              ) : (
+                   <div className="h-full flex items-center px-4 bg-[#0a0a0f] cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setIsTerminalOpen(true)}>
+                       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                           <IconTerminal size={12} />
+                           <span>Terminal</span>
+                       </div>
+                       {diagnostics.length > 0 && (
+                           <div className="ml-4 flex items-center gap-2 text-xs text-red-400">
+                               <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                               {diagnostics.length} Problems
+                           </div>
+                       )}
+                   </div>
+              )}
+           </div>
         </div>
-
-        {/* Overlays */}
-        <div className="absolute top-0 right-0 h-full pointer-events-none">
-            {/* Inner container to ensure relative positioning correct for absolute children if needed */}
-            <div className="relative w-full h-full pointer-events-auto">
-                 <AIPanel 
-                    isOpen={isAIOpen} 
-                    onClose={() => setIsAIOpen(false)}
-                    messages={messages}
-                    onSendMessage={handleSendMessage}
-                    isGenerating={isGenerating}
-                    activeFile={activeFile}
-                    onApplyCode={handleApplyCode}
-                    onInsertCode={handleInsertCode}
-                    contextScope={contextScope}
-                    setContextScope={setContextScope}
-                    files={files}
-                    onAgentAction={handleAgentAction}
-                />
-            </div>
-        </div>
-
       </div>
 
+      {/* Modals */}
       <SettingsModal 
          isOpen={isSettingsOpen} 
-         onClose={() => setIsSettingsOpen(false)}
+         onClose={() => setIsSettingsOpen(false)} 
          onKeyUpdate={handleKeyUpdate}
+      />
+      
+      <DeleteConfirmModal 
+         isOpen={!!fileToDelete} 
+         fileName={fileToDelete?.name || ''} 
+         onClose={() => setFileToDelete(null)}
+         onConfirm={handleConfirmDelete}
       />
 
       <CommandPalette 
-         isOpen={isCommandPaletteOpen}
-         onClose={() => setIsCommandPaletteOpen(false)}
-         actions={commandActions}
-         files={files}
-         onSelectFile={(id) => {
-             if (!openFileIds.includes(id)) {
-                 setOpenFileIds(prev => [...prev, id]);
-             }
-             setActiveFileId(id);
-             setSelectedCode('');
-         }}
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          actions={[
+              { id: 'new_file', label: 'New File', icon: <IconFilePlus size={16} />, run: handleCreateRootFile },
+              { id: 'toggle_terminal', label: 'Toggle Terminal', icon: <IconTerminal size={16} />, run: () => setIsTerminalOpen(!isTerminalOpen) },
+              { id: 'settings', label: 'Settings', icon: <IconSettings size={16} />, run: () => setIsSettingsOpen(true) },
+              { id: 'format', label: 'Format Document', icon: <IconSparkles size={16} />, run: () => { /* Format logic */ } },
+              { id: 'reload_window', label: 'Reload Window', icon: <IconPlay size={16} />, run: () => window.location.reload() },
+              { id: 'ai_chat', label: 'Open AI Chat', icon: <IconSparkles size={16} />, run: () => setIsAIOpen(true) },
+              { id: 'git_status', label: 'Git Status', icon: <IconGitBranch size={16} />, run: () => { setActiveSidebarView('git'); refreshGit(); } },
+          ]}
+          files={files}
+          onSelectFile={(id) => {
+              if (!openFileIds.includes(id)) setOpenFileIds(prev => [...prev, id]);
+              setActiveFileId(id);
+          }}
       />
-      
-      {fileToDelete && (
-        <DeleteConfirmModal 
-           isOpen={!!fileToDelete}
-           fileName={fileToDelete.name}
-           onClose={() => setFileToDelete(null)}
-           onConfirm={handleConfirmDelete}
-        />
-      )}
     </div>
   );
 }

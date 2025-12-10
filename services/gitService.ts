@@ -1,10 +1,14 @@
 
 import git from 'isomorphic-git';
+import http from 'isomorphic-git/http/web';
 import FS from '@isomorphic-git/lightning-fs';
+import { File } from '../types';
+import { getLanguage } from '../utils/fileUtils';
 
 // Initialize in-memory filesystem
 // @ts-ignore
 const fs = new FS('vibecode-fs', { wipe: true });
+const pfs = fs.promises;
 
 export interface GitStatus {
     filepath: string;
@@ -17,23 +21,46 @@ export interface GitStatus {
 export const gitService = {
   // Clear the FS manually when switching projects
   clear: async () => {
-      // lightning-fs doesn't have a simple "clear all" public API readily available on the instance 
-      // without re-creating it or recursively deleting. 
-      // Re-initialization with wipe: true is usually done at import time.
-      // For runtime clearing, we can try to unlink root items.
       try {
-          const files = await fs.promises.readdir('/');
+          const files = await pfs.readdir('/');
           for (const file of files) {
-             const stat = await fs.promises.stat(`/${file}`);
-             if (stat.isDirectory()) {
-                 // recursive delete is not standard in this fs promises API, assume we rely on app logic to not mix projects
-             } else {
-                 await fs.promises.unlink(`/${file}`);
+             if (file === '.git') continue; // isomorphic-git might struggle if we nuke .git while active, but we should usually be fine as we re-clone
+             try {
+                // Determine if dir or file
+                const stat = await pfs.stat(`/${file}`);
+                if (stat.isDirectory()) {
+                    // Recursive delete helper (naive)
+                    await gitService.deleteRecursive(`/${file}`);
+                } else {
+                    await pfs.unlink(`/${file}`);
+                }
+             } catch (e) {
+                 console.warn("Failed to delete", file, e);
              }
           }
+          // Try to remove .git last
+          try {
+              await gitService.deleteRecursive('/.git');
+          } catch(e) {}
       } catch (e) {
           // ignore
       }
+  },
+
+  deleteRecursive: async (path: string) => {
+      try {
+          const files = await pfs.readdir(path);
+          for (const file of files) {
+              const curPath = `${path}/${file}`;
+              const stat = await pfs.stat(curPath);
+              if (stat.isDirectory()) {
+                  await gitService.deleteRecursive(curPath);
+              } else {
+                  await pfs.unlink(curPath);
+              }
+          }
+          await pfs.rmdir(path);
+      } catch(e) {}
   },
 
   init: async () => {
@@ -44,6 +71,18 @@ export const gitService = {
     }
   },
 
+  clone: async (url: string, proxy: string = 'https://cors.isomorphic-git.org') => {
+      await git.clone({
+          fs,
+          http,
+          dir: '/',
+          url,
+          corsProxy: proxy,
+          singleBranch: true,
+          depth: 1
+      });
+  },
+
   writeFile: async (filepath: string, content: string) => {
     try {
         // Ensure directories exist
@@ -52,9 +91,9 @@ export const gitService = {
            const dir = parts.slice(0, -1).join('/');
            // Fixed: 'recursive' option is not in the type definition for lightning-fs mkdir but is supported at runtime
            // @ts-ignore
-           await fs.promises.mkdir(`/${dir}`, { recursive: true });
+           await pfs.mkdir(`/${dir}`, { recursive: true });
         }
-        await fs.promises.writeFile(`/${filepath}`, content, 'utf8');
+        await pfs.writeFile(`/${filepath}`, content, 'utf8');
     } catch (e) {
         console.error("Git Write Error", e);
     }
@@ -62,7 +101,7 @@ export const gitService = {
 
   deleteFile: async (filepath: string) => {
     try {
-        await fs.promises.unlink(`/${filepath}`);
+        await pfs.unlink(`/${filepath}`);
     } catch (e) {
         // Ignore if file doesn't exist in fs
     }
@@ -121,5 +160,57 @@ export const gitService = {
     } catch (e) {
         return [];
     }
+  },
+
+  // Helper to traverse FS and build File[] state
+  loadFilesToMemory: async (): Promise<File[]> => {
+      const files: File[] = [];
+      
+      const walk = async (dir: string, parentId: string | null) => {
+          const entries = await pfs.readdir(dir);
+          for (const entry of entries) {
+              if (entry === '.git') continue;
+              const fullPath = dir === '/' ? `/${entry}` : `${dir}/${entry}`;
+              const stat = await pfs.stat(fullPath);
+              const id = Math.random().toString(36).slice(2, 11);
+
+              if (stat.isDirectory()) {
+                   // Create folder node
+                   files.push({
+                       id,
+                       name: entry,
+                       type: 'folder',
+                       parentId,
+                       isOpen: false,
+                       language: '',
+                       content: ''
+                   });
+                   await walk(fullPath, id);
+              } else {
+                   // Read file content (skip binary/large files)
+                   let content = '';
+                   if (stat.size < 2000000) { // 2MB limit
+                       content = await pfs.readFile(fullPath, 'utf8');
+                   } else {
+                       content = '[File too large]';
+                   }
+                   
+                   files.push({
+                       id,
+                       name: entry,
+                       type: 'file',
+                       parentId,
+                       language: getLanguage(entry),
+                       content,
+                       committedContent: content, // Since we just loaded from git/fs
+                       isModified: false,
+                       history: { past: [], future: [], lastSaved: Date.now() }
+                   });
+              }
+          }
+      };
+
+      await walk('/', null);
+      return files;
   }
 };

@@ -39,102 +39,6 @@ export const getFilePath = (file: File, allFiles: File[]): string => {
   return path;
 };
 
-// Recursively read directory handle
-export const processDirectoryHandle = async (
-    dirHandle: any, 
-    parentId: string | null = null, 
-    pathPrefix: string = '',
-    ig: any = null // ignore instance
-): Promise<File[]> => {
-  let entries: File[] = [];
-  // @ts-ignore
-  for await (const entry of dirHandle.values()) {
-      const id = Math.random().toString(36).slice(2, 11);
-      const relativePath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
-      
-      // Check .git and explicit ignores
-      if (entry.name === '.git') continue;
-      
-      // Check .gitignore rules
-      if (ig && ig.ignores(relativePath)) {
-          // Special check: ensure we don't accidentally ignore the .gitignore file itself if it's needed later,
-          // but generally if it's ignored we skip.
-          if (entry.name !== '.gitignore') continue;
-      }
-
-      if (entry.kind === 'file') {
-          // Filter out annoying system files
-          if (['.DS_Store', 'thumbs.db'].includes(entry.name)) continue;
-          
-          try {
-            const fileHandle = await dirHandle.getFileHandle(entry.name);
-            const fileData = await fileHandle.getFile();
-            
-            let content = '';
-            // Only read text for reasonably sized files to avoid freezing
-            if (fileData.size < 5000000) { // < 5MB
-                 try {
-                     content = await fileData.text();
-                 } catch (e) {
-                     content = '[Binary or Non-Text Content]';
-                 }
-            } else {
-                content = '[File too large to display]';
-            }
-
-            entries.push({
-                id,
-                name: entry.name,
-                type: 'file',
-                parentId,
-                language: getLanguage(entry.name),
-                content,
-                handle: fileHandle, 
-                history: { past: [], future: [], lastSaved: Date.now() }
-            });
-          } catch (e) {
-             console.error(`Failed to read file ${entry.name}`, e);
-          }
-
-      } else if (entry.kind === 'directory') {
-           // Skip heavy folders for this demo if not already caught by gitignore
-           if (['node_modules', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv'].includes(entry.name)) {
-               entries.push({
-                  id,
-                  name: entry.name,
-                  type: 'folder',
-                  parentId,
-                  isOpen: false,
-                  language: '',
-                  content: '',
-                  handle: entry
-               });
-               continue;
-           }
-           
-           const folderHandle = await dirHandle.getDirectoryHandle(entry.name);
-           
-           // We create the folder object first
-           const folderFile: File = {
-              id,
-              name: entry.name,
-              type: 'folder',
-              parentId,
-              isOpen: false, // Default closed to reduce noise
-              language: '',
-              content: '',
-              handle: folderHandle
-           };
-           entries.push(folderFile);
-           
-           // Recursion
-           const children = await processDirectoryHandle(folderHandle, id, relativePath, ig);
-           entries = [...entries, ...children];
-      }
-  }
-  return entries;
-};
-
 export const generateProjectContext = (files: File[]): string => {
   const structure = files.map(f => {
      const path = getFilePath(f, files);
@@ -150,4 +54,68 @@ ${f.content}
      `).join('\n');
   
   return `PROJECT STRUCTURE:\n${structure}\n\nPROJECT FILES CONTENT:\n${contents}`;
+};
+
+export const processDirectoryHandle = async (
+  dirHandle: any, 
+  parentId: string | null, 
+  pathPrefix: string,
+  ig: any
+): Promise<File[]> => {
+  let files: File[] = [];
+  
+  for await (const entry of dirHandle.values()) {
+    const fullPath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
+    
+    // Check ignore
+    if (ig && (ig.ignores(fullPath) || entry.name === '.git')) continue;
+
+    const id = Math.random().toString(36).slice(2, 11);
+
+    if (entry.kind === 'file') {
+      const file = await entry.getFile();
+      
+      // Skip binary/large files check (simplified)
+      if (file.size > 1024 * 1024 * 2) continue; // 2MB limit
+
+      let content = '';
+      try {
+          content = await file.text();
+      } catch (e) {
+          console.warn(`Could not read file ${entry.name}`, e);
+          continue;
+      }
+      
+      files.push({
+        id,
+        name: entry.name,
+        type: 'file',
+        parentId,
+        language: getLanguage(entry.name),
+        content,
+        handle: entry,
+        isModified: false,
+        history: { past: [], future: [], lastSaved: Date.now() }
+      });
+    } else if (entry.kind === 'directory') {
+      const folder: File = {
+        id,
+        name: entry.name,
+        type: 'folder',
+        parentId,
+        isOpen: false,
+        language: '',
+        content: '',
+        handle: entry
+      };
+      
+      files.push(folder);
+      
+      // Recursive call
+      const children = await processDirectoryHandle(entry, id, fullPath, ig);
+      files = [...files, ...children];
+    }
+  }
+  
+  return files;
 };

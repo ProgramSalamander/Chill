@@ -34,7 +34,7 @@ export interface Message {
 export interface TerminalLine {
   id: string;
   text: string;
-  type: 'info' | 'error' | 'success' | 'command';
+  type: 'info' | 'error' | 'success' | 'command' | 'warning';
   timestamp: number;
 }
 

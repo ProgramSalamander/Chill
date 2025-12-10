@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { TerminalLine, Diagnostic } from '../types';
 import { IconClose, IconSearch, IconTerminal } from './Icons';
@@ -61,6 +62,7 @@ const Terminal: React.FC<TerminalProps> = ({ lines, isOpen, diagnostics = [], on
                     ${line.type === 'success' ? 'text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.5)]' : ''}
                     ${line.type === 'command' ? 'text-yellow-400 font-semibold' : ''}
                     ${line.type === 'info' ? 'text-slate-300' : ''}
+                    ${line.type === 'warning' ? 'text-orange-400' : ''}
                     `}>
                     {line.type === 'command' && <span className="text-slate-500 mr-2">$</span>}
                     {line.text}
