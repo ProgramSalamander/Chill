@@ -1,6 +1,8 @@
 
 
 
+
+
 import React from 'react';
 import { 
   FileCode, 
@@ -49,7 +51,11 @@ import {
   XCircle,
   PlayCircle,
   BrainCircuit,
-  Network
+  Network,
+  ShieldCheck,
+  AlertTriangle,
+  Activity,
+  ArrowRightCircle
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -100,3 +106,7 @@ export const IconXCircle = (props: any) => <XCircle {...props} />;
 export const IconPlayCircle = (props: any) => <PlayCircle {...props} />;
 export const IconBrain = (props: any) => <BrainCircuit {...props} />;
 export const IconNetwork = (props: any) => <Network {...props} />;
+export const IconShield = (props: any) => <ShieldCheck {...props} />;
+export const IconAlert = (props: any) => <AlertTriangle {...props} />;
+export const IconActivity = (props: any) => <Activity {...props} />;
+export const IconArrowRight = (props: any) => <ArrowRightCircle {...props} />;

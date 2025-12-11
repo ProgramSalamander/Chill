@@ -161,6 +161,21 @@ export interface AgentPendingAction {
   args: any;
 }
 
+// --- Pre-Flight Check Types ---
+
+export interface PreFlightCheck {
+  id: string;
+  name: string;
+  status: 'pending' | 'running' | 'success' | 'failure';
+  message?: string;
+}
+
+export interface PreFlightResult {
+  checks: PreFlightCheck[];
+  hasErrors: boolean;
+  diagnostics: Diagnostic[];
+}
+
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;

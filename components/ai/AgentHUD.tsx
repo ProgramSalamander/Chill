@@ -1,20 +1,27 @@
 
 
+
+
+
+
 import React, { useState, useEffect } from 'react';
-import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction } from '../../types';
-import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap } from '../Icons';
+import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, PreFlightResult } from '../../types';
+import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconArrowRight, IconXCircle } from '../Icons';
 import AgentStepNode from './AgentStepNode';
-import CodeBlock from './CodeBlock'; // Reusing for diff view if possible, or simple block
+import CodeBlock from './CodeBlock'; 
+import Tooltip from '../Tooltip';
 
 interface AgentHUDProps {
   status: AgentStatus;
   agentSteps: AgentStep[];
   plan: AgentPlanItem[];
   pendingAction: AgentPendingAction | null;
+  preFlightResult?: PreFlightResult | null;
   onApprovePlan: (plan: AgentPlanItem[]) => void;
   onApproveAction: () => void;
   onRejectAction: () => void;
   onUpdateActionArgs: (args: any) => void;
+  onSendFeedback?: (feedback: string) => void;
 }
 
 const AgentHUD: React.FC<AgentHUDProps> = ({ 
@@ -22,10 +29,12 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
     agentSteps, 
     plan, 
     pendingAction, 
+    preFlightResult,
     onApprovePlan,
     onApproveAction,
     onRejectAction,
-    onUpdateActionArgs
+    onUpdateActionArgs,
+    onSendFeedback
 }) => {
   const [editedPlan, setEditedPlan] = useState<AgentPlanItem[]>([]);
   const [isEditingArgs, setIsEditingArgs] = useState(false);
@@ -57,6 +66,12 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
       } catch (e) {
           alert("Invalid JSON");
       }
+  };
+
+  const handleAutoFix = () => {
+      if (!preFlightResult || !onSendFeedback) return;
+      const errors = preFlightResult.diagnostics.map(d => `Line ${d.startLine}: ${d.message}`).join('\n');
+      onSendFeedback(errors);
   };
 
   return (
@@ -107,6 +122,81 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                       <IconPlay size={14} />
                       Approve & Execute
                   </button>
+              </div>
+          </div>
+      )}
+
+      {/* PRE-FLIGHT SANDBOX UI */}
+      {status === 'action_review' && pendingAction?.toolName === 'writeFile' && preFlightResult && (
+          <div className="bg-[#181824] border border-white/10 rounded-xl overflow-hidden animate-in slide-in-from-top-4 mb-2 shadow-2xl">
+              <div className="bg-black/40 border-b border-white/5 px-4 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-indigo-300">
+                      <IconShield size={16} />
+                      <span className="text-xs font-bold uppercase tracking-wider">Pre-Flight Sandbox</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                      {preFlightResult.hasErrors ? (
+                          <span className="text-[10px] font-bold bg-red-500/20 text-red-300 px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
+                              <IconAlert size={10} /> Checks Failed
+                          </span>
+                      ) : (
+                         preFlightResult.checks.every(c => c.status === 'success') ? (
+                             <span className="text-[10px] font-bold bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30 flex items-center gap-1">
+                                 <IconCheck size={10} /> All Clear
+                             </span>
+                         ) : (
+                             <span className="text-[10px] font-bold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30 flex items-center gap-1">
+                                 <IconActivity size={10} className="animate-spin" /> Running...
+                             </span>
+                         )
+                      )}
+                  </div>
+              </div>
+
+              <div className="p-4 grid gap-3">
+                   {/* Check List */}
+                   <div className="grid grid-cols-3 gap-2">
+                       {preFlightResult.checks.map(check => (
+                           <div key={check.id} className="bg-black/20 rounded p-2 border border-white/5 flex flex-col items-center gap-2 text-center">
+                               <div className="relative">
+                                   {check.status === 'running' && <IconActivity size={16} className="text-blue-400 animate-spin" />}
+                                   {check.status === 'pending' && <div className="w-4 h-4 rounded-full border-2 border-slate-700" />}
+                                   {check.status === 'success' && <IconCheckCircle size={16} className="text-green-400" />}
+                                   {check.status === 'failure' && <IconXCircle size={16} className="text-red-400" />}
+                               </div>
+                               <span className={`text-[10px] font-medium ${check.status === 'running' ? 'text-blue-300' : check.status === 'failure' ? 'text-red-300' : 'text-slate-400'}`}>
+                                   {check.name}
+                               </span>
+                               {check.message && (
+                                   <span className="text-[9px] text-slate-500 leading-tight">{check.message}</span>
+                               )}
+                           </div>
+                       ))}
+                   </div>
+
+                   {/* Errors */}
+                   {preFlightResult.diagnostics.length > 0 && (
+                       <div className="bg-red-500/5 border border-red-500/20 rounded p-3 mt-1">
+                           <div className="text-[10px] font-bold text-red-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+                               <IconAlert size={12} />
+                               Diagnostics Found
+                           </div>
+                           <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
+                               {preFlightResult.diagnostics.map((d, i) => (
+                                   <div key={i} className="text-[10px] text-red-300 font-mono pl-2 border-l-2 border-red-500/30">
+                                       Line {d.startLine}: {d.message}
+                                   </div>
+                               ))}
+                           </div>
+                           <button 
+                                onClick={handleAutoFix}
+                                className="w-full mt-3 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded py-1.5 text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                           >
+                               <IconZap size={12} />
+                               Fix with AI
+                           </button>
+                       </div>
+                   )}
               </div>
           </div>
       )}
@@ -172,7 +262,18 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                            <button onClick={onRejectAction} className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors">
                                Reject
                            </button>
-                           <button onClick={onApproveAction} className="px-4 py-1.5 rounded-lg text-xs font-bold bg-green-500 text-white shadow-lg shadow-green-500/20 hover:bg-green-600 transition-all flex items-center gap-2">
+                           {/* Disable approve if pre-flight failed, or force allow? Let's allow but maybe warn. */}
+                           <button 
+                                onClick={onApproveAction} 
+                                disabled={preFlightResult?.hasErrors}
+                                className={`
+                                    px-4 py-1.5 rounded-lg text-xs font-bold text-white shadow-lg transition-all flex items-center gap-2
+                                    ${preFlightResult?.hasErrors 
+                                        ? 'bg-slate-700 opacity-50 cursor-not-allowed' 
+                                        : 'bg-green-500 hover:bg-green-600 shadow-green-500/20'
+                                    }
+                                `}
+                            >
                                <IconCheck size={14} /> Approve
                            </button>
                        </div>
@@ -201,7 +302,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                     <IconCpu size={32} className="text-orange-400" />
                 </div>
                 <div className="text-center">
-                    <p className="text-sm font-semibold text-white">Vibe Agent v2.0</p>
+                    <p className="text-sm font-semibold text-white">Vibe Agent v2.1</p>
                     <p className="text-xs mt-2 max-w-[200px]">I will plan, review, and code with you. Enter a goal to start.</p>
                 </div>
             </div>

@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, File } from '../types';
 import { useAgent } from '../hooks/useAgent';
@@ -33,12 +35,14 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
       agentSteps,
       plan,
       pendingAction,
+      preFlightResult,
       startAgent,
       approvePlan,
       approveAction,
       rejectAction,
       updatePendingActionArgs,
-      setAgentSteps
+      setAgentSteps,
+      sendFeedback
   } = useAgent(props.onAgentAction, props.files);
 
   const isAgentRunning = status === 'thinking' || status === 'executing' || status === 'planning';
@@ -150,10 +154,12 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
             agentSteps={agentSteps}
             plan={plan}
             pendingAction={pendingAction}
+            preFlightResult={preFlightResult}
             onApprovePlan={approvePlan}
             onApproveAction={approveAction}
             onRejectAction={rejectAction}
             onUpdateActionArgs={updatePendingActionArgs}
+            onSendFeedback={sendFeedback}
           />
         )}
         <div ref={messagesEndRef} />

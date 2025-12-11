@@ -1,19 +1,21 @@
 
 
-import { useState, useRef, useCallback } from 'react';
-import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession } from '../types';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, PreFlightCheck } from '../types';
 import { createChatSession, generateAgentPlan } from '../services/geminiService';
-import { ragService } from '../services/ragService'; // We might need this for plan context, or pass it in
+import { validateCode } from '../services/lintingService';
+import { getLanguage } from '../utils/fileUtils';
 
 export const useAgent = (
   onAgentAction: (action: string, args: any) => Promise<string>,
-  files: any[], // Pass files to generate context for planning
+  files: any[], 
 ) => {
   // State
   const [status, setStatus] = useState<AgentStatus>('idle');
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const [plan, setPlan] = useState<AgentPlanItem[]>([]);
   const [pendingAction, setPendingAction] = useState<AgentPendingAction | null>(null);
+  const [preFlightResult, setPreFlightResult] = useState<PreFlightResult | null>(null);
   
   // Refs
   const agentChatRef = useRef<AISession | null>(null);
@@ -23,15 +25,139 @@ export const useAgent = (
       setAgentSteps([]);
       setPlan([]);
       setPendingAction(null);
+      setPreFlightResult(null);
       agentChatRef.current = null;
   };
+
+  // --- Pre-Flight Sandbox Logic ---
+  useEffect(() => {
+    if (pendingAction && pendingAction.toolName === 'writeFile') {
+        runPreFlightChecks(pendingAction.args.path, pendingAction.args.content);
+    } else {
+        setPreFlightResult(null);
+    }
+  }, [pendingAction]);
+
+  const runPreFlightChecks = async (path: string, content: string) => {
+      const language = getLanguage(path);
+      
+      // Initialize checks
+      setPreFlightResult({
+          checks: [
+              { id: 'syntax', name: 'Syntax Analysis', status: 'running' },
+              { id: 'build', name: 'Virtual Build', status: 'pending' },
+              { id: 'security', name: 'Security Scan', status: 'pending' }
+          ],
+          hasErrors: false,
+          diagnostics: []
+      });
+
+      // 1. Syntax Check (Real)
+      await new Promise(r => setTimeout(r, 600)); // Animation delay
+      const diagnostics = validateCode(content, language);
+      const hasErrors = diagnostics.some(d => d.severity === 'error');
+
+      setPreFlightResult(prev => {
+          if(!prev) return null;
+          return {
+              ...prev,
+              hasErrors: hasErrors,
+              diagnostics: diagnostics,
+              checks: prev.checks.map(c => c.id === 'syntax' ? { ...c, status: hasErrors ? 'failure' : 'success' } : c)
+          };
+      });
+
+      if (hasErrors) {
+           // Skip rest
+           setPreFlightResult(prev => prev ? ({ ...prev, checks: prev.checks.map(c => c.id !== 'syntax' ? { ...c, status: 'pending', message: 'Skipped due to syntax errors' } : c) }) : null);
+           return;
+      }
+
+      // 2. Virtual Build (Simulated for demo, unless we have language services)
+      setPreFlightResult(prev => prev ? ({ ...prev, checks: prev.checks.map(c => c.id === 'build' ? { ...c, status: 'running' } : c) }) : null);
+      await new Promise(r => setTimeout(r, 800));
+      
+      // Simulation: Fail if content contains "FIXME" or certain keywords for demo purposes
+      const buildFail = content.includes('<<<') || content.includes('>>>'); 
+      setPreFlightResult(prev => prev ? ({ 
+          ...prev, 
+          checks: prev.checks.map(c => c.id === 'build' ? { ...c, status: buildFail ? 'failure' : 'success', message: buildFail ? 'Merge conflicts detected' : 'Build successful' } : c),
+          hasErrors: prev.hasErrors || buildFail
+      }) : null);
+
+      if (buildFail) return;
+
+      // 3. Security (Simulated)
+      setPreFlightResult(prev => prev ? ({ ...prev, checks: prev.checks.map(c => c.id === 'security' ? { ...c, status: 'running' } : c) }) : null);
+      await new Promise(r => setTimeout(r, 500));
+      setPreFlightResult(prev => prev ? ({ 
+          ...prev, 
+          checks: prev.checks.map(c => c.id === 'security' ? { ...c, status: 'success', message: 'No secrets detected' } : c) 
+      }) : null);
+  };
+
+  const sendFeedback = async (feedback: string) => {
+      if (!pendingAction || !agentChatRef.current) return;
+      
+      const { toolName, args } = pendingAction;
+      
+      // 1. Record the attempt as if it happened but failed
+      setAgentSteps(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'call',
+          text: `Pre-Flight Check: ${toolName}...`,
+          toolName: toolName,
+          toolArgs: args,
+          timestamp: Date.now()
+      }]);
+
+      setAgentSteps(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'error',
+          text: `Pre-Flight Failed: ${feedback}`,
+          timestamp: Date.now()
+      }]);
+
+      setPendingAction(null);
+      setPreFlightResult(null);
+      setStatus('thinking');
+
+      // 2. Feed back to agent
+      const toolResponse = [{
+          id: pendingAction.id,
+          name: toolName,
+          result: `[PRE-FLIGHT CHECK FAILED]\nThe system prevented this file write because of the following errors:\n${feedback}\n\nPlease fix the code and try again.`
+      }];
+
+      try {
+           const response = await agentChatRef.current.sendMessage({ message: "", toolResponses: toolResponse });
+           if (response.text) {
+               setAgentSteps(prev => [...prev, { id: Date.now().toString(), type: 'thought', text: response.text, timestamp: Date.now() }]);
+           }
+           
+           if (response.toolCalls && response.toolCalls.length > 0) {
+               setPendingAction({
+                  id: response.toolCalls[0].id,
+                  type: 'tool_call',
+                  toolName: response.toolCalls[0].name,
+                  args: response.toolCalls[0].args
+               });
+               setStatus('action_review');
+           }
+      } catch (e: any) {
+           console.error(e);
+           setStatus('failed');
+      }
+  };
+
+
+  // --- Original Logic ---
 
   // 1. Start Phase: Generate Plan
   const startAgent = async (goal: string) => {
       resetAgent();
       setStatus('planning');
       
-      // Log user goal
       setAgentSteps([{
           id: Date.now().toString(),
           type: 'user',
@@ -40,10 +166,7 @@ export const useAgent = (
       }]);
 
       try {
-          // Generate Context
-          // Simple context: list of top-level files or just nothing for now
-          const context = `Project contains ${files.length} files.`; // Could be richer
-          
+          const context = `Project contains ${files.length} files.`; 
           const generatedPlan = await generateAgentPlan(goal, context);
           setPlan(generatedPlan);
           setStatus('plan_review');
@@ -58,10 +181,7 @@ export const useAgent = (
   // 2. Review Phase: Approve Plan
   const approvePlan = async (modifiedPlan?: AgentPlanItem[]) => {
       if (modifiedPlan) setPlan(modifiedPlan);
-      
       setStatus('thinking');
-      
-      // Initialize Chat Session with the Goal and the Plan
       const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant.
       You have agreed on a plan with the user.
       Your task is to execute this plan step-by-step.
@@ -73,16 +193,12 @@ export const useAgent = (
       You should output a Tool Call to perform an action (e.g., readFile, writeFile).
       Wait for the user to confirm the action, then I will give you the result.
       `;
-      
       agentChatRef.current = createChatSession(systemPrompt, [], true);
-      
-      // Kick off execution of the first pending step
       await processNextStep(modifiedPlan || plan);
   };
 
   // 3. Execution Logic
   const processNextStep = async (currentPlan: AgentPlanItem[]) => {
-      // Find first pending step
       const stepIndex = currentPlan.findIndex(p => p.status === 'pending');
       
       if (stepIndex === -1) {
@@ -92,13 +208,10 @@ export const useAgent = (
       }
       
       const step = currentPlan[stepIndex];
-      
-      // Mark step active visually
       const updatedPlan = [...currentPlan];
       updatedPlan[stepIndex] = { ...step, status: 'active' };
       setPlan(updatedPlan);
       
-      // Prompt AI for action
       if (!agentChatRef.current) return;
       
       setStatus('thinking');
@@ -112,7 +225,7 @@ export const useAgent = (
           }
 
           if (response.toolCalls && response.toolCalls.length > 0) {
-              const call = response.toolCalls[0]; // Handle one at a time for interactive mode
+              const call = response.toolCalls[0]; 
               setPendingAction({
                   id: call.id,
                   type: 'tool_call',
@@ -121,25 +234,11 @@ export const useAgent = (
               });
               setStatus('action_review');
           } else {
-              // No tool call means the model thinks the step (or at least this turn) is done without action, 
-              // or it just wants to talk.
-              // We'll assume if it didn't call a tool, it might be done with the step or asking for info.
-              // For simplicity, let's auto-advance the step if it says "Done" or similar, but 
-              // usually we want it to verify.
-              // Let's just ask it: "Did you complete the step?"
-              
-              // For now, if no tool, we just mark step complete and loop. 
-              // But real agents usually explicitely say they are done.
-              // Let's assume if no tool call, it's just a thought, and we loop unless it says "Step Complete".
-              
               if (response.text.toLowerCase().includes('step complete') || response.text.toLowerCase().includes('done')) {
                   updatedPlan[stepIndex].status = 'completed';
                   setPlan(updatedPlan);
                   await processNextStep(updatedPlan);
               } else {
-                  // If it didn't do anything, maybe force it or just loop? 
-                  // Let's treat it as a comment and wait? No, we need to drive it.
-                  // We'll mark step complete to prevent infinite loops of chatting for this demo.
                   updatedPlan[stepIndex].status = 'completed';
                   setPlan(updatedPlan);
                   await processNextStep(updatedPlan);
@@ -184,8 +283,8 @@ export const useAgent = (
       }]);
       
       setPendingAction(null);
+      setPreFlightResult(null);
       
-      // Feed result back
       const toolResponse = [{
           id: pendingAction.id,
           name: toolName,
@@ -199,7 +298,6 @@ export const useAgent = (
            }
            
            if (response.toolCalls && response.toolCalls.length > 0) {
-               // More tools needed for this step
                setPendingAction({
                   id: response.toolCalls[0].id,
                   type: 'tool_call',
@@ -208,7 +306,6 @@ export const useAgent = (
                });
                setStatus('action_review');
            } else {
-               // Step likely done
                const activeIndex = plan.findIndex(p => p.status === 'active');
                if (activeIndex !== -1) {
                    const newPlan = [...plan];
@@ -224,15 +321,12 @@ export const useAgent = (
   };
   
   const rejectAction = async () => {
-      // Just clear pending and ask AI to try something else? 
-      // Or fail the step.
       setPendingAction(null);
-      // For now, let's stop.
+      setPreFlightResult(null);
       setStatus('idle'); 
       setAgentSteps(prev => [...prev, { id: Date.now().toString(), type: 'error', text: "Action rejected by user.", timestamp: Date.now() }]);
   };
   
-  // Allow user to modify the proposed action args before approving
   const updatePendingActionArgs = (newArgs: any) => {
       if (pendingAction) {
           setPendingAction({ ...pendingAction, args: newArgs });
@@ -244,11 +338,13 @@ export const useAgent = (
       agentSteps,
       plan,
       pendingAction,
+      preFlightResult,
       startAgent,
       approvePlan,
       approveAction,
       rejectAction,
       updatePendingActionArgs,
-      setAgentSteps
+      setAgentSteps,
+      sendFeedback
   };
 };
