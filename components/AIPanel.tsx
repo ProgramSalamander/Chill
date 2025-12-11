@@ -4,7 +4,7 @@ import { Message, MessageRole, File, AgentStep } from '../types';
 import { 
   IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, 
   IconInsert, IconWand, IconTerminal, IconBug, IconPlus, IconFileCode, IconX,
-  IconClock, IconTrash
+  IconClock, IconTrash, IconChevronDown, IconChevronRight, IconEye
 } from './Icons';
 import { useAgent } from '../hooks/useAgent';
 
@@ -77,11 +77,9 @@ const CodeBlock: React.FC<{ code: string; language: string; onApply: (c: string)
 
 // Rich Text Parser
 const RichText: React.FC<{ text: string }> = ({ text }) => {
-    // Basic markdown parsing for bold, italic, inline code, and lists
     const parse = (input: string) => {
         const parts = [];
         let lastIndex = 0;
-        // Regex for **bold**, *italic*, `code`, and list items
         const regex = /(\*\*.*?\*\*)|(`.*?`)|(^\s*-\s.*$)|(\*.*?\*)/gm;
         let match;
 
@@ -107,7 +105,6 @@ const RichText: React.FC<{ text: string }> = ({ text }) => {
         return parts;
     };
 
-    // Split by newlines to handle block level elements like lists better
     const lines = text.split('\n');
     return (
         <div className="whitespace-pre-wrap leading-relaxed text-slate-300">
@@ -120,6 +117,144 @@ const RichText: React.FC<{ text: string }> = ({ text }) => {
         </div>
     );
 };
+
+// --- Agent HUD Components ---
+
+const AgentStepNode: React.FC<{ 
+    step: AgentStep, 
+    isLast: boolean,
+    prevStep?: AgentStep 
+}> = ({ step, isLast, prevStep }) => {
+    const [isExpanded, setIsExpanded] = useState(step.type === 'error' || step.type === 'user');
+    
+    // Auto-collapse massive outputs unless it's the very last thing that happened
+    useEffect(() => {
+        if (isLast && step.type !== 'thought') setIsExpanded(true);
+    }, [isLast, step.type]);
+
+    const getStepConfig = () => {
+        switch (step.type) {
+            case 'user': return {
+                icon: <IconSparkles size={14} />,
+                color: 'text-vibe-glow',
+                bg: 'bg-vibe-accent/10',
+                border: 'border-vibe-accent/30',
+                title: 'Objective'
+            };
+            case 'thought': return {
+                icon: <IconCpu size={14} />,
+                color: 'text-slate-400',
+                bg: 'bg-white/5',
+                border: 'border-white/10',
+                title: 'Thinking'
+            };
+            case 'call': 
+                const isWrite = step.toolName === 'writeFile';
+                const isRun = step.toolName === 'runCommand';
+                return {
+                    icon: isWrite ? <IconFileCode size={14} /> : isRun ? <IconTerminal size={14} /> : <IconWand size={14} />,
+                    color: isWrite ? 'text-green-400' : isRun ? 'text-purple-400' : 'text-yellow-400',
+                    bg: isWrite ? 'bg-green-500/10' : isRun ? 'bg-purple-500/10' : 'bg-yellow-500/10',
+                    border: isWrite ? 'border-green-500/20' : isRun ? 'border-purple-500/20' : 'border-yellow-500/20',
+                    title: step.toolName
+                };
+            case 'result': return {
+                icon: <IconCheck size={14} />,
+                color: 'text-slate-300',
+                bg: 'bg-black/20',
+                border: 'border-white/5',
+                title: 'Output'
+            };
+            case 'error': return {
+                icon: <IconClose size={14} />,
+                color: 'text-red-400',
+                bg: 'bg-red-500/10',
+                border: 'border-red-500/30',
+                title: 'Error'
+            };
+            case 'response': return {
+                icon: <IconZap size={14} />,
+                color: 'text-vibe-glow',
+                bg: 'bg-vibe-accent/10',
+                border: 'border-vibe-accent/30',
+                title: 'Complete'
+            };
+        }
+    };
+
+    const config = getStepConfig();
+
+    return (
+        <div className="relative pl-6 pb-6 last:pb-0 group">
+            {/* Timeline Line */}
+            {!isLast && <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-white/5 group-hover:bg-white/10 transition-colors"></div>}
+            
+            {/* Node Dot */}
+            <div className={`
+                absolute left-0 top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 transition-all
+                ${config.bg} ${config.border} ${config.color} shadow-[0_0_10px_rgba(0,0,0,0.2)]
+                ${isLast && step.type === 'thought' ? 'animate-pulse' : ''}
+            `}>
+                {config.icon}
+            </div>
+
+            {/* Content Card */}
+            <div className={`
+                ml-3 rounded-lg border transition-all duration-300 overflow-hidden
+                ${config.bg} ${config.border}
+                ${isExpanded ? 'shadow-lg' : 'hover:border-white/20'}
+            `}>
+                {/* Header */}
+                <div 
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center justify-between px-3 py-2 cursor-pointer select-none"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold uppercase tracking-wider ${config.color}`}>
+                            {config.title}
+                        </span>
+                        {step.type === 'call' && (
+                             <span className="text-[10px] bg-black/40 px-1.5 py-0.5 rounded text-slate-400 font-mono">
+                                 {step.toolName === 'writeFile' ? step.toolArgs.path : step.toolName === 'runCommand' ? 'exec' : 'read'}
+                             </span>
+                        )}
+                    </div>
+                    <div className="text-slate-500">
+                        {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                    </div>
+                </div>
+
+                {/* Body */}
+                {isExpanded && (
+                    <div className="px-3 pb-3 pt-0 text-sm animate-in slide-in-from-top-2 duration-200">
+                        {step.type === 'call' ? (
+                            <div className="bg-black/40 rounded p-2 border border-white/5 font-mono text-xs text-slate-300 overflow-x-auto">
+                                {step.toolName === 'writeFile' ? (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-slate-500 border-b border-white/5 pb-1">
+                                            <IconFileCode size={12} />
+                                            <span>Writing to {step.toolArgs.path}</span>
+                                        </div>
+                                        <pre className="text-green-300/80 max-h-40 overflow-y-auto custom-scrollbar">
+                                            {step.toolArgs.content}
+                                        </pre>
+                                    </div>
+                                ) : (
+                                    <pre>{JSON.stringify(step.toolArgs, null, 2)}</pre>
+                                )}
+                            </div>
+                        ) : (
+                            <div className={`leading-relaxed whitespace-pre-wrap ${step.type === 'result' ? 'font-mono text-xs text-slate-400 bg-black/20 p-2 rounded max-h-60 overflow-y-auto custom-scrollbar' : 'text-slate-300'}`}>
+                                {step.text}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 const AIPanel: React.FC<AIPanelProps> = ({ 
   isOpen, 
@@ -150,7 +285,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const pickerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
 
-  // Use extracted agent hook
   const { agentSteps, isAgentRunning, runAgent } = useAgent(onAgentAction);
 
   useEffect(() => {
@@ -159,7 +293,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
     }
   }, [messages, agentSteps, isOpen, mode]);
 
-  // Handle click outside picker and history
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
@@ -176,7 +309,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    // Save history
     const trimmedInput = input.trim();
     setPromptHistory(prev => {
         const newHist = [trimmedInput, ...prev.filter(p => p !== trimmedInput)].slice(0, 50);
@@ -186,13 +318,9 @@ const AIPanel: React.FC<AIPanelProps> = ({
     
     if (mode === 'chat') {
         if (isGenerating) return;
-        // Pass pinned files + active file if scope is 'file'
         let contextIds = [...pinnedFiles];
         if (contextScope === 'file' && activeFile && !contextIds.includes(activeFile.id)) {
             contextIds.push(activeFile.id);
-        } else if (contextScope === 'project') {
-             // For project scope, we might send all or rely on RAG. 
-             // Sending specific IDs hints to the hook to prioritize them.
         }
         
         onSendMessage(input, contextIds.length > 0 ? contextIds : undefined);
@@ -256,75 +384,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
     );
   };
 
-  const renderAgentStep = (step: AgentStep, index: number, total: number) => {
-      const isLast = index === total - 1;
-      
-      return (
-          <div className="relative pl-6 pb-6 border-l border-white/10 last:border-0 last:pb-0">
-              <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full border-2 border-[#0f0f16] ${
-                  step.type === 'error' ? 'bg-red-500' :
-                  step.type === 'result' ? 'bg-green-500' :
-                  step.type === 'call' ? 'bg-yellow-500' :
-                  step.type === 'user' ? 'bg-vibe-accent' :
-                  'bg-slate-600'
-              }`}></div>
-              
-              {step.type === 'user' && (
-                  <div className="bg-vibe-accent/10 border border-vibe-accent/20 rounded-lg p-3 text-white text-sm">
-                      <div className="text-[10px] text-vibe-glow font-bold uppercase mb-1 flex items-center gap-2">
-                          <IconSparkles size={10} /> Goal
-                      </div>
-                      {step.text}
-                  </div>
-              )}
-              
-              {step.type === 'thought' && (
-                  <div className="text-slate-400 text-xs italic bg-white/5 p-2 rounded border border-white/5">
-                      "{step.text}"
-                  </div>
-              )}
-              
-              {step.type === 'call' && (
-                  <div className="flex flex-col gap-1 text-xs">
-                       <span className="text-yellow-400 font-mono font-bold flex items-center gap-1">
-                           <IconWand size={10} /> 
-                           Executing: {step.toolName}
-                       </span>
-                       <div className="bg-black/40 border border-white/10 rounded p-2 font-mono text-slate-400 overflow-x-auto">
-                           {JSON.stringify(step.toolArgs)}
-                       </div>
-                  </div>
-              )}
-              
-              {step.type === 'result' && (
-                  <div className="flex flex-col gap-1 text-xs">
-                       <span className="text-green-400 font-mono font-bold flex items-center gap-1">
-                           <IconCheck size={10} /> 
-                           Result
-                       </span>
-                       <div className="bg-green-900/10 border border-green-500/10 rounded p-2 font-mono text-slate-300 opacity-80 max-h-32 overflow-y-auto custom-scrollbar">
-                           {step.text}
-                       </div>
-                  </div>
-              )}
-              
-              {step.type === 'error' && (
-                  <div className="text-red-400 text-xs bg-red-400/10 p-2 rounded border border-red-400/20 flex items-center gap-2">
-                      <IconClose size={14} />
-                      {step.text}
-                  </div>
-              )}
-              
-              {step.type === 'response' && (
-                   <div className="text-vibe-glow text-sm font-medium py-2 flex items-center gap-2 animate-in slide-in-from-left-2">
-                       <IconSparkles size={16} />
-                       {step.text}
-                   </div>
-               )}
-          </div>
-      );
-  };
-
   return (
     <div 
       className={`
@@ -333,7 +392,6 @@ const AIPanel: React.FC<AIPanelProps> = ({
         ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'}
       `}
     >
-      {/* Background Noise Texture */}
       <div className="absolute inset-0 z-[-1] opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat opacity-20 mix-blend-overlay"></div>
       
       {/* Header */}
@@ -355,8 +413,8 @@ const AIPanel: React.FC<AIPanelProps> = ({
               </div>
               <div>
                   <h3 className="font-bold tracking-wide text-white text-sm flex items-center gap-2">
-                      {mode === 'chat' ? 'Vibe Chat' : 'Vibe Agent'}
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono">v3.0</span>
+                      {mode === 'chat' ? 'Vibe Chat' : 'Neural Agent'}
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono">v3.1</span>
                   </h3>
               </div>
             </div>
@@ -385,7 +443,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
                       ${mode === 'agent' ? 'bg-orange-500/20 text-orange-300 shadow-sm border border-orange-500/30' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
-                    <IconBug size={12} />
+                    <IconCpu size={12} />
                     Agent
                   </button>
               </div>
@@ -441,25 +499,47 @@ const AIPanel: React.FC<AIPanelProps> = ({
             </>
         )}
 
-        {/* Agent Mode View - Timeline */}
+        {/* Agent Mode View - Visual HUD */}
         {mode === 'agent' && (
-            <div className="px-2 pt-2">
+            <div className="px-1 pt-2 pb-10">
                  {agentSteps.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-[300px] text-slate-500 space-y-4 opacity-60">
-                        <IconTerminal size={32} className="text-orange-400" />
+                        <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shadow-[0_0_30px_rgba(249,115,22,0.1)]">
+                             <IconCpu size={32} className="text-orange-400" />
+                        </div>
                         <div className="text-center">
-                            <p className="text-sm font-semibold text-white">Autonomous Agent</p>
-                            <p className="text-xs mt-2 max-w-[250px]">Give me a goal. I will explore, plan, and edit files to complete it.</p>
+                            <p className="text-sm font-semibold text-white">Neural Agent Ready</p>
+                            <p className="text-xs mt-2 max-w-[250px]">Give me a high-level goal. I will plan, execute, and verify changes autonomously.</p>
                         </div>
                     </div>
                  )}
+                 
                  <div className="flex flex-col">
-                     {agentSteps.map((step, idx) => renderAgentStep(step, idx, agentSteps.length))}
+                     {agentSteps.map((step, idx) => (
+                         <AgentStepNode 
+                             key={step.id} 
+                             step={step} 
+                             isLast={idx === agentSteps.length - 1} 
+                             prevStep={idx > 0 ? agentSteps[idx-1] : undefined}
+                         />
+                     ))}
                  </div>
+                 
                  {isAgentRunning && (
-                    <div className="flex items-center gap-2 text-orange-400 text-xs px-8 pt-4 border-l border-white/10 ml-2">
-                        <div className="w-2 h-2 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="font-mono">Agent is working...</span>
+                    <div className="relative pl-6 mt-4">
+                         <div className="absolute left-[11px] top-0 bottom-0 w-[2px] bg-gradient-to-b from-white/10 to-transparent"></div>
+                         <div className="absolute left-0 top-0 w-6 h-6 rounded-full border-2 border-orange-500/30 bg-orange-500/10 flex items-center justify-center animate-pulse">
+                            <div className="w-2 h-2 bg-orange-400 rounded-full animate-ping"></div>
+                         </div>
+                         <div className="ml-3 p-3 bg-white/5 border border-white/5 rounded-lg flex items-center gap-3">
+                             <div className="flex gap-1 items-end h-4">
+                                 <div className="w-1 bg-orange-400/50 animate-[pulse_0.6s_ease-in-out_infinite] h-2"></div>
+                                 <div className="w-1 bg-orange-400/50 animate-[pulse_0.8s_ease-in-out_infinite_0.1s] h-3"></div>
+                                 <div className="w-1 bg-orange-400/50 animate-[pulse_1s_ease-in-out_infinite_0.2s] h-4"></div>
+                                 <div className="w-1 bg-orange-400/50 animate-[pulse_0.7s_ease-in-out_infinite_0.3s] h-2"></div>
+                             </div>
+                             <span className="text-xs font-mono text-orange-300">Agent is working...</span>
+                         </div>
                     </div>
                  )}
             </div>
