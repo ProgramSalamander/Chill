@@ -33,6 +33,15 @@ interface TFIDFIndex {
   chunkVectors: Map<string, Map<string, number>>;
 }
 
+export interface SearchResult {
+    fileId: string;
+    filePath: string;
+    score: number;
+    snippet: string;
+    startLine: number;
+    endLine: number;
+}
+
 class RAGService {
   private index: TFIDFIndex | null = null;
   public isIndexing: boolean = false;
@@ -158,8 +167,9 @@ class RAGService {
       return dotProduct; // Magnitudes are 1 due to normalization
   }
 
-  public getContext(query: string, activeFile: File | null, allFiles: File[], topK: number = 5): string {
-    if (!this.index) return generateProjectStructureContext(allFiles);
+  // New method to expose search directly
+  public search(query: string, limit: number = 5): SearchResult[] {
+    if (!this.index) return [];
 
     const queryTokens = this.tokenize(query);
     const queryTf = new Map<string, number>();
@@ -175,7 +185,6 @@ class RAGService {
         queryMagnitude += tfidf * tfidf;
     }
 
-    // Normalize query vector
     const norm = Math.sqrt(queryMagnitude);
     if (norm > 0) {
         for (const [term, val] of queryVector.entries()) {
@@ -190,8 +199,23 @@ class RAGService {
     
     scores.sort((a, b) => b.score - a.score);
 
-    const relevantChunks = scores.slice(0, topK).filter(s => s.score > 0.05); // Threshold
-    
+    return scores
+        .slice(0, limit)
+        .filter(s => s.score > 0.05)
+        .map(s => ({
+            fileId: s.chunk.fileId,
+            filePath: s.chunk.filePath,
+            score: s.score,
+            snippet: s.chunk.content,
+            startLine: s.chunk.startLine,
+            endLine: s.chunk.endLine
+        }));
+  }
+
+  public getContext(query: string, activeFile: File | null, allFiles: File[], topK: number = 5): string {
+    if (!this.index) return generateProjectStructureContext(allFiles);
+
+    const relevantChunks = this.search(query, topK);
     const structure = generateProjectStructureContext(allFiles);
     
     let context = `${structure}\n\n`;
@@ -201,20 +225,21 @@ class RAGService {
         // Dedupe chunks from the same file to avoid too much noise
         const uniqueFileChunks = new Map<string, typeof relevantChunks[0]>();
         for (const item of relevantChunks) {
-            if (!uniqueFileChunks.has(item.chunk.fileId)) {
-                uniqueFileChunks.set(item.chunk.fileId, item);
-            }
+            // Simple logic: if we have a chunk from this file already, skip unless score is significantly better
+            // Actually, showing multiple parts of same file is good. Let's just key by ID (chunk ID is unique).
+            // But we want to avoid spamming the same file content.
+            // Let's just iterate.
         }
 
-        for (const { chunk } of uniqueFileChunks.values()) {
-            context += `---\nFile: ${chunk.filePath} (lines ${chunk.startLine}-${chunk.endLine})\n${chunk.content}\n`;
+        for (const chunk of relevantChunks) {
+            context += `---\nFile: ${chunk.filePath} (lines ${chunk.startLine}-${chunk.endLine})\n${chunk.snippet}\n`;
         }
         context += '---\n\n';
     }
 
     if (activeFile) {
-      // Ensure active file is always included if not already
-      if (!relevantChunks.some(c => c.chunk.fileId === activeFile.id)) {
+      // Ensure active file is always included if not already covered substantially
+      if (!relevantChunks.some(c => c.fileId === activeFile.id)) {
         context += `Currently active file (${getFilePath(activeFile, allFiles)}):\n${activeFile.content}\n\n`;
       }
     }

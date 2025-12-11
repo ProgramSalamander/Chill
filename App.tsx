@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -24,7 +25,7 @@ import { initRuff, runPythonLint } from './services/lintingService';
 import { projectService } from './services/projectService';
 import { ragService } from './services/ragService';
 import { File, TerminalLine, Diagnostic, ProjectMeta, SidebarView } from './types';
-import { getFilePath, resolveFileByPath } from './utils/fileUtils';
+import { getFilePath, resolveFileByPath, extractSymbols } from './utils/fileUtils';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { useFileSystem } from './hooks/useFileSystem';
 import { useGit } from './hooks/useGit';
@@ -96,6 +97,10 @@ function App() {
   const [selectedCode, setSelectedCode] = useState<string>('');
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [isIndexing, setIsIndexing] = useState(false);
+  
+  // --- Agent Awareness State ---
+  // Tracks file IDs that the agent has semantically accessed or searched
+  const [agentAwareness, setAgentAwareness] = useState<Set<string>>(new Set());
   
   // Refs & Timers
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,6 +193,7 @@ function App() {
       git.reset();
       setMessages([]);
       setTerminalLines([]);
+      setAgentAwareness(new Set());
       addTerminalLine(`New project created: ${name}`, 'success');
   };
 
@@ -201,6 +207,7 @@ function App() {
        projectService.saveProject(files, project);
        setRecentProjects(projectService.getRecents());
        git.reset();
+       setAgentAwareness(new Set());
        addTerminalLine(`Switched to project: ${project.name}`, 'info');
     } else { addTerminalLine(`Failed to load project: ${project.name}`, 'error'); }
   };
@@ -214,7 +221,10 @@ function App() {
           setActiveProject(project);
       }
       const newFiles = await git.clone(url);
-      if (newFiles) fs.setAllFiles(newFiles);
+      if (newFiles) {
+          fs.setAllFiles(newFiles);
+          setAgentAwareness(new Set());
+      }
   };
 
   const handleSaveAll = async () => {
@@ -235,26 +245,67 @@ function App() {
 
   const handleAgentAction = useCallback(async (action: string, args: any): Promise<string> => {
       const currentFiles = filesRef.current;
+      
+      const updateAwareness = (fileId: string) => {
+          setAgentAwareness(prev => {
+              const next = new Set(prev);
+              next.add(fileId);
+              return next;
+          });
+      };
+
       switch (action) {
           case 'listFiles': return currentFiles.map(f => `${f.type === 'folder' ? '[DIR]' : '[FILE]'} ${getFilePath(f, currentFiles)}`).sort().join('\n');
+          
           case 'readFile': {
              const file = resolveFileByPath(args.path, currentFiles);
+             if (file) updateAwareness(file.id);
              return file ? (file.type === 'file' ? file.content : "Error: Is a folder") : `Error: File not found ${args.path}`;
           }
+          
           case 'writeFile': {
              const { path, content } = args;
              const existing = resolveFileByPath(path, currentFiles);
              if (existing) {
                  fs.updateFileContent(content, true, existing.id);
+                 updateAwareness(existing.id);
                  return `Updated: ${path}`;
              }
              const name = path.split('/').pop() || 'untitled';
-             fs.createNode('file', null, name, content);
+             const newFile = await fs.createNode('file', null, name, content);
+             if (newFile) updateAwareness(newFile.id);
              return `Created: ${path}`;
           }
+          
           case 'runCommand':
               addTerminalLine(`Agent: ${args.command}`, 'command');
               return `Executed: ${args.command}`;
+              
+          case 'searchCode': {
+             const results = ragService.search(args.query);
+             const foundFiles = results.map(r => r.filePath).join(', ');
+             // Update awareness for all found files
+             const foundIds = results.map(r => r.fileId);
+             setAgentAwareness(prev => {
+                 const next = new Set(prev);
+                 foundIds.forEach(id => next.add(id));
+                 return next;
+             });
+
+             if (results.length === 0) return "No matches found.";
+             
+             return `Found matches in: ${foundFiles}\n\n` + 
+                    results.map(r => `File: ${r.filePath}\nMatch Score: ${r.score.toFixed(2)}\nSnippet:\n${r.snippet}`).join('\n\n');
+          }
+
+          case 'getFileStructure': {
+             const file = resolveFileByPath(args.path, currentFiles);
+             if (!file) return `Error: File not found ${args.path}`;
+             if (file) updateAwareness(file.id);
+             if (file.type !== 'file') return "Error: Is a folder";
+             return extractSymbols(file);
+          }
+
           default: return `Unknown tool: ${action}`;
       }
   }, [fs, addTerminalLine]);
@@ -363,6 +414,8 @@ function App() {
           onInitializeGit={() => git.init(fs.files)}
           onClone={handleClone}
           isCloning={git.isCloning}
+          // Agent Awareness
+          agentAwareness={agentAwareness}
         />
         <div className="flex-1 flex flex-col min-w-0 relative gap-3">
            <div className="shrink-0">

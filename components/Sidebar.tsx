@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen } from './Icons';
 import { GitStatus } from '../services/gitService';
@@ -38,6 +40,9 @@ interface SidebarProps {
   onInitializeGit: () => void;
   onClone: (url: string) => void;
   isCloning: boolean;
+
+  // Agent Awareness
+  agentAwareness: Set<string>;
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
@@ -262,6 +267,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                   <FileExplorer 
                     files={props.files} activeFileId={props.activeFileId} onFileClick={props.onFileClick}
                     onDelete={props.onDelete} onRename={props.onRename} onCreate={props.onCreate} onToggleFolder={props.onToggleFolder}
+                    agentAwareness={props.agentAwareness}
                   />
                )}
                {activeView === 'git' && (

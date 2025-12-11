@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo } from 'react';
 import { File } from '../types';
 import { 
@@ -10,7 +12,8 @@ import {
   IconFilePlus,
   IconFolderPlus,
   IconCheck,
-  IconClose
+  IconClose,
+  IconBrain
 } from './Icons';
 
 interface FileExplorerProps {
@@ -21,6 +24,7 @@ interface FileExplorerProps {
   onRename: (fileId: string, newName: string) => void;
   onCreate: (type: 'file' | 'folder', parentId: string | null, name: string) => void;
   onToggleFolder: (fileId: string) => void;
+  agentAwareness?: Set<string>;
 }
 
 interface FileTreeNodeProps extends FileExplorerProps {
@@ -37,7 +41,8 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
   onDelete,
   onRename,
   onCreate,
-  onToggleFolder
+  onToggleFolder,
+  agentAwareness
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -68,6 +73,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             onRename={onRename}
             onCreate={onCreate}
             onToggleFolder={onToggleFolder}
+            agentAwareness={agentAwareness}
           />
         ))}
       </div>
@@ -79,6 +85,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
 
   const isAdded = node.type === 'file' && node.committedContent === undefined;
   const isModified = node.type === 'file' && !isAdded && node.content !== (node.committedContent || '');
+  const isAware = agentAwareness?.has(node.id);
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -117,12 +124,17 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         className={`
           group flex items-center gap-2 py-1.5 px-3 cursor-pointer transition-all relative rounded-lg mx-1
           ${activeFileId === node.id ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}
+          ${isAware && activeFileId !== node.id ? 'bg-vibe-glow/5 border border-vibe-glow/10 shadow-[0_0_10px_rgba(199,210,254,0.05)]' : ''}
         `}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => onFileClick(node)}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
+        {isAware && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-vibe-glow rounded-r-full animate-pulse shadow-[0_0_5px_rgba(199,210,254,0.5)]"></div>
+        )}
+
         <span className={`opacity-70 flex-shrink-0 transition-transform ${node.isOpen ? 'rotate-0' : '-rotate-90'}`}>
           {node.type === 'folder' ? (
              <IconChevronDown size={14} />
@@ -156,7 +168,14 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             </div>
         ) : (
             <>
-              <span className={`truncate text-sm flex-1 ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')}`}>{node.name}</span>
+              <span className={`truncate text-sm flex-1 ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
+                  {node.name}
+              </span>
+              
+              {isAware && !isModified && !isAdded && (
+                 <IconBrain size={10} className="text-vibe-glow animate-pulse mr-2 opacity-50" />
+              )}
+
               {isModified && (
                  <span className="text-[9px] font-bold text-amber-400 font-mono mr-2 bg-amber-400/10 px-1 rounded" title="Modified">M</span>
               )}
@@ -254,6 +273,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
                 onRename={onRename}
                 onCreate={onCreate}
                 onToggleFolder={onToggleFolder}
+                agentAwareness={agentAwareness}
               />
             ))}
             {children.length === 0 && !isCreating && (

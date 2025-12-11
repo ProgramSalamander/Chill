@@ -57,6 +57,28 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
           },
           required: ["command"]
         }
+      },
+      {
+        name: "searchCode",
+        description: "Semantically search the codebase for logic, definitions, or patterns. Use this to find *where* something is implemented (e.g., 'date formatting function', 'auth middleware').",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            query: { type: Type.STRING, description: "Natural language query describing the logic or code you are looking for." }
+          },
+          required: ["query"]
+        }
+      },
+      {
+        name: "getFileStructure",
+        description: "Get a high-level structural overview of a file (classes, functions, exports) without reading the full content. Useful for quick scanning.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+             path: { type: Type.STRING, description: "The full path of the file to analyze" }
+          },
+          required: ["path"]
+        }
       }
     ]
   }
@@ -524,19 +546,25 @@ export const generateAgentPlan = async (goal: string, context: string): Promise<
     const config = getAIConfig();
     const systemPrompt = `You are an expert software architect. Your goal is to break down a user's request into a concrete, sequential plan of action for a coding agent.
     
-    The agent has these tools: listFiles, readFile, writeFile, runCommand.
+    The agent has these tools: 
+    - listFiles: to understand file structure
+    - readFile: to read content
+    - writeFile: to create/update code
+    - runCommand: to execute commands
+    - searchCode: to find semantic logic
+    - getFileStructure: to inspect symbols/exports
     
     Return a JSON object with a "steps" property containing an array of steps.
     Each step should have:
     - id: a short string id
     - title: concise title
-    - description: what will be done in this step
+    - description: what will be done in this step, referencing the tools to be used.
     
     Example:
     {
       "steps": [
-        { "id": "1", "title": "Explore Codebase", "description": "List files to understand structure" },
-        { "id": "2", "title": "Create Component", "description": "Create src/components/NewFeature.tsx" }
+        { "id": "1", "title": "Explore Codebase", "description": "Use listFiles and searchCode to find relevant auth logic." },
+        { "id": "2", "title": "Update Logic", "description": "Use readFile to get content and writeFile to update src/auth.ts" }
       ]
     }
     `;

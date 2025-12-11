@@ -48,3 +48,28 @@ export const generateProjectStructureContext = (files: File[]): string => {
 
   return `PROJECT STRUCTURE:\n${structure}`;
 };
+
+export const extractSymbols = (file: File): string => {
+    const lang = getLanguage(file.name);
+    const content = file.content;
+    const lines = content.split('\n');
+    const symbols: string[] = [];
+
+    // Very naive regex-based symbol extraction
+    if (lang === 'typescript' || lang === 'javascript') {
+        const regex = /^(?:export\s+)?(?:async\s+)?(?:function\s+|class\s+|const\s+|let\s+|var\s+|interface\s+|type\s+)([a-zA-Z0-9_]+)/gm;
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            symbols.push(match[1]);
+        }
+    } else if (lang === 'python') {
+        const regex = /^(?:def|class)\s+([a-zA-Z0-9_]+)/gm;
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            symbols.push(match[1]);
+        }
+    }
+
+    if (symbols.length === 0) return "No top-level symbols found.";
+    return "Symbols found:\n- " + symbols.join("\n- ");
+};
