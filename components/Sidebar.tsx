@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen } from './Icons';
 import { GitStatus } from '../services/gitService';
@@ -8,6 +9,7 @@ import { SidebarView, File, Commit } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
 import { SIDEBAR_VIEWS } from '../views/sidebarViews';
+import Tooltip from './Tooltip';
 
 // --- PROPS INTERFACE ---
 interface SidebarProps {
@@ -55,7 +57,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
   // --- ACTIVITY BAR STATE & LOGIC ---
   const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, opacity: 0 });
-  const iconRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const iconRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -157,61 +159,64 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 const isDragOver = dragOverId === view.id;
 
                 return (
-                  <button 
-                    id={`sidebar-${view.id}-button`}
-                    key={view.id}
-                    ref={el => { iconRefs.current[index] = el; }}
-                    draggable
-                    onDragStart={e => handleDragStart(e, view)}
-                    onDragOver={e => handleDragOver(e, view)}
-                    onDrop={e => handleDrop(e, view)}
-                    onDragEnd={handleDragEnd}
-                    onContextMenu={e => handleContextMenu(e, view)}
-                    onClick={() => setActiveView(isActive ? null : view.id)}
-                    className={`p-3 rounded-xl transition-all duration-300 relative group w-[44px] h-[44px] flex items-center justify-center
-                      ${isActive ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:text-white hover:bg-white/10'}
-                      ${isDragged ? 'opacity-30 scale-90' : 'opacity-100 scale-100'}
-                      ${isDragOver ? 'bg-white/10' : ''}
-                    `}
-                    title={view.title}
-                  >
-                    <div className="relative z-10">
-                      <view.icon size={20} strokeWidth={1.5} />
-                      {hasGitBadge && (
-                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm animate-pulse"></div>
-                      )}
+                  <Tooltip key={view.id} content={view.title} shortcut={view.id === 'explorer' ? '⌘B' : undefined}>
+                    <div
+                      ref={el => { iconRefs.current[index] = el; }}
+                      draggable
+                      onDragStart={e => handleDragStart(e, view)}
+                      onDragOver={e => handleDragOver(e, view)}
+                      onDrop={e => handleDrop(e, view)}
+                      onDragEnd={handleDragEnd}
+                      onContextMenu={e => handleContextMenu(e, view)}
+                      onClick={() => setActiveView(isActive ? null : view.id)}
+                      className={`p-3 rounded-xl transition-all duration-300 relative group w-[44px] h-[44px] flex items-center justify-center cursor-pointer
+                        ${isActive ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:text-white hover:bg-white/10'}
+                        ${isDragged ? 'opacity-30 scale-90' : 'opacity-100 scale-100'}
+                        ${isDragOver ? 'bg-white/10' : ''}
+                      `}
+                      id={`sidebar-${view.id}-button`}
+                    >
+                      <div className="relative z-10">
+                        <view.icon size={20} strokeWidth={1.5} />
+                        {hasGitBadge && (
+                          <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm animate-pulse"></div>
+                        )}
+                      </div>
                     </div>
-                  </button>
+                  </Tooltip>
                 );
               })}
             </div>
 
-            <button 
-              onClick={props.onOpenCommandPalette}
-              className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:scale-105"
-              title="Command Palette (Cmd+P)"
-            >
-              <IconSearch size={20} strokeWidth={1.5} />
-            </button>
+            <Tooltip content="Command Palette" shortcut="⌘P">
+              <button 
+                onClick={props.onOpenCommandPalette}
+                className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:scale-105"
+              >
+                <IconSearch size={20} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
             
             <div className="w-8 h-[1px] bg-white/10 my-1"></div>
             
-            <button 
-              onClick={props.onOpenSettings}
-              className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:rotate-90"
-              title="Settings"
-            >
-              <IconSettings size={20} strokeWidth={1.5} />
-            </button>
+            <Tooltip content="Settings">
+              <button 
+                onClick={props.onOpenSettings}
+                className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:rotate-90"
+              >
+                <IconSettings size={20} strokeWidth={1.5} />
+              </button>
+            </Tooltip>
             
             <div className="relative mt-auto pt-4" ref={hiddenMenuRef}>
-              <button
-                onClick={() => setHiddenMenuOpen(p => !p)}
-                className={`p-2 rounded-full transition-colors ${hiddenMenuOpen ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-white'}`}
-                title="Manage Views"
-              >
-                <IconMore size={16} />
-              </button>
+              <Tooltip content="Manage Views" position="top">
+                <button
+                  onClick={() => setHiddenMenuOpen(p => !p)}
+                  className={`p-2 rounded-full transition-colors ${hiddenMenuOpen ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-white'}`}
+                >
+                  <IconMore size={16} />
+                </button>
+              </Tooltip>
               {hiddenMenuOpen && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
                   <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">

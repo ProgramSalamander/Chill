@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, File } from '../types';
 import { useAgent } from '../hooks/useAgent';
@@ -5,6 +6,7 @@ import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
 import AgentHUD from './ai/AgentHUD';
 import ChatView from './ai/ChatView';
 import AIPanelInput from './ai/AIPanelInput';
+import Tooltip from './Tooltip';
 
 interface AIPanelProps {
   isOpen: boolean;
@@ -76,16 +78,19 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
               </div>
             </div>
             <div className="flex items-center gap-1">
-                <button 
-                    onClick={() => mode === 'chat' ? props.onClearChat() : setAgentSteps([])}
-                    className="text-slate-500 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-full"
-                    title={mode === 'chat' ? "Clear Chat" : "Reset Agent"}
-                >
-                  <IconTrash size={16} />
-                </button>
-                <button onClick={props.onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
-                  <IconClose size={18} />
-                </button>
+                <Tooltip content={mode === 'chat' ? "Clear Chat" : "Reset Agent"} position="left">
+                  <button 
+                      onClick={() => mode === 'chat' ? props.onClearChat() : setAgentSteps([])}
+                      className="text-slate-500 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-full"
+                  >
+                    <IconTrash size={16} />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Close Panel" position="left">
+                  <button onClick={props.onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
+                    <IconClose size={18} />
+                  </button>
+                </Tooltip>
             </div>
           </div>
 

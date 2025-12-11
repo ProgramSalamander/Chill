@@ -1,7 +1,9 @@
 
+
 import React from 'react';
 import { File, Diagnostic } from '../types';
 import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles } from './Icons';
+import Tooltip from './Tooltip';
 
 interface EditorTabsProps {
   openFileIds: string[];
@@ -65,27 +67,33 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
       </div>
 
       <div className="flex items-center gap-2 pl-2 border-l border-vibe-border">
-          <button 
-              onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-          >
-              {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
-              <span className="hidden sm:inline">Preview</span>
-          </button>
-          <button 
-              onClick={onRunCode}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
-          >
-              <IconPlay size={14} />
-              <span className="hidden sm:inline">Run</span>
-          </button>
-          <button 
-              onClick={() => setIsAIOpen(!isAIOpen)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
-          >
-              <IconSparkles size={14} />
-              <span className="hidden sm:inline">AI Vibe</span>
-          </button>
+          <Tooltip content={isPreviewOpen ? "Hide Preview" : "Show Live Preview"} position="bottom">
+            <button 
+                onClick={() => setIsPreviewOpen(!isPreviewOpen)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+            >
+                {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
+                <span className="hidden sm:inline">Preview</span>
+            </button>
+          </Tooltip>
+          <Tooltip content="Run Code" position="bottom">
+            <button 
+                onClick={onRunCode}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
+            >
+                <IconPlay size={14} />
+                <span className="hidden sm:inline">Run</span>
+            </button>
+          </Tooltip>
+          <Tooltip content={isAIOpen ? "Close AI Panel" : "Open AI Panel"} position="bottom">
+            <button 
+                onClick={() => setIsAIOpen(!isAIOpen)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
+            >
+                <IconSparkles size={14} />
+                <span className="hidden sm:inline">AI Vibe</span>
+            </button>
+          </Tooltip>
       </div>
     </div>
   );
