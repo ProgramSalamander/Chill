@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -244,6 +245,14 @@ function App() {
       }
   };
 
+  const handlePull = async () => {
+    const newFiles = await git.pull();
+    if (newFiles) {
+        fs.setAllFiles(newFiles);
+        setAgentAwareness(new Set());
+    }
+  };
+
   const handleSaveAll = async () => {
       const modified = fs.files.filter(f => f.isModified);
       for (const f of modified) await fs.saveFile(f);
@@ -432,6 +441,10 @@ function App() {
           onInitializeGit={() => git.init(fs.files)}
           onClone={handleClone}
           isCloning={git.isCloning}
+          onPull={handlePull}
+          onFetch={git.fetch}
+          isPulling={git.isPulling}
+          isFetching={git.isFetching}
           // Agent Awareness
           agentAwareness={agentAwareness}
         />

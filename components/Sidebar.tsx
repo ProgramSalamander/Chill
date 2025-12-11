@@ -1,9 +1,4 @@
 
-
-
-
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen } from './Icons';
 import { GitStatus } from '../services/gitService';
@@ -40,6 +35,10 @@ interface SidebarProps {
   onInitializeGit: () => void;
   onClone: (url: string) => void;
   isCloning: boolean;
+  onPull: () => void;
+  onFetch: () => void;
+  isPulling: boolean;
+  isFetching: boolean;
 
   // Agent Awareness
   agentAwareness: Set<string>;
@@ -275,6 +274,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     isInitialized={props.isGitInitialized} files={props.files} gitStatus={props.gitStatus} commits={props.gitCommits}
                     onStage={props.onStage} onUnstage={props.onUnstage} onCommit={props.onCommit} onInitialize={props.onInitializeGit}
                     onClone={props.onClone} isCloning={props.isCloning}
+                    onPull={props.onPull} onFetch={props.onFetch} isPulling={props.isPulling} isFetching={props.isFetching}
                   />
                )}
             </div>

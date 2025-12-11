@@ -9,6 +9,8 @@ export const useGit = (files: File[], addTerminalLine: (msg: string, type?: any)
   const [status, setStatus] = useState<GitStatus[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
   const [isCloning, setIsCloning] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
   const refresh = useCallback(async () => {
      if (!isInitialized) return;
@@ -96,6 +98,41 @@ export const useGit = (files: File[], addTerminalLine: (msg: string, type?: any)
     }
   }, [addTerminalLine]);
 
+  const pull = useCallback(async (): Promise<File[] | null> => {
+    if (!isInitialized) return null;
+    setIsPulling(true);
+    addTerminalLine('Pulling from remote...', 'command');
+    try {
+        await gitService.pull();
+        const newFiles = await gitService.loadFilesToMemory();
+        addTerminalLine('Pulled successfully. Workspace updated.', 'success');
+        refresh(); // To update status and commits
+        return newFiles;
+    } catch (e: any) {
+        addTerminalLine(`Pull failed: ${e.message}`, 'error');
+        console.error(e);
+        return null;
+    } finally {
+        setIsPulling(false);
+    }
+  }, [isInitialized, addTerminalLine, refresh]);
+
+  const fetch = useCallback(async () => {
+    if (!isInitialized) return;
+    setIsFetching(true);
+    addTerminalLine('Fetching from remote...', 'command');
+    try {
+        await gitService.fetch();
+        addTerminalLine('Fetch complete.', 'success');
+        refresh();
+    } catch (e: any) {
+        addTerminalLine(`Fetch failed: ${e.message}`, 'error');
+        console.error(e);
+    } finally {
+        setIsFetching(false);
+    }
+  }, [isInitialized, addTerminalLine, refresh]);
+
   const reset = useCallback(() => {
       setIsInitialized(false);
       setStatus([]);
@@ -107,6 +144,8 @@ export const useGit = (files: File[], addTerminalLine: (msg: string, type?: any)
       status,
       commits,
       isCloning,
+      isPulling,
+      isFetching,
       init,
       refresh,
       syncFile,
@@ -115,6 +154,8 @@ export const useGit = (files: File[], addTerminalLine: (msg: string, type?: any)
       unstage,
       commit,
       clone,
+      pull,
+      fetch,
       reset,
       setIsInitialized // Helper for when we detect .git in a folder open
   };

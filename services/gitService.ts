@@ -162,6 +162,34 @@ export const gitService = {
     }
   },
 
+  pull: async (name: string = 'Vibe Coder', email: string = 'coder@vibecode.ai') => {
+    // Attempt to pull from 'main', fallback to 'master'
+    try {
+      await git.pull({ fs, http, dir: '/', ref: 'main', singleBranch: true, author: { name, email } });
+    } catch (e: any) {
+      if (e.code === 'ResolveRefError') {
+        console.warn("Could not find 'main' branch, trying 'master'.");
+        await git.pull({ fs, http, dir: '/', ref: 'master', singleBranch: true, author: { name, email } });
+      } else {
+        throw e;
+      }
+    }
+  },
+
+  fetch: async () => {
+    // Attempt to fetch from 'main', fallback to 'master'
+    try {
+      return await git.fetch({ fs, http, dir: '/', ref: 'main', singleBranch: true });
+    } catch (e: any) {
+        if (e.code === 'ResolveRefError') {
+            console.warn("Could not find 'main' branch, trying 'master'.");
+            return await git.fetch({ fs, http, dir: '/', ref: 'master', singleBranch: true });
+        } else {
+            throw e;
+        }
+    }
+  },
+
   // Helper to traverse FS and build File[] state
   loadFilesToMemory: async (): Promise<File[]> => {
       const files: File[] = [];

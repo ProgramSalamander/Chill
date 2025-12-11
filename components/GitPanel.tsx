@@ -10,7 +10,9 @@ import {
   IconGitBranch,
   IconSparkles,
   IconSearch,
-  IconZap
+  IconZap,
+  IconRefresh,
+  IconArrowDown
 } from './Icons';
 
 interface GitPanelProps {
@@ -24,6 +26,10 @@ interface GitPanelProps {
   onInitialize: () => void;
   onClone: (url: string) => void;
   isCloning: boolean;
+  onPull: () => void;
+  onFetch: () => void;
+  isPulling: boolean;
+  isFetching: boolean;
 }
 
 const GitPanel: React.FC<GitPanelProps> = ({ 
@@ -36,7 +42,11 @@ const GitPanel: React.FC<GitPanelProps> = ({
   onCommit,
   onInitialize,
   onClone,
-  isCloning
+  isCloning,
+  onPull,
+  onFetch,
+  isPulling,
+  isFetching
 }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
@@ -182,6 +192,26 @@ const GitPanel: React.FC<GitPanelProps> = ({
 
   return (
       <div className="flex flex-col h-full overflow-hidden animate-in fade-in">
+          {/* Action Header */}
+          <div className="p-2 border-b border-white/5 flex items-center gap-2 shrink-0">
+            <button 
+              onClick={onFetch}
+              disabled={isPulling || isFetching}
+              className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              {isFetching ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <IconRefresh size={14} />}
+              <span>{isFetching ? 'Fetching...' : 'Fetch'}</span>
+            </button>
+            <button 
+              onClick={onPull}
+              disabled={isPulling || isFetching}
+              className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              {isPulling ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <IconArrowDown size={14} />}
+              <span>{isPulling ? 'Pulling...' : 'Pull'}</span>
+            </button>
+          </div>
+
           {/* Commit Input Section */}
           <div className="p-4 border-b border-white/5 space-y-3 bg-white/[0.02]">
               <textarea 
