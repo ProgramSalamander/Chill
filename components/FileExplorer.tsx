@@ -43,20 +43,16 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
   const [editName, setEditName] = useState('');
   const [showActions, setShowActions] = useState(false);
   
-  // States for creating new children
   const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
   const [newChildName, setNewChildName] = useState('');
 
-  // Get children for this node
   const children = useMemo(() => 
     files.filter(f => f.parentId === nodeId).sort((a, b) => {
-      // Sort folders first, then files, alphabetically
       if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
       return a.name.localeCompare(b.name);
     }), 
   [files, nodeId]);
 
-  // If nodeId is null, we are at root, just render children
   if (nodeId === null) {
     return (
       <div className="flex flex-col">
@@ -74,7 +70,6 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             onToggleFolder={onToggleFolder}
           />
         ))}
-        {/* Root level creation input if needed, though usually handled by header actions */}
       </div>
     );
   }
@@ -82,7 +77,6 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
   const node = files.find(f => f.id === nodeId);
   if (!node) return null;
 
-  // Determine git status
   const isAdded = node.type === 'file' && node.committedContent === undefined;
   const isModified = node.type === 'file' && !isAdded && node.content !== (node.committedContent || '');
 
@@ -118,13 +112,13 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
   };
 
   return (
-    <div className="select-none">
+    <div className="select-none relative">
       <div 
         className={`
           group flex items-center gap-2 py-1.5 px-3 cursor-pointer transition-all relative rounded-lg mx-1
-          ${activeFileId === node.id ? 'bg-vibe-accent/20 text-white shadow-sm' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}
+          ${activeFileId === node.id ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}
         `}
-        style={{ paddingLeft: `${depth * 12 + 12}px` }}
+        style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => onFileClick(node)}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
@@ -133,7 +127,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
           {node.type === 'folder' ? (
              <IconChevronDown size={14} />
           ) : (
-            <div className="w-3.5" /> // Spacer for alignment
+            <div className="w-3.5" /> 
           )}
         </span>
 
@@ -172,7 +166,6 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             </>
         )}
 
-        {/* Hover Actions */}
         {!isEditing && (
             <div className={`
                 flex items-center gap-1 ml-auto bg-black/60 rounded px-1 backdrop-blur-sm
@@ -215,11 +208,10 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
         )}
       </div>
 
-      {/* Creation Input within folder */}
       {isCreating && node.isOpen && (
           <div 
              className="flex items-center gap-2 py-1 px-2 animate-in fade-in slide-in-from-top-1 my-1"
-             style={{ paddingLeft: `${(depth + 1) * 12 + 28}px` }}
+             style={{ paddingLeft: `${(depth + 1) * 16 + 28}px` }}
           >
              <span className="text-slate-500">
                 {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
@@ -243,31 +235,36 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
           </div>
       )}
 
-      {/* Render Children */}
       {node.type === 'folder' && node.isOpen && (
-        <div className="flex flex-col">
-          {children.map(child => (
-            <FileTreeNode 
-              key={child.id} 
-              nodeId={child.id} 
-              depth={depth + 1} 
-              files={files}
-              activeFileId={activeFileId}
-              onFileClick={onFileClick}
-              onDelete={onDelete}
-              onRename={onRename}
-              onCreate={onCreate}
-              onToggleFolder={onToggleFolder}
-            />
-          ))}
-          {children.length === 0 && !isCreating && (
-              <div 
-                className="py-1 text-[10px] text-slate-600 italic select-none"
-                style={{ paddingLeft: `${(depth + 1) * 12 + 28}px` }}
-              >
-                  Empty
-              </div>
-          )}
+        <div className="relative">
+          <div 
+             className="absolute left-0 top-0 bottom-0 w-px bg-white/10"
+             style={{ left: `${depth * 16 + 18}px` }}
+          />
+          <div className="flex flex-col">
+            {children.map(child => (
+              <FileTreeNode 
+                key={child.id} 
+                nodeId={child.id} 
+                depth={depth + 1} 
+                files={files}
+                activeFileId={activeFileId}
+                onFileClick={onFileClick}
+                onDelete={onDelete}
+                onRename={onRename}
+                onCreate={onCreate}
+                onToggleFolder={onToggleFolder}
+              />
+            ))}
+            {children.length === 0 && !isCreating && (
+                <div 
+                  className="py-1 text-[10px] text-slate-600 italic select-none"
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 28}px` }}
+                >
+                    Empty
+                </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -276,8 +273,28 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
 
 const FileExplorer: React.FC<FileExplorerProps> = (props) => {
     return (
-        <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
-            <FileTreeNode nodeId={null} depth={0} {...props} />
+        <div className="flex flex-col h-full">
+            <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between items-center tracking-wider border-b border-white/5 shrink-0">
+                <span>Explorer</span>
+                <div className="flex items-center gap-2 text-slate-400">
+                    <button onClick={() => props.onCreate('file', null, `untitled.ts`)} className="hover:text-white transition-colors" title="New File">
+                        <IconFilePlus size={14} />
+                    </button>
+                    <button onClick={() => props.onCreate('folder', null, `new-folder`)} className="hover:text-white transition-colors" title="New Folder">
+                        <IconFolderPlus size={14} />
+                    </button>
+                </div>
+            </div>
+            {props.files.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
+                    <IconFolderOpen size={32} />
+                    <p className="text-xs">No files yet</p>
+                </div>
+            ) : (
+                <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
+                    <FileTreeNode nodeId={null} depth={-1} {...props} />
+                </div>
+            )}
         </div>
     );
 };

@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -11,13 +12,12 @@ import Terminal from './components/Terminal';
 import SettingsModal from './components/SettingsModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import CommandPalette from './components/CommandPalette';
-import FileExplorer from './components/FileExplorer';
-import GitPanel from './components/GitPanel';
-import ContextBar from './components/ContextBar';
-import MenuBar from './components/MenuBar';
 import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
 import CloneModal from './components/CloneModal';
+// FIX: Add missing imports for MenuBar and ContextBar
+import MenuBar from './components/MenuBar';
+import ContextBar from './components/ContextBar';
 
 import { getCodeCompletion, editCode } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
@@ -33,9 +33,6 @@ import { SIDEBAR_VIEWS } from './views/sidebarViews';
 
 function App() {
   // --- UI State ---
-  const [activeSidebarView, setActiveSidebarView] = useState<string | null>(() => {
-      try { return JSON.parse(localStorage.getItem('vibe_layout_sidebar') || '"explorer"'); } catch { return 'explorer'; }
-  });
   const [isTerminalOpen, setIsTerminalOpen] = useState(() => {
       try { return JSON.parse(localStorage.getItem('vibe_layout_terminal') || 'true'); } catch { return true; }
   });
@@ -81,11 +78,6 @@ function App() {
     localStorage.setItem('vibe_sidebar_config', JSON.stringify(sidebarViews));
   }, [sidebarViews]);
 
-  const visibleSortedViews = useMemo(() => 
-    sidebarViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
-    [sidebarViews]
-  );
-
   // --- Core Hooks ---
   const fs = useFileSystem(addTerminalLine);
   const git = useGit(fs.files, addTerminalLine);
@@ -117,7 +109,6 @@ function App() {
   // --- Effects ---
   useEffect(() => { filesRef.current = fs.files; }, [fs.files]);
   useEffect(() => { activeFileIdRef.current = fs.activeFileId; }, [fs.activeFileId]);
-  useEffect(() => { localStorage.setItem('vibe_layout_sidebar', JSON.stringify(activeSidebarView)); }, [activeSidebarView]);
   useEffect(() => { localStorage.setItem('vibe_layout_terminal', JSON.stringify(isTerminalOpen)); }, [isTerminalOpen]);
   useEffect(() => { localStorage.setItem('vibe_context_scope', contextScope); }, [contextScope]);
 
@@ -348,45 +339,31 @@ function App() {
         recentProjects={recentProjects} onLoadProject={handleLoadProject}
       />
       <div className="flex-1 flex overflow-hidden p-3 gap-3">
-        <div className="flex flex-col gap-3 h-full">
-           <Sidebar 
-            activeView={activeSidebarView} setActiveView={setActiveSidebarView} 
-            views={visibleSortedViews}
-            allViews={sidebarViews}
-            onUpdateViews={setSidebarViews}
-            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-            onOpenSettings={() => setIsSettingsOpen(true)} gitStatus={git.status}
-          />
-          {activeSidebarView && (
-            <div className="w-64 glass-panel rounded-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 h-full overflow-hidden shadow-2xl">
-               {activeSidebarView === 'explorer' && (
-                 <div className="flex flex-col h-full">
-                    <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between tracking-wider border-b border-white/5">
-                      <span>Explorer</span>
-                      <button onClick={() => fs.createNode('file', null, `untitled_${fs.files.length}.ts`)} className="hover:text-white transition-colors"><IconFilePlus size={14} /></button>
-                    </div>
-                    {fs.files.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
-                            <IconFolderOpen size={32} />
-                            <p className="text-xs">No files</p>
-                            <button onClick={() => setIsCloneModalOpen(true)} className="text-vibe-accent text-xs hover:underline">Clone Repo</button>
-                        </div>
-                    ) : (
-                        <FileExplorer 
-                          files={fs.files} activeFileId={fs.activeFileId} onFileClick={handleFileClick}
-                          onDelete={setFileToDelete} onRename={fs.renameNode} onCreate={fs.createNode} onToggleFolder={fs.toggleFolder}
-                        />
-                    )}
-                 </div>
-               )}
-               {activeSidebarView === 'git' && (<GitPanel 
-                      isInitialized={git.isInitialized} files={fs.files} gitStatus={git.status} commits={git.commits}
-                      onStage={git.stage} onUnstage={git.unstage} onCommit={git.commit} onInitialize={() => git.init(fs.files)}
-                      onClone={handleClone} isCloning={git.isCloning}
-                   />)}
-            </div>
-          )}
-        </div>
+        <Sidebar
+          // View Management
+          allViews={sidebarViews}
+          onUpdateViews={setSidebarViews}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          // File Explorer Data
+          files={fs.files}
+          activeFileId={fs.activeFileId}
+          onFileClick={handleFileClick}
+          onDelete={setFileToDelete}
+          onRename={fs.renameNode}
+          onCreate={fs.createNode}
+          onToggleFolder={fs.toggleFolder}
+          // Git Data
+          isGitInitialized={git.isInitialized}
+          gitStatus={git.status}
+          gitCommits={git.commits}
+          onStage={git.stage}
+          onUnstage={git.unstage}
+          onCommit={git.commit}
+          onInitializeGit={() => git.init(fs.files)}
+          onClone={handleClone}
+          isCloning={git.isCloning}
+        />
         <div className="flex-1 flex flex-col min-w-0 relative gap-3">
            <div className="shrink-0">
                <EditorTabs 
@@ -448,7 +425,11 @@ function App() {
               { id: 'new_file', label: 'New File', icon: <IconFilePlus size={16} />, run: () => fs.createNode('file', null, `file_${Date.now()}.ts`) },
               { id: 'toggle_term', label: 'Toggle Terminal', icon: <IconTerminal size={16} />, run: () => setIsTerminalOpen(!isTerminalOpen) },
               { id: 'settings', label: 'Settings', icon: <IconSettings size={16} />, run: () => setIsSettingsOpen(true) },
-              { id: 'git', label: 'Git Status', icon: <IconGitBranch size={16} />, run: () => { setActiveSidebarView('git'); git.refresh(); } },
+              { id: 'git', label: 'Git Status', icon: <IconGitBranch size={16} />, run: () => { 
+                const sidebar = document.getElementById('sidebar-git-button');
+                sidebar?.click();
+                git.refresh(); 
+              } },
           ]}
       />
     </div>
