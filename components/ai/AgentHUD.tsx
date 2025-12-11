@@ -4,11 +4,13 @@
 
 
 
+
+
 import React, { useState, useEffect } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, PreFlightResult } from '../../types';
-import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconArrowRight, IconXCircle } from '../Icons';
+import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconArrowRight, IconXCircle, IconWorkflow, IconList } from '../Icons';
 import AgentStepNode from './AgentStepNode';
-import CodeBlock from './CodeBlock'; 
+import AgentStrategyMap from './AgentStrategyMap';
 import Tooltip from '../Tooltip';
 
 interface AgentHUDProps {
@@ -39,6 +41,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
   const [editedPlan, setEditedPlan] = useState<AgentPlanItem[]>([]);
   const [isEditingArgs, setIsEditingArgs] = useState(false);
   const [argsInput, setArgsInput] = useState('');
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
 
   useEffect(() => {
       setEditedPlan(plan);
@@ -75,8 +78,30 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
   };
 
   return (
-    <div className="px-1 pt-2 pb-10 flex flex-col gap-4">
+    <div className="px-1 pt-2 pb-10 flex flex-col gap-4 relative">
       
+      {/* View Toggle */}
+      {status !== 'idle' && (
+          <div className="absolute top-0 right-2 z-20 bg-black/40 backdrop-blur rounded-lg p-0.5 border border-white/10 flex">
+              <Tooltip content="Strategy Map" position="bottom">
+                  <button 
+                    onClick={() => setViewMode('map')} 
+                    className={`p-1.5 rounded-md transition-all ${viewMode === 'map' ? 'bg-vibe-accent text-white shadow' : 'text-slate-500 hover:text-white'}`}
+                  >
+                      <IconWorkflow size={14} />
+                  </button>
+              </Tooltip>
+              <Tooltip content="Execution Log" position="bottom">
+                  <button 
+                    onClick={() => setViewMode('list')} 
+                    className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-vibe-accent text-white shadow' : 'text-slate-500 hover:text-white'}`}
+                  >
+                      <IconList size={14} />
+                  </button>
+              </Tooltip>
+          </div>
+      )}
+
       {/* 1. Status Header */}
       {status !== 'idle' && (
           <div className="flex items-center gap-3 px-2">
@@ -91,9 +116,9 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
           </div>
       )}
 
-      {/* 2. Plan View (Review Mode) */}
+      {/* 2. Plan Review (Initial) */}
       {status === 'plan_review' && (
-          <div className="bg-[#181824] border border-white/10 rounded-xl p-4 animate-in slide-in-from-bottom-5">
+          <div className="bg-[#181824] border border-white/10 rounded-xl p-4 animate-in slide-in-from-bottom-5 z-20">
               <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                       <IconZap size={16} className="text-orange-400" />
@@ -126,9 +151,21 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
           </div>
       )}
 
+      {/* STRATEGY MAP VIEW */}
+      {viewMode === 'map' && status !== 'idle' && status !== 'plan_review' && (
+          <div className="animate-in fade-in duration-300">
+             <AgentStrategyMap 
+                plan={plan} 
+                agentSteps={agentSteps} 
+                pendingAction={pendingAction} 
+                status={status}
+             />
+          </div>
+      )}
+
       {/* PRE-FLIGHT SANDBOX UI */}
       {status === 'action_review' && pendingAction?.toolName === 'writeFile' && preFlightResult && (
-          <div className="bg-[#181824] border border-white/10 rounded-xl overflow-hidden animate-in slide-in-from-top-4 mb-2 shadow-2xl">
+          <div className="bg-[#181824] border border-white/10 rounded-xl overflow-hidden animate-in slide-in-from-top-4 mb-2 shadow-2xl relative z-30 mx-2">
               <div className="bg-black/40 border-b border-white/5 px-4 py-2 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-indigo-300">
                       <IconShield size={16} />
@@ -201,9 +238,9 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
           </div>
       )}
 
-      {/* 3. Action Review (Pending Action) */}
+      {/* 3. Action Review (Pending Action) - Floating overlay in Map view, or inline in List */}
       {status === 'action_review' && pendingAction && (
-          <div className="bg-[#181824] border border-orange-500/30 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(249,115,22,0.1)] animate-in zoom-in-95 duration-200">
+          <div className={`bg-[#181824] border border-orange-500/30 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(249,115,22,0.1)] animate-in zoom-in-95 duration-200 z-30 mx-2 ${viewMode === 'map' ? 'sticky bottom-4' : ''}`}>
                <div className="bg-orange-500/10 border-b border-orange-500/20 px-4 py-2 flex items-center justify-between">
                    <div className="flex items-center gap-2 text-orange-300">
                        <IconCpu size={16} />
@@ -262,7 +299,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                            <button onClick={onRejectAction} className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors">
                                Reject
                            </button>
-                           {/* Disable approve if pre-flight failed, or force allow? Let's allow but maybe warn. */}
+                           {/* Disable approve if pre-flight failed */}
                            <button 
                                 onClick={onApproveAction} 
                                 disabled={preFlightResult?.hasErrors}
@@ -282,20 +319,8 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
           </div>
       )}
 
-      {/* 4. Steps List (History & Active Plan) */}
-      <div className="flex flex-col gap-1 mt-2">
-          {plan.length > 0 && (
-             <div className="mb-4 space-y-1">
-                 <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-2">Plan Progress</div>
-                 {plan.map((item) => (
-                     <div key={item.id} className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${item.status === 'active' ? 'bg-white/5 text-white' : item.status === 'completed' ? 'text-green-400 opacity-50' : 'text-slate-500'}`}>
-                         <div className={`w-1.5 h-1.5 rounded-full ${item.status === 'active' ? 'bg-vibe-glow animate-pulse' : item.status === 'completed' ? 'bg-green-500' : 'bg-slate-700'}`}></div>
-                         <span className={item.status === 'completed' ? 'line-through' : ''}>{item.title}</span>
-                     </div>
-                 ))}
-             </div>
-          )}
-
+      {/* 4. List View (Log) - Only show if mode is list */}
+      <div className={`flex-col gap-1 mt-2 ${viewMode === 'list' ? 'flex' : 'hidden'}`}>
           {agentSteps.length === 0 && status === 'idle' && (
             <div className="flex flex-col items-center justify-center h-[200px] text-slate-500 space-y-4 opacity-60">
                 <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shadow-[0_0_30px_rgba(249,115,22,0.1)]">
