@@ -438,19 +438,39 @@ export const generateAgentPlan = async (goal: string, context: string): Promise<
     
     const prompt: string = `You are a senior software architect. Your task is to break down a user's request into a detailed, step-by-step implementation plan.
 
-Analyze the following request and context, then generate a JSON array of plan steps.
+Analyze the following request and context, then generate a JSON object of plan steps.
 
 GOAL: ${goal}
 CONTEXT: ${context}
 
-You MUST return a valid JSON array where each object is a step with the following properties:
+You MUST return a valid JSON object with a key 'steps', and the value is an array where each object is a step with the following properties:
 - id: A unique string identifier for the step (e.g., "step-1").
 - title: A short, descriptive title for the step.
 - description: A detailed explanation of what needs to be done.
 - status: The initial status, which MUST be "pending".
 - assignedAgent: The agent responsible. Must be one of: 'coder', 'tester', 'debugger', or 'user'.
 
-Ensure your response is ONLY the raw JSON array and nothing else.`;
+Example Output:
+{
+  "steps": [
+    {
+      "id": "step-1",
+      "title": "Set up project structure",
+      "description": "Create the initial project folders and files based on best practices.",
+      "status": "pending",
+      "assignedAgent": "coder"
+    },
+    {
+      "id": "step-2",
+      "title": "Implement feature X",
+      "description": "Develop the core functionality for feature X as per the specifications.",
+      "status": "pending",
+      "assignedAgent": "coder"
+    }
+  ]
+}
+
+Ensure your response is ONLY the JSON and nothing else.`;
 
     try {
         const responseText = await generateGeneric(prompt, config, {
