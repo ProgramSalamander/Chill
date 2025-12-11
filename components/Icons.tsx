@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import React from 'react';
 import { 
   FileCode, 
@@ -57,7 +51,9 @@ import {
   AlertTriangle,
   Activity,
   ArrowRightCircle,
-  Workflow
+  Workflow,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -113,3 +109,5 @@ export const IconAlert = (props: any) => <AlertTriangle {...props} />;
 export const IconActivity = (props: any) => <Activity {...props} />;
 export const IconArrowRight = (props: any) => <ArrowRightCircle {...props} />;
 export const IconWorkflow = (props: any) => <Workflow {...props} />;
+export const IconSun = (props: any) => <Sun {...props} />;
+export const IconMoon = (props: any) => <Moon {...props} />;

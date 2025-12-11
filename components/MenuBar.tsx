@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   IconPlus, 
@@ -8,9 +5,12 @@ import {
   IconFolder,
   IconSettings,
   IconGitBranch,
-  IconClock
+  IconClock,
+  IconSun,
+  IconMoon
 } from './Icons';
 import { ProjectMeta } from '../types';
+import Tooltip from './Tooltip';
 
 interface MenuBarProps {
   onNewProject: () => void;
@@ -20,6 +20,8 @@ interface MenuBarProps {
   onOpenCloneModal: () => void;
   recentProjects?: ProjectMeta[];
   onLoadProject?: (project: ProjectMeta) => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ 
@@ -29,7 +31,9 @@ const MenuBar: React.FC<MenuBarProps> = ({
   onOpenSettings,
   onOpenCloneModal,
   recentProjects = [],
-  onLoadProject
+  onLoadProject,
+  theme,
+  onToggleTheme
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -51,13 +55,13 @@ const MenuBar: React.FC<MenuBarProps> = ({
   const closeMenu = () => setActiveMenu(null);
 
   return (
-    <div className="h-10 w-full bg-[#050508] border-b border-white/5 flex items-center px-4 select-none z-50 shrink-0" ref={menuRef}>
+    <div className="h-10 w-full bg-vibe-900 border-b border-vibe-border flex items-center px-4 select-none z-50 shrink-0" ref={menuRef}>
       {/* Brand */}
       <div className="flex items-center gap-2 mr-6 opacity-90 hover:opacity-100 transition-opacity cursor-default">
-        <div className="w-5 h-5 rounded bg-gradient-to-br from-vibe-accent to-purple-600 flex items-center justify-center shadow-[0_0_10px_rgba(129,140,248,0.3)]">
+        <div className="w-5 h-5 rounded bg-gradient-to-br from-vibe-accent to-purple-600 flex items-center justify-center shadow-[0_0_10px_rgba(var(--vibe-accent),0.3)]">
             <span className="text-[10px] font-bold text-white">V</span>
         </div>
-        <span className="font-bold text-sm text-slate-200 tracking-tight font-sans">VibeCode</span>
+        <span className="font-bold text-sm text-slate-200 dark:text-slate-200 text-slate-800 tracking-tight font-sans">VibeCode</span>
       </div>
 
       {/* Menus */}
@@ -66,31 +70,31 @@ const MenuBar: React.FC<MenuBarProps> = ({
         {/* Projects Menu */}
         <div className="relative h-full flex items-center">
             <button 
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 ${activeMenu === 'projects' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 ${activeMenu === 'projects' ? 'bg-black/10 dark:bg-white/10 text-vibe-glow' : 'text-text-tertiary hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-secondary'}`}
                 onClick={() => handleMenuClick('projects')}
             >
                 Projects
             </button>
             {activeMenu === 'projects' && (
-                <div className="absolute top-[calc(100%+4px)] left-0 w-64 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                    <button onClick={() => { onNewProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
-                        <IconPlus size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
+                <div className="absolute top-[calc(100%+4px)] left-0 w-64 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
+                    <button onClick={() => { onNewProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                        <IconPlus size={14} className="text-text-tertiary group-hover:text-vibe-glow" /> 
                         <span>New Project</span>
                     </button>
-                    <button onClick={() => { onOpenCloneModal(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
-                        <IconGitBranch size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
+                    <button onClick={() => { onOpenCloneModal(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                        <IconGitBranch size={14} className="text-text-tertiary group-hover:text-vibe-glow" /> 
                         <span>Clone Project...</span>
                     </button>
-                    <div className="h-[1px] bg-white/5 my-1 mx-2" />
-                    <button onClick={() => { if(onSaveAll) onSaveAll(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
-                         <IconSave size={14} className="text-slate-500 group-hover:text-vibe-glow" /> 
+                    <div className="h-[1px] bg-vibe-border my-1 mx-2" />
+                    <button onClick={() => { if(onSaveAll) onSaveAll(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                         <IconSave size={14} className="text-text-tertiary group-hover:text-vibe-glow" /> 
                          <span>Save All</span>
                     </button>
 
                     {recentProjects.length > 0 && (
                       <>
-                        <div className="h-[1px] bg-white/5 my-1 mx-2" />
-                        <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <div className="h-[1px] bg-vibe-border my-1 mx-2" />
+                        <div className="px-3 py-1.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">
                           Recent Projects
                         </div>
                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
@@ -98,12 +102,12 @@ const MenuBar: React.FC<MenuBarProps> = ({
                             <button 
                               key={proj.id}
                               onClick={() => { if(onLoadProject) onLoadProject(proj); closeMenu(); }} 
-                              className="w-full group px-3 py-2 text-xs text-left text-slate-300 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg"
+                              className="w-full group px-3 py-2 text-xs text-left text-text-secondary hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-primary flex items-center gap-3 transition-colors mx-1 rounded-lg"
                             >
-                                <IconFolder size={14} className="text-slate-600 group-hover:text-vibe-accent" /> 
+                                <IconFolder size={14} className="text-text-tertiary group-hover:text-vibe-accent" /> 
                                 <div className="flex flex-col truncate">
                                   <span className="truncate">{proj.name}</span>
-                                  <span className="text-[9px] text-slate-600 font-normal flex items-center gap-1">
+                                  <span className="text-[9px] text-text-tertiary font-normal flex items-center gap-1">
                                     <IconClock size={8} />
                                     {new Date(proj.lastOpened).toLocaleDateString()}
                                   </span>
@@ -120,15 +124,15 @@ const MenuBar: React.FC<MenuBarProps> = ({
         {/* View Menu */}
          <div className="relative h-full flex items-center">
             <button 
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 ${activeMenu === 'view' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 ${activeMenu === 'view' ? 'bg-black/10 dark:bg-white/10 text-vibe-glow' : 'text-text-tertiary hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-secondary'}`}
                 onClick={() => handleMenuClick('view')}
             >
                 View
             </button>
             {activeMenu === 'view' && (
-                <div className="absolute top-[calc(100%+4px)] left-0 w-48 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                     <button onClick={() => { onOpenSettings(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
-                        <IconSettings size={14} className="text-slate-500 group-hover:text-vibe-glow" />
+                <div className="absolute top-[calc(100%+4px)] left-0 w-48 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
+                     <button onClick={() => { onOpenSettings(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                        <IconSettings size={14} className="text-text-tertiary group-hover:text-vibe-glow" />
                         <span>Settings</span>
                      </button>
                 </div>
@@ -140,14 +144,23 @@ const MenuBar: React.FC<MenuBarProps> = ({
       {/* Active Project Indicator */}
       <div className="flex-1 flex justify-center pointer-events-none">
          {projectName && (
-             <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5 rounded-full border border-white/5 shadow-inner">
+             <div className="flex items-center gap-2 px-4 py-1.5 bg-black/5 dark:bg-white/5 rounded-full border border-vibe-border shadow-inner">
                  <IconFolder size={12} className="text-vibe-accent opacity-70" />
-                 <span className="text-xs text-slate-300 font-medium tracking-wide">{projectName}</span>
+                 <span className="text-xs text-text-secondary font-medium tracking-wide">{projectName}</span>
              </div>
          )}
       </div>
 
-      <div className="w-20"></div> 
+      <div className="flex items-center gap-2">
+        <Tooltip content={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`} position="bottom">
+            <button
+                onClick={onToggleTheme}
+                className="p-2 rounded-full text-text-tertiary hover:text-text-primary bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            >
+                {theme === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}
+            </button>
+        </Tooltip>
+      </div>
     </div>
   );
 };

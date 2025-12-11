@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { Diagnostic } from '../types';
@@ -7,6 +6,7 @@ import { InlineInput } from './InlineInput';
 interface CodeEditorProps {
   code: string;
   language: string;
+  theme: 'light' | 'dark';
   onChange: (newCode: string) => void;
   className?: string;
   cursorOffset?: number;
@@ -26,6 +26,7 @@ interface CodeEditorProps {
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
   code, 
   language, 
+  theme,
   onChange, 
   className, 
   onCursorChange,
@@ -57,12 +58,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     return lang;
   };
 
+  useEffect(() => {
+    if (monacoRef.current) {
+      monacoRef.current.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
+    }
+  }, [theme]);
+
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
 
-    // --- Vibe Theme Definition ---
-    monaco.editor.defineTheme('vibe-theme', {
+    // --- Vibe Dark Theme Definition ---
+    monaco.editor.defineTheme('vibe-dark-theme', {
       base: 'vs-dark',
       inherit: true,
       rules: [
@@ -77,9 +84,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         { token: 'delimiter', foreground: 'f8f8f2' },
       ],
       colors: {
-        'editor.background': '#05050800', // Transparent for glass effect
+        'editor.background': '#00000000', // Transparent for glass effect
         'editor.foreground': '#f8f8f2',
-        'editor.lineHighlightBackground': '#181824',
+        'editor.lineHighlightBackground': '#ffffff08',
         'editor.selectionBackground': '#818cf840',
         'editorCursor.foreground': '#818cf8',
         'editorWhitespace.foreground': '#3b3a32',
@@ -93,7 +100,33 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       }
     });
 
-    monaco.editor.setTheme('vibe-theme');
+    // --- Vibe Light Theme Definition ---
+    monaco.editor.defineTheme('vibe-light-theme', {
+        base: 'vs',
+        inherit: true,
+        rules: [
+          { token: 'keyword', foreground: '8500b6', fontStyle: 'bold' },
+          { token: 'string', foreground: '2d8f25' },
+          { token: 'number', foreground: 'cd3838' },
+          { token: 'type', foreground: '0075c3' },
+          { token: 'function', foreground: '5f3ac1' },
+          { token: 'comment', foreground: '9ca3af', fontStyle: 'italic' },
+        ],
+        colors: {
+            'editor.background': '#00000000',
+            'editor.foreground': '#111827',
+            'editor.lineHighlightBackground': '#00000008',
+            'editor.selectionBackground': '#4f46e520',
+            'editorCursor.foreground': '#4f46e5',
+            'editorLineNumber.foreground': '#a1a1aa',
+            'editorLineNumber.activeForeground': '#1f2937',
+            'scrollbarSlider.background': '#00000010',
+            'scrollbarSlider.hoverBackground': '#00000020',
+            'scrollbarSlider.activeBackground': '#00000030',
+        }
+    });
+
+    monaco.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
     
     // --- Inline Completions Provider ---
     providerRef.current = monaco.languages.registerInlineCompletionsProvider(getMonacoLanguage(language), {
@@ -197,7 +230,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   return (
     <div className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
       {/* Editor Pane */}
-      <div className={`relative h-full transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-white/10' : 'w-full'}`}>
+      <div className={`relative h-full transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-vibe-border' : 'w-full'}`}>
          
          <InlineInput 
             position={inlineInputPos} 
@@ -212,7 +245,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             value={code}
             onChange={(value) => onChange(value || '')}
             onMount={handleEditorDidMount}
-            theme="vibe-theme"
+            theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}
             options={{
                 fontFamily: '"JetBrains Mono", monospace',
                 fontSize: 14,
@@ -238,7 +271,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
        {showPreview && (
           // This part is unchanged, but included for completeness
-          <div className="w-1/2 h-full flex flex-col bg-white/5 animate-in slide-in-from-right-5 fade-in duration-300 backdrop-blur-sm border-l border-white/10">
+          <div className="w-1/2 h-full flex flex-col bg-white/5 animate-in slide-in-from-right-5 fade-in duration-300 backdrop-blur-sm border-l border-vibe-border">
               <iframe 
                   ref={iframeRef}
                   className="w-full h-full border-none bg-white"

@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -32,8 +28,29 @@ import { useGit } from './hooks/useGit';
 import { useAIChat } from './hooks/useAIChat';
 import { SIDEBAR_VIEWS } from './views/sidebarViews';
 
+type Theme = 'light' | 'dark';
+
 function App() {
   // --- UI State ---
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return (localStorage.getItem('vibe_theme') as Theme) || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    localStorage.setItem('vibe_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+  
   const [isTerminalOpen, setIsTerminalOpen] = useState(() => {
       try { return JSON.parse(localStorage.getItem('vibe_layout_terminal') || 'true'); } catch { return true; }
   });
@@ -388,6 +405,7 @@ function App() {
         projectName={activeProject?.name || (fs.files.length > 0 ? "Draft Workspace" : undefined)}
         onOpenSettings={() => setIsSettingsOpen(true)} onOpenCloneModal={() => setIsCloneModalOpen(true)}
         recentProjects={recentProjects} onLoadProject={handleLoadProject}
+        theme={theme} onToggleTheme={toggleTheme}
       />
       <div className="flex-1 flex overflow-hidden p-3 gap-3">
         <Sidebar
@@ -431,6 +449,7 @@ function App() {
                    <div className="flex-1 relative overflow-hidden">
                        <CodeEditor 
                            key={activeFile.id}
+                           theme={theme}
                            code={activeFile.content} language={activeFile.language}
                            onChange={(c) => fs.updateFileContent(c)}
                            onCursorChange={(p) => { setCursorPosition(p); lastCursorPosRef.current = p; }}
