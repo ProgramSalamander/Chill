@@ -1,17 +1,59 @@
 
-
-import { GoogleGenAI, Chat, Content, GenerateContentResponse, Tool, Type } from "@google/genai";
-import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File, AgentPlanItem } from '../types';
+import { GoogleGenAI, Content, GenerateContentResponse, Tool, Type, Schema, Part, FunctionDeclaration } from "@google/genai";
+import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File, AgentPlanItem, AgentRole } from '../types';
 import { getAIConfig } from './configService';
 import { ragService } from './ragService';
 import { getFilePath } from '../utils/fileUtils';
 
-// Safely get env var
-const ENV_API_KEY = typeof process !== 'undefined' ? process.env.API_KEY : '';
+const ENV_API_KEY = process.env.API_KEY || '';
+
+// --- Agent Personas ---
+
+export const PERSONAS = {
+  planner: {
+    name: "Architect",
+    role: "planner",
+    instruction: `You are the Lead Architect for a software squad. 
+    Your goal is to break down a user's request into a concrete, sequential plan of action.
+    You do NOT write code. You delegate tasks to the 'coder' (for implementation) and 'tester' (for verification).
+    
+    When creating steps:
+    - If the step involves writing or modifying features, assign it to 'coder'.
+    - If the step involves creating tests or validating logic, assign it to 'tester'.
+    - If the user asks for a fix, you can assign to 'debugger'.`
+  },
+  coder: {
+    name: "Engineer",
+    role: "coder",
+    instruction: `You are the Senior Software Engineer (Coder Agent). 
+    Your responsibility is to implement the requested features with high-quality, efficient code.
+    You have access to file system tools. 
+    Always check the file structure first if you are unsure where files are located.
+    Write clean, modern code.`
+  },
+  tester: {
+    name: "QA Specialist",
+    role: "tester",
+    instruction: `You are the QA Specialist (Testing Agent).
+    Your goal is to ensure code integrity.
+    You should write unit tests (e.g., using a simple test runner pattern or creating .test.ts files).
+    You can also use 'runCommand' to execute validation scripts.
+    Focus on edge cases and reliability.`
+  },
+  debugger: {
+    name: "Debugger",
+    role: "debugger",
+    instruction: `You are the Rapid Response Debugger (Debugging Agent).
+    Your goal is to fix errors immediately.
+    Analyze the error message provided by the user or the system.
+    Propose specific code changes or command executions to resolve the issue.
+    Do not hesitate to rewrite code if it fixes the bug.`
+  }
+};
 
 // --- Tool Definitions ---
 
-export const AGENT_TOOLS_GEMINI: Tool[] = [
+const AGENT_TOOLS_GEMINI: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -37,45 +79,45 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
       },
       {
         name: "writeFile",
-        description: "Create or overwrite a file with new content.",
+        description: "Create or overwrite a file with provided content. Use this to save code.",
         parameters: {
           type: Type.OBJECT,
           properties: {
-            path: { type: Type.STRING, description: "The full path of the file" },
-            content: { type: Type.STRING, description: "The full content to write to the file" }
+            path: { type: Type.STRING, description: "The path of the file to write." },
+            content: { type: Type.STRING, description: "The full content to write to the file." }
           },
           required: ["path", "content"]
         }
       },
       {
         name: "runCommand",
-        description: "Run a system command.",
+        description: "Execute a shell command (simulated). Use for running tests or installing packages.",
         parameters: {
           type: Type.OBJECT,
           properties: {
-            command: { type: Type.STRING, description: "The shell command to execute" }
+            command: { type: Type.STRING, description: "The command to execute." }
           },
           required: ["command"]
         }
       },
       {
         name: "searchCode",
-        description: "Semantically search the codebase for logic, definitions, or patterns. Use this to find *where* something is implemented (e.g., 'date formatting function', 'auth middleware').",
+        description: "Semantic search across the codebase using RAG.",
         parameters: {
           type: Type.OBJECT,
           properties: {
-            query: { type: Type.STRING, description: "Natural language query describing the logic or code you are looking for." }
+            query: { type: Type.STRING, description: "The search query." }
           },
           required: ["query"]
         }
       },
       {
         name: "getFileStructure",
-        description: "Get a high-level structural overview of a file (classes, functions, exports) without reading the full content. Useful for quick scanning.",
+        description: "Get symbols and structure of a specific file.",
         parameters: {
           type: Type.OBJECT,
           properties: {
-             path: { type: Type.STRING, description: "The full path of the file to analyze" }
+            path: { type: Type.STRING, description: "The file path." }
           },
           required: ["path"]
         }
@@ -84,528 +126,262 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
   }
 ];
 
-// Convert Gemini Tools to OpenAI Format
-const getOpenAITools = () => {
-  return AGENT_TOOLS_GEMINI[0].functionDeclarations?.map(fn => ({
-    type: 'function',
-    function: {
-      name: fn.name,
-      description: fn.description,
-      parameters: fn.parameters
-    }
-  }));
-};
+// --- Session Implementation ---
 
-// --- Helper Functions ---
+class GeminiSession implements AISession {
+  private chat: any;
+  private modelId: string;
 
-const removeOverlap = (suggestion: string, suffix: string): string => {
-    // 1. Exact overlap removal
-    // Check if the END of the suggestion matches the START of the suffix
-    const maxCheck = Math.min(suggestion.length, suffix.length);
-    for (let i = maxCheck; i > 0; i--) {
-        if (suggestion.endsWith(suffix.slice(0, i))) {
-            return suggestion.slice(0, -i);
-        }
-    }
-
-    // 2. Fuzzy overlap for common delimiters (closing braces, parens, semicolons)
-    // This prevents issues where the model generates "})" and the suffix is "  })".
-    const trimmedSuffix = suffix.trimStart();
-    const closingChars = ['}', ')', ']', ';', '>'];
+  constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false) {
+    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
+    // Use Pro for agents (complex reasoning), Flash for generic chat
+    this.modelId = isAgent ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
     
-    // Get the last significant character of the suggestion
-    const trimmedSuggestion = suggestion.trimEnd();
-    if (trimmedSuggestion.length === 0) return suggestion;
-    
-    const lastChar = trimmedSuggestion.slice(-1);
-    
-    // If suggestion ends with a delimiter and suffix starts with it (ignoring whitespace)
-    if (closingChars.includes(lastChar) && trimmedSuffix.startsWith(lastChar)) {
-         const lastIdx = suggestion.lastIndexOf(lastChar);
-         if (lastIdx !== -1) {
-             // Remove the char from suggestion, preserving trailing whitespace if any
-             const tail = suggestion.slice(lastIdx + 1);
-             // Only perform this fuzzy removal if everything after the char is just whitespace
-             if (!tail.trim()) {
-                  return suggestion.slice(0, lastIdx) + tail; 
-             }
-         }
-    }
-
-    return suggestion;
-};
-
-// --- Providers ---
-
-class GeminiSessionWrapper implements AISession {
-  private chat: Chat;
-
-  constructor(apiKey: string, model: string, systemInstruction: string, history: Message[], tools?: boolean) {
-    const ai = new GoogleGenAI({ apiKey: apiKey || ENV_API_KEY || '' });
-    
-    // Convert history to Gemini format
-    const geminiHistory: Content[] = history
-      .filter(m => m.role !== MessageRole.SYSTEM)
-      .map(m => ({
-        role: m.role === MessageRole.MODEL ? 'model' : 'user',
-        parts: [{ text: m.text }]
-      }));
+    // Transform history to Gemini format
+    const geminiHistory = history.map(msg => ({
+      role: msg.role === MessageRole.USER ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
 
     this.chat = ai.chats.create({
-      model: model,
+      model: this.modelId,
       history: geminiHistory,
       config: {
         systemInstruction,
-        temperature: 0.7,
-        tools: tools ? AGENT_TOOLS_GEMINI : undefined
+        tools: isAgent ? AGENT_TOOLS_GEMINI : undefined,
+        temperature: isAgent ? 0 : 0.7, // Deterministic for agents
       }
     });
   }
 
   async sendMessage(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AIResponse> {
-    let response;
-    
-    if (props.toolResponses) {
-      // Map back to Gemini tool response format
-      const toolParts = props.toolResponses.map(tr => ({
-        functionResponse: {
-          name: tr.name,
-          response: { result: tr.result }
-        }
+    let parts: Part[] = [];
+
+    if (props.toolResponses && props.toolResponses.length > 0) {
+      // Send tool responses
+      const functionResponses = props.toolResponses.map(tr => ({
+        id: tr.id,
+        name: tr.name,
+        response: { result: tr.result }
       }));
-      response = await this.chat.sendMessage({ message: toolParts as any });
-    } else {
-      response = await this.chat.sendMessage({ message: props.message });
-    }
-
-    const toolCalls: AIToolCall[] | undefined = response.candidates?.[0]?.content?.parts
-      ?.filter(p => p.functionCall)
-      .map(p => ({
-        id: 'gemini-call', // Gemini doesn't use IDs in the same way, we rely on sequential turn logic in the SDK
-        name: p.functionCall!.name,
-        args: p.functionCall!.args
-      }));
-
-    return {
-      text: response.text || '',
-      toolCalls
-    };
-  }
-
-  async sendMessageStream(props: { message: string }): Promise<AsyncIterable<{ text: string }>> {
-    const stream = await this.chat.sendMessageStream({ message: props.message });
-    
-    return {
-      async *[Symbol.asyncIterator]() {
-        for await (const chunk of stream) {
-          if (chunk.text) {
-             yield { text: chunk.text };
+      parts = [{ functionResponse: { name: functionResponses[0].name, response: functionResponses[0].response } }]; // SDK expects simple structure for single response or array
+      // Actually @google/genai SDK format for functionResponse:
+      // parts: [{ functionResponse: { name: string, response: object, id?: string } }]
+      
+      // Fix for SDK type alignment:
+      parts = props.toolResponses.map(tr => ({
+          functionResponse: {
+              name: tr.name,
+              response: { result: tr.result },
+              id: tr.id
           }
-        }
-      }
-    };
-  }
-}
-
-class OpenAISessionWrapper implements AISession {
-  private config: AIModelConfig;
-  private history: any[];
-  private systemInstruction: string;
-  private tools?: any[];
-
-  constructor(config: AIModelConfig, systemInstruction: string, history: Message[], tools?: boolean) {
-    this.config = config;
-    this.systemInstruction = systemInstruction;
-    this.tools = tools ? getOpenAITools() : undefined;
+      }));
+    } 
     
-    this.history = history
-        .filter(m => m.role !== MessageRole.SYSTEM)
-        .map(m => ({
-            role: m.role === MessageRole.MODEL ? 'assistant' : 'user',
-            content: m.text
-        }));
-    
-    // Add system message
-    this.history.unshift({ role: 'system', content: systemInstruction });
-  }
+    if (props.message) {
+      parts.push({ text: props.message });
+    }
 
-  private async fetchOpenAI(messages: any[], stream: boolean = false) {
-    const url = `${this.config.baseUrl || 'https://api.openai.com/v1'}/chat/completions`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`
-      },
-      body: JSON.stringify({
-        model: this.config.modelId,
-        messages: messages,
-        tools: this.tools,
-        stream: stream
-      })
+    // If we have parts, send them. If generic text message only, send string.
+    const response: GenerateContentResponse = await this.chat.sendMessage({ 
+        content: parts.length > 0 ? parts : props.message 
     });
-
-    if (!response.ok) {
-       const err = await response.text();
-       throw new Error(`OpenAI Error (${response.status}): ${err}`);
-    }
-    return response;
+    
+    return this.parseResponse(response);
   }
 
-  async sendMessage(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AIResponse> {
-    // 1. Update history with user message OR tool outputs
+  async sendMessageStream(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AsyncIterable<{ text: string }>> {
+    // Basic streaming implementation for text-only for now
+    // Tool usage in streaming is complex, fallback to non-streaming if tools present for simplicity in this demo
     if (props.toolResponses) {
-       // For OpenAI, we must provide the tool outputs corresponding to previous calls
-       for (const tr of props.toolResponses) {
-           this.history.push({
-               role: 'tool',
-               tool_call_id: tr.id,
-               content: JSON.stringify(tr.result) // OpenAI expects string content for tool results
-           });
-       }
-    } else {
-       this.history.push({ role: 'user', content: props.message });
+        const response = await this.sendMessage(props);
+        return (async function* () { yield { text: response.text }; })();
     }
 
-    // 2. Call API
-    const res = await this.fetchOpenAI(this.history, false);
-    const data = await res.json();
-    const message = data.choices[0].message;
-
-    // 3. Update history with assistant response
-    this.history.push(message);
-
-    // 4. Map response
-    let toolCalls: AIToolCall[] | undefined;
-    if (message.tool_calls) {
-        toolCalls = message.tool_calls.map((tc: any) => ({
-            id: tc.id,
-            name: tc.function.name,
-            args: JSON.parse(tc.function.arguments)
-        }));
-    }
-
-    return {
-        text: message.content || '',
-        toolCalls
-    };
+    const resultStream = await this.chat.sendMessageStream({ content: props.message });
+    
+    return (async function* () {
+      for await (const chunk of resultStream) {
+        yield { text: chunk.text || '' };
+      }
+    })();
   }
 
-  async sendMessageStream(props: { message: string }): Promise<AsyncIterable<{ text: string }>> {
-    this.history.push({ role: 'user', content: props.message });
-    const res = await this.fetchOpenAI(this.history, true);
-    
-    if (!res.body) throw new Error("No response body");
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    
-    // We need to accumulate the full response to save to history after stream
-    let fullResponse = ''; 
-    const historyRef = this.history;
+  private parseResponse(response: GenerateContentResponse): AIResponse {
+    const text = response.text || '';
+    const functionCalls = response.functionCalls?.map(fc => ({
+      id: fc.id || 'unknown',
+      name: fc.name,
+      args: fc.args
+    }));
 
     return {
-      async *[Symbol.asyncIterator]() {
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n').filter(line => line.trim() !== '');
-                
-                for (const line of lines) {
-                    if (line === 'data: [DONE]') return;
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const json = JSON.parse(line.slice(6));
-                            const text = json.choices[0]?.delta?.content || '';
-                            if (text) {
-                                fullResponse += text;
-                                yield { text };
-                            }
-                        } catch (e) {
-                            console.warn("Error parsing SSE", e);
-                        }
-                    }
-                }
-            }
-        } finally {
-            // Save complete message to history
-            historyRef.push({ role: 'assistant', content: fullResponse });
-        }
-      }
+      text,
+      toolCalls: functionCalls
     };
   }
 }
 
-// --- Factory Functions ---
 
-export const createChatSession = (systemInstruction: string, history: Message[], tools: boolean = false): AISession => {
-  const config = getAIConfig();
-  
-  if (config.chat.provider === 'openai') {
-    return new OpenAISessionWrapper(config.chat, systemInstruction, history, tools);
-  } else {
-    // Default to Gemini
-    return new GeminiSessionWrapper(config.chat.apiKey, config.chat.modelId, systemInstruction, history, tools);
-  }
+// --- Exported Functions ---
+
+export const createChatSession = (systemInstruction: string, history: Message[] = [], isAgent: boolean = false): AISession => {
+  return new GeminiSession(systemInstruction, history, isAgent);
 };
 
-export const sendMessageStream = async (
-  session: AISession, 
-  message: string
-): Promise<AsyncIterable<{ text: string }>> => {
-  return await session.sendMessageStream({ message });
-};
-
-// --- Completion & Editing ---
-
-export const getCodeCompletion = async (
-  code: string,
-  cursorOffset: number,
-  language: string,
-  activeFile: File | null,
-  allFiles: File[]
-): Promise<string> => {
-  const config = getAIConfig();
-  
-  // 1. Prepare Context
-  const prefix = code.slice(0, cursorOffset);
-  const suffix = code.slice(cursorOffset);
-
-  const ragQuery = prefix.split('\n').slice(-10).join('\n');
-  const projectContext = ragService.getContext(ragQuery, activeFile, allFiles, 2);
-  const filePath = activeFile ? getFilePath(activeFile, allFiles) : 'untitled';
-
-  // 2. New, highly-engineered prompt structure
-  const systemPrompt = `You are a highly intelligent, low-latency code completion engine. Your sole purpose is to generate the missing code that connects a provided "Prefix" and "Suffix" seamlessly.
-
-**Operational Rules:**
-1.  **Output Format:** Return ONLY the code sequence to fill the gap. Do NOT include markdown blocks (\`\`\`), explanations, or conversational text.
-2.  **Context Awareness:** Analyze the indentation, variable naming conventions, and coding style of the ${language} code in the Prefix/Suffix. Mimic this style exactly.
-3.  **Syntactic Integrity:** Ensure the generated code creates a syntactically valid bridge between the Prefix and Suffix.
-4.  **Suffix Handling:** The Suffix is the code that immediately follows the cursor.
-    - **CRITICAL:** Do NOT repeat code that is already at the start of the Suffix.
-    - If the Suffix starts with a closing brace/parenthesis/semicolon that completes the block you are generating, DO NOT generate it again.
-5.  **Indentation:** Your output must start with the correct indentation level relative to the Prefix.
-
-**Heuristics:**
-- If the cursor is inside a string/comment, complete the text.
-- If the cursor is inside a function signature, complete the arguments/types.
-- If the cursor is at the start of a block, generate the logic for that block.
-- If the intent is unclear, generate the minimum valid code to continue the line.
-
-**Efficiency:**
-- Prefer concise, idiomatic solutions.
-- Do not add comments unless the surrounding code is heavily commented.`;
-
-  const userPrompt = `**Context:**
-File: ${filePath}
-Language: ${language}
-${projectContext ? `
-**Relevant Context:**
-The following definitions are available in the project and may be relevant to the completion:
-<IMPORTS>
-${projectContext}
-</IMPORTS>
-` : ''}
-**Code Structure:**
-<PREFIX>
-${prefix.slice(-3000)}
-</PREFIX>
-<SUFFIX>
-${suffix.slice(0, 1000)}
-</SUFFIX>
-
-**Task:**
-Generate the code that belongs strictly between </PREFIX> and <SUFFIX>.`;
-
-  try {
-    let text = "";
-
-    if (config.completion.provider === 'openai') {
-      const url = `${config.completion.baseUrl || 'https://api.openai.com/v1'}/chat/completions`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.completion.apiKey}`
-        },
-        body: JSON.stringify({
-          model: config.completion.modelId,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.1,
-          max_tokens: 128,
-          stop: ["```"]
-        })
-      });
-      if (!res.ok) throw new Error(`OpenAI completion failed: ${res.statusText}`);
-      const data = await res.json();
-      text = data.choices?.[0]?.message?.content || "";
-    } else {
-      // Gemini Completion
-      const ai = new GoogleGenAI({ apiKey: config.completion.apiKey || ENV_API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: config.completion.modelId,
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        config: {
-          systemInstruction: systemPrompt,
-          maxOutputTokens: 256, // Increased to allow multi-line completions
-          temperature: 0.1,
-          stopSequences: ["```"] // Removed \n\n to allow multi-line blocks
-        }
-      });
-      text = response.text || "";
-    }
-    
-    // 3. Post-Processing
-    text = text.replace(/^```\w*\n/, '').replace(/```$/, '');
-    text = removeOverlap(text, suffix);
-    
-    return text;
-
-  } catch (error) {
-    console.error("Completion Error:", error);
-    return "";
-  }
-};
-
-
-export const editCode = async (
-  prefix: string,
-  selectedText: string,
-  suffix: string,
-  instruction: string,
-  activeFile: File | null,
-  allFiles: File[]
-): Promise<string> => {
-   const config = getAIConfig();
-   
-   const ragQuery = instruction + "\n" + selectedText;
-   const projectContext = ragService.getContext(ragQuery, activeFile, allFiles);
-   
-   const prompt = `
-   You are an AI code editor.
-   ${projectContext ? `[SMART CONTEXT]\n${projectContext}\n` : ''}
-   
-   [CODE_BEFORE]
-   ${prefix.slice(-2000)}
-   
-   [CODE_TO_EDIT_OR_INSERT_LOCATION]
-   ${selectedText || '(Cursor is here)'}
-   
-   [CODE_AFTER]
-   ${suffix.slice(0, 2000)}
-   
-   [INSTRUCTION]
-   ${instruction}
-   
-   TASK: Return ONLY the code that should replace [CODE_TO_EDIT_OR_INSERT_LOCATION]. 
-   If it is an insertion, return the inserted code.
-   Do NOT return the before/after context.
-   Do NOT use markdown block ticks (\`\`\`).
-   `;
-
-   try {
-       const session = createChatSession("You are a strict code editor. Output raw code only.", []);
-       const response = await session.sendMessage({ message: prompt });
-       let text = response.text || "";
-       
-       // Cleanup if model adds markdown despite instructions
-       text = text.replace(/^```\w*\n/, '').replace(/```$/, '');
-       return text;
-   } catch (e) {
-       console.error("Edit Code Error", e);
-       return "";
-   }
-};
-
-export const generateCommitMessage = async (diff: string): Promise<string> => {
-   // Use Chat Config for commits as it requires "smarts"
-   const config = getAIConfig();
-   const prompt = `Generate a concise commit message (e.g., 'feat: ...') for:\n${diff.slice(0, 10000)}`;
-   
-   // Helper reuse
-   const session = createChatSession("You are a git expert.", []);
-   const response = await session.sendMessage({ message: prompt });
-   return response.text.trim();
-};
-
-export const generateCodeExplanation = async (code: string): Promise<string> => {
-    const session = createChatSession("You are a coding tutor.", []);
-    const response = await session.sendMessage({ message: `Explain this:\n${code}` });
-    return response.text;
+export const sendMessageStream = async (session: AISession, message: string) => {
+  return session.sendMessageStream({ message });
 };
 
 // --- Agent Planning ---
 
 export const generateAgentPlan = async (goal: string, context: string): Promise<AgentPlanItem[]> => {
-    const config = getAIConfig();
-    const systemPrompt = `You are an expert software architect. Your goal is to break down a user's request into a concrete, sequential plan of action for a coding agent.
+    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
     
-    The agent has these tools: 
-    - listFiles: to understand file structure
-    - readFile: to read content
-    - writeFile: to create/update code
-    - runCommand: to execute commands
-    - searchCode: to find semantic logic
-    - getFileStructure: to inspect symbols/exports
+    const prompt = `
+    GOAL: ${goal}
+    CONTEXT: ${context}
     
-    Return a JSON object with a "steps" property containing an array of steps.
-    Each step should have:
-    - id: a short string id
-    - title: concise title
-    - description: what will be done in this step, referencing the tools to be used.
+    Create a step-by-step implementation plan for an autonomous coding agent.
+    Each step should be clear, actionable, and assigned to a specific role.
     
-    Example:
-    {
-      "steps": [
-        { "id": "1", "title": "Explore Codebase", "description": "Use listFiles and searchCode to find relevant auth logic." },
-        { "id": "2", "title": "Update Logic", "description": "Use readFile to get content and writeFile to update src/auth.ts" }
-      ]
-    }
+    Roles:
+    - planner: Breaks down tasks (you are doing this now)
+    - coder: Writes/Modifies code
+    - tester: Verifies changes
+    - debugger: Fixes issues
+    
+    Return a JSON array of steps.
     `;
-    
-    const userPrompt = `Goal: ${goal}\n\nContext:\n${context}`;
 
-    try {
-        const ai = new GoogleGenAI({ apiKey: config.chat.apiKey || ENV_API_KEY || '' });
-        
-        // Use JSON Schema for structured output
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: userPrompt,
-            config: {
-                systemInstruction: systemPrompt,
-                responseMimeType: "application/json",
-                responseSchema: {
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview', // Use Pro for reasoning
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
                     type: Type.OBJECT,
                     properties: {
-                        steps: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    id: { type: Type.STRING },
-                                    title: { type: Type.STRING },
-                                    description: { type: Type.STRING }
-                                }
-                            }
-                        }
-                    }
+                        id: { type: Type.STRING },
+                        title: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        status: { type: Type.STRING, enum: ['pending'] }, // Initial status
+                        assignedAgent: { type: Type.STRING, enum: ['planner', 'coder', 'tester', 'debugger', 'user'] }
+                    },
+                    required: ['id', 'title', 'description', 'status', 'assignedAgent']
                 }
             }
-        });
+        }
+    });
 
-        const json = JSON.parse(response.text || "{}");
-        return (json.steps || []).map((s: any) => ({ ...s, status: 'pending' }));
-
+    try {
+        const text = response.text || '[]';
+        return JSON.parse(text) as AgentPlanItem[];
     } catch (e) {
-        console.error("Plan Generation Error", e);
-        // Fallback or rethrow
-        return [{ id: '1', title: 'Execute Goal', description: goal, status: 'pending' }];
+        console.error("Failed to parse plan", e);
+        return [];
+    }
+};
+
+// --- Utility Functions ---
+
+export const generateCommitMessage = async (diff: string): Promise<string> => {
+    if (!ENV_API_KEY) return "Update files";
+    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Generate a concise, conventional commit message (max 50 chars) for these changes:\n${diff.slice(0, 2000)}`,
+        });
+        return response.text?.trim() || "Update files";
+    } catch (e) {
+        return "Update files";
+    }
+};
+
+export const getCodeCompletion = async (
+    prefix: string, 
+    offset: number, 
+    language: string, 
+    file: File, 
+    allFiles: File[]
+): Promise<string | null> => {
+    if (!ENV_API_KEY) return null;
+    
+    // Quick debounce check handled in UI, here we just request
+    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
+    
+    // Small context window for speed
+    const prompt = `
+    You are a code completion engine. Complete the code at the cursor.
+    Language: ${language}
+    Filename: ${file.name}
+    
+    Context:
+    ${prefix.slice(-1000)}
+    
+    Return ONLY the completion code. No markdown. No explanation.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                temperature: 0.2,
+                maxOutputTokens: 64
+            }
+        });
+        return response.text || null;
+    } catch (e) {
+        return null;
+    }
+};
+
+export const editCode = async (
+    prefix: string, 
+    selection: string, 
+    suffix: string, 
+    instruction: string, 
+    file: File, 
+    allFiles: File[]
+): Promise<string | null> => {
+    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
+    
+    const prompt = `
+    Instruction: ${instruction}
+    
+    File: ${file.name}
+    Language: ${file.language}
+    
+    Code Context:
+    ${prefix.slice(-500)}
+    [START SELECTION]
+    ${selection}
+    [END SELECTION]
+    ${suffix.slice(0, 500)}
+    
+    Rewrite the [SELECTION] based on the instruction.
+    Return ONLY the new code for the selection.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt
+        });
+        
+        let text = response.text || '';
+        // Strip markdown if present
+        if (text.startsWith('```')) {
+            text = text.replace(/```\w*\n?/, '').replace(/```$/, '');
+        }
+        return text.trim();
+    } catch (e) {
+        console.error(e);
+        return null;
     }
 };

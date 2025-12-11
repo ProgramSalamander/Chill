@@ -1,5 +1,4 @@
 
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, PreFlightCheck } from '../types';
 import { createChatSession, generateAgentPlan } from '../services/geminiService';
@@ -99,7 +98,7 @@ export const useAgent = (
   const sendFeedback = async (feedback: string) => {
       if (!pendingAction || !agentChatRef.current) return;
       
-      const { toolName, args } = pendingAction;
+      const { toolName, args, agentRole } = pendingAction;
       
       // 1. Record the attempt as if it happened but failed
       setAgentSteps(prev => [...prev, {
@@ -140,7 +139,8 @@ export const useAgent = (
                   id: response.toolCalls[0].id,
                   type: 'tool_call',
                   toolName: response.toolCalls[0].name,
-                  args: response.toolCalls[0].args
+                  args: response.toolCalls[0].args,
+                  agentRole: agentRole // Maintain the role from the failed attempt
                });
                setStatus('action_review');
            }
@@ -230,7 +230,8 @@ export const useAgent = (
                   id: call.id,
                   type: 'tool_call',
                   toolName: call.name,
-                  args: call.args
+                  args: call.args,
+                  agentRole: step.assignedAgent || 'coder'
               });
               setStatus('action_review');
           } else {
@@ -298,11 +299,16 @@ export const useAgent = (
            }
            
            if (response.toolCalls && response.toolCalls.length > 0) {
+               // Determine current role based on active plan step
+               const activeIndex = plan.findIndex(p => p.status === 'active');
+               const activeRole = activeIndex !== -1 ? plan[activeIndex].assignedAgent : 'coder';
+
                setPendingAction({
                   id: response.toolCalls[0].id,
                   type: 'tool_call',
                   toolName: response.toolCalls[0].name,
-                  args: response.toolCalls[0].args
+                  args: response.toolCalls[0].args,
+                  agentRole: activeRole || 'coder'
                });
                setStatus('action_review');
            } else {

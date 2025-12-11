@@ -76,6 +76,7 @@ export interface Diagnostic {
 export type ThemeMode = 'neon' | 'calm' | 'matrix';
 
 export type AgentStepType = 'user' | 'thought' | 'call' | 'result' | 'response' | 'error' | 'plan';
+export type AgentRole = 'planner' | 'coder' | 'tester' | 'debugger' | 'user' | 'system';
 
 export interface AgentStep {
   id: string;
@@ -84,6 +85,7 @@ export interface AgentStep {
   toolName?: string;
   toolArgs?: any;
   timestamp: number;
+  agentRole?: AgentRole; // The specific agent persona acting
 }
 
 export interface ProjectMeta {
@@ -152,6 +154,7 @@ export interface AgentPlanItem {
   title: string;
   description?: string;
   status: 'pending' | 'active' | 'completed' | 'skipped';
+  assignedAgent?: AgentRole; // Which agent should handle this step
 }
 
 export interface AgentPendingAction {
@@ -159,6 +162,7 @@ export interface AgentPendingAction {
   type: 'tool_call';
   toolName: string;
   args: any;
+  agentRole: AgentRole;
 }
 
 // --- Pre-Flight Check Types ---
