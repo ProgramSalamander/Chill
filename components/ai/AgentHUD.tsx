@@ -1,13 +1,4 @@
 
-
-
-
-
-
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, PreFlightResult } from '../../types';
 import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconArrowRight, IconXCircle, IconWorkflow, IconList } from '../Icons';
@@ -180,7 +171,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                               <IconAlert size={10} /> Checks Failed
                           </span>
                       ) : (
-                         preFlightResult.checks.every(c => c.status === 'success') ? (
+                         preFlightResult.checks && preFlightResult.checks.every(c => c.status === 'success') ? (
                              <span className="text-[10px] font-bold bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30 flex items-center gap-1">
                                  <IconCheck size={10} /> All Clear
                              </span>
@@ -196,7 +187,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
               <div className="p-4 grid gap-3">
                    {/* Check List */}
                    <div className="grid grid-cols-3 gap-2">
-                       {preFlightResult.checks.map(check => (
+                       {preFlightResult.checks && preFlightResult.checks.map(check => (
                            <div key={check.id} className="bg-black/20 rounded p-2 border border-white/5 flex flex-col items-center gap-2 text-center">
                                <div className="relative">
                                    {check.status === 'running' && <IconActivity size={16} className="text-blue-400 animate-spin" />}
@@ -215,7 +206,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                    </div>
 
                    {/* Errors */}
-                   {preFlightResult.diagnostics.length > 0 && (
+                   {preFlightResult.diagnostics && preFlightResult.diagnostics.length > 0 && (
                        <div className="bg-red-500/5 border border-red-500/20 rounded p-3 mt-1">
                            <div className="text-[10px] font-bold text-red-400 uppercase tracking-wide mb-2 flex items-center gap-2">
                                <IconAlert size={12} />
