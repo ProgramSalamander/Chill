@@ -53,6 +53,7 @@ export const IconSettings = (props: any) => <Settings {...props} />;
 export const IconMessage = (props: any) => <MessageSquare {...props} />;
 export const IconSparkles = (props: any) => <Sparkles {...props} />;
 export const IconClose = (props: any) => <X {...props} />;
+export const IconX = (props: any) => <X {...props} />;
 export const IconMenu = (props: any) => <Menu {...props} />;
 export const IconChevronRight = (props: any) => <ChevronRight {...props} />;
 export const IconChevronDown = (props: any) => <ChevronDown {...props} />;

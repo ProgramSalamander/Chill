@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message, MessageRole, File, AISession } from '../types';
 import { createChatSession, sendMessageStream } from '../services/geminiService';
 import { ragService } from '../services/ragService';
+import { getFilePath } from '../utils/fileUtils';
 
 const SYSTEM_INSTRUCTION = `You are VibeCode AI, an expert coding assistant integrated into a futuristic IDE. 
 Your goal is to help the user write clean, modern, and efficient code.
@@ -38,19 +39,35 @@ export const useAIChat = (
       addTerminalLine('System initialized. VibeCode AI connected.', 'info');
   }, [addTerminalLine]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, contextFileIds?: string[]) => {
     if (!chatSessionRef.current) return;
     const userMsg: Message = { id: Date.now().toString(), role: MessageRole.USER, text, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setIsGenerating(true);
     try {
       let prompt = text;
-      if (contextScope === 'project') {
+      
+      // 1. Explicitly pinned files
+      if (contextFileIds && contextFileIds.length > 0) {
+          let contextContent = "";
+          for (const fid of contextFileIds) {
+              const f = files.find(file => file.id === fid);
+              if (f) {
+                  contextContent += `File: ${getFilePath(f, files)}\n\`\`\`${f.language}\n${f.content}\n\`\`\`\n\n`;
+              }
+          }
+          prompt = `[EXPLICIT CONTEXT]\n${contextContent}\n[QUERY]\n${text}`;
+      
+      // 2. Project Scope (RAG)
+      } else if (contextScope === 'project') {
           const context = ragService.getContext(text, activeFile, files);
           prompt = `[SMART CONTEXT]\n${context}\n\n[QUERY]\n${text}`;
+      
+      // 3. File Scope (Active File only)
       } else if (activeFile) {
           prompt = `[FILE: ${activeFile.name}]\n${activeFile.content}\n\n[QUERY]\n${text}`;
       }
+
       const stream = await sendMessageStream(chatSessionRef.current, prompt);
       const responseId = (Date.now() + 1).toString();
       setMessages(p => [...p, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }]);
