@@ -436,12 +436,21 @@ export const generateAgentPlan = async (goal: string, context: string): Promise<
         }
     };
     
-    let prompt: string;
-    if (config.provider === 'openai') {
-        prompt = `GOAL: ${goal}\nCONTEXT: ${context}\n\nCreate a step-by-step implementation plan... Return a JSON object with a single key "plan" which is an array of step objects. Each step object must have keys: "id", "title", "description", "status", "assignedAgent".`;
-    } else {
-        prompt = `GOAL: ${goal}\nCONTEXT: ${context}\n\nCreate a step-by-step implementation plan... Return a JSON array of steps.`;
-    }
+    const prompt: string = `You are a senior software architect. Your task is to break down a user's request into a detailed, step-by-step implementation plan.
+
+Analyze the following request and context, then generate a JSON array of plan steps.
+
+GOAL: ${goal}
+CONTEXT: ${context}
+
+You MUST return a valid JSON array where each object is a step with the following properties:
+- id: A unique string identifier for the step (e.g., "step-1").
+- title: A short, descriptive title for the step.
+- description: A detailed explanation of what needs to be done.
+- status: The initial status, which MUST be "pending".
+- assignedAgent: The agent responsible. Must be one of: 'coder', 'tester', 'debugger', or 'user'.
+
+Ensure your response is ONLY the raw JSON array and nothing else.`;
 
     try {
         const responseText = await generateGeneric(prompt, config, {
