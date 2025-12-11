@@ -75,17 +75,31 @@ function App() {
     try {
       const saved = localStorage.getItem('vibe_sidebar_config');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        const allViewIds = SIDEBAR_VIEWS.map(v => v.id);
-        const savedViewIds = parsed.map((v: SidebarView) => v.id);
-        const newViews = SIDEBAR_VIEWS.filter(v => !savedViewIds.includes(v.id));
-        const finalViews = [
-            ...parsed,
-            ...newViews.map((v, i) => ({ ...v, order: parsed.length + i, visible: true }))
-        ];
-        return finalViews.filter((v: SidebarView) => allViewIds.includes(v.id));
+        const parsed: SidebarView[] = JSON.parse(saved);
+        const defaultViewsMap = new Map(SIDEBAR_VIEWS.map(v => [v.id, v]));
+
+        // Reconstruct views using default data and saved properties
+        const merged = parsed.map(savedView => {
+            const defaultView = defaultViewsMap.get(savedView.id);
+            if (defaultView) {
+                return {
+                    ...defaultView, // Use default view which has the icon
+                    order: savedView.order,
+                    visible: savedView.visible,
+                };
+            }
+            return null; // This view was saved but no longer exists
+        }).filter(Boolean) as SidebarView[];
+
+        // Add any brand new views that weren't in the saved config
+        const mergedIds = new Set(merged.map(v => v.id));
+        const newViews = SIDEBAR_VIEWS.filter(v => !mergedIds.has(v.id));
+        
+        const finalViews = [...merged, ...newViews.map(v => ({...v, order: merged.length + 1, visible: true}))];
+
+        return finalViews;
       }
-    } catch (e) { console.warn("Could not parse sidebar config", e) }
+    } catch (e) { console.warn("Could not parse sidebar config", e); }
     return SIDEBAR_VIEWS.map((view, index) => ({
       ...view,
       order: index,
