@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { 
   FileCode, 
@@ -41,7 +42,11 @@ import {
   RefreshCw,
   Bug,
   FileText,
-  Wand2
+  Wand2,
+  List,
+  CheckCircle,
+  XCircle,
+  PlayCircle
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -86,3 +91,7 @@ export const IconRefresh = (props: any) => <RefreshCw {...props} />;
 export const IconBug = (props: any) => <Bug {...props} />;
 export const IconFileText = (props: any) => <FileText {...props} />;
 export const IconWand = (props: any) => <Wand2 {...props} />;
+export const IconList = (props: any) => <List {...props} />;
+export const IconCheckCircle = (props: any) => <CheckCircle {...props} />;
+export const IconXCircle = (props: any) => <XCircle {...props} />;
+export const IconPlayCircle = (props: any) => <PlayCircle {...props} />;

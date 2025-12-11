@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, File } from '../types';
 import { useAgent } from '../hooks/useAgent';
@@ -27,19 +28,32 @@ interface AIPanelProps {
 const AIPanel: React.FC<AIPanelProps> = (props) => {
   const [mode, setMode] = useState<'chat' | 'agent'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { agentSteps, isAgentRunning, runAgent, setAgentSteps } = useAgent(props.onAgentAction);
+  const { 
+      status,
+      agentSteps,
+      plan,
+      pendingAction,
+      startAgent,
+      approvePlan,
+      approveAction,
+      rejectAction,
+      updatePendingActionArgs,
+      setAgentSteps
+  } = useAgent(props.onAgentAction, props.files);
+
+  const isAgentRunning = status === 'thinking' || status === 'executing' || status === 'planning';
 
   useEffect(() => {
     if (props.isOpen) {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
-  }, [props.messages, agentSteps, props.isOpen, mode]);
+  }, [props.messages, agentSteps, props.isOpen, mode, status, plan]); // Added status/plan deps to scroll on updates
 
   const handleSend = (text: string, contextFileIds?: string[]) => {
     if (mode === 'chat') {
       props.onSendMessage(text, contextFileIds);
     } else {
-      runAgent(text);
+      startAgent(text); // Start the planning phase
     }
   };
   
@@ -58,10 +72,10 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
           <div className="flex items-center justify-between p-4 pb-2">
             <div className="flex items-center gap-3">
               <div className="relative">
-                  {isAgentRunning ? (
+                  {mode === 'agent' ? (
                     <div className="relative">
-                       <div className="absolute inset-0 bg-orange-500 blur-lg opacity-40 animate-pulse"></div>
-                       <IconCpu size={24} className="text-orange-400 relative z-10 animate-spin-slow" />
+                       <div className={`absolute inset-0 blur-lg opacity-40 animate-pulse ${status === 'completed' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                       <IconCpu size={24} className={`${status === 'completed' ? 'text-green-400' : 'text-orange-400'} relative z-10 ${isAgentRunning ? 'animate-spin-slow' : ''}`} />
                     </div>
                   ) : (
                     <div className="relative">
@@ -132,8 +146,14 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
           />
         ) : (
           <AgentHUD 
+            status={status}
             agentSteps={agentSteps}
-            isAgentRunning={isAgentRunning}
+            plan={plan}
+            pendingAction={pendingAction}
+            onApprovePlan={approvePlan}
+            onApproveAction={approveAction}
+            onRejectAction={rejectAction}
+            onUpdateActionArgs={updatePendingActionArgs}
           />
         )}
         <div ref={messagesEndRef} />

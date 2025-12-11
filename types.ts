@@ -75,7 +75,7 @@ export interface Diagnostic {
 
 export type ThemeMode = 'neon' | 'calm' | 'matrix';
 
-export type AgentStepType = 'user' | 'thought' | 'call' | 'result' | 'response' | 'error';
+export type AgentStepType = 'user' | 'thought' | 'call' | 'result' | 'response' | 'error' | 'plan';
 
 export interface AgentStep {
   id: string;
@@ -143,6 +143,23 @@ export type SidebarView = SidebarViewConfig & {
   visible: boolean;
 };
 
+// --- Agent Interactive Types ---
+
+export type AgentStatus = 'idle' | 'planning' | 'plan_review' | 'thinking' | 'action_review' | 'executing' | 'completed' | 'failed';
+
+export interface AgentPlanItem {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'active' | 'completed' | 'skipped';
+}
+
+export interface AgentPendingAction {
+  id: string;
+  type: 'tool_call';
+  toolName: string;
+  args: any;
+}
 
 declare global {
   interface AIStudio {

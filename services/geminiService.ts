@@ -1,5 +1,7 @@
+
+
 import { GoogleGenAI, Chat, Content, GenerateContentResponse, Tool, Type } from "@google/genai";
-import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File } from '../types';
+import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File, AgentPlanItem } from '../types';
 import { getAIConfig } from './configService';
 import { ragService } from './ragService';
 import { getFilePath } from '../utils/fileUtils';
@@ -514,4 +516,68 @@ export const generateCodeExplanation = async (code: string): Promise<string> => 
     const session = createChatSession("You are a coding tutor.", []);
     const response = await session.sendMessage({ message: `Explain this:\n${code}` });
     return response.text;
+};
+
+// --- Agent Planning ---
+
+export const generateAgentPlan = async (goal: string, context: string): Promise<AgentPlanItem[]> => {
+    const config = getAIConfig();
+    const systemPrompt = `You are an expert software architect. Your goal is to break down a user's request into a concrete, sequential plan of action for a coding agent.
+    
+    The agent has these tools: listFiles, readFile, writeFile, runCommand.
+    
+    Return a JSON object with a "steps" property containing an array of steps.
+    Each step should have:
+    - id: a short string id
+    - title: concise title
+    - description: what will be done in this step
+    
+    Example:
+    {
+      "steps": [
+        { "id": "1", "title": "Explore Codebase", "description": "List files to understand structure" },
+        { "id": "2", "title": "Create Component", "description": "Create src/components/NewFeature.tsx" }
+      ]
+    }
+    `;
+    
+    const userPrompt = `Goal: ${goal}\n\nContext:\n${context}`;
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: config.chat.apiKey || ENV_API_KEY || '' });
+        
+        // Use JSON Schema for structured output
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: userPrompt,
+            config: {
+                systemInstruction: systemPrompt,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        steps: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    id: { type: Type.STRING },
+                                    title: { type: Type.STRING },
+                                    description: { type: Type.STRING }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const json = JSON.parse(response.text || "{}");
+        return (json.steps || []).map((s: any) => ({ ...s, status: 'pending' }));
+
+    } catch (e) {
+        console.error("Plan Generation Error", e);
+        // Fallback or rethrow
+        return [{ id: '1', title: 'Execute Goal', description: goal, status: 'pending' }];
+    }
 };
