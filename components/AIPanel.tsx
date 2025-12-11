@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Message, MessageRole, File, AgentStep } from '../types';
 import { 
   IconSparkles, IconCpu, IconZap, IconClose, IconCopy, IconCheck, 
-  IconInsert, IconWand, IconTerminal, IconBug, IconPlus, IconFileCode, IconX 
+  IconInsert, IconWand, IconTerminal, IconBug, IconPlus, IconFileCode, IconX,
+  IconClock, IconTrash
 } from './Icons';
 import { useAgent } from '../hooks/useAgent';
 
@@ -138,8 +139,16 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const [input, setInput] = useState('');
   const [pinnedFiles, setPinnedFiles] = useState<string[]>([]);
   const [showContextPicker, setShowContextPicker] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [promptHistory, setPromptHistory] = useState<string[]>(() => {
+      try {
+          return JSON.parse(localStorage.getItem('vibe_prompt_history') || '[]');
+      } catch { return []; }
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   // Use extracted agent hook
   const { agentSteps, isAgentRunning, runAgent } = useAgent(onAgentAction);
@@ -150,22 +159,30 @@ const AIPanel: React.FC<AIPanelProps> = ({
     }
   }, [messages, agentSteps, isOpen, mode]);
 
-  // Handle click outside picker
+  // Handle click outside picker and history
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
         setShowContextPicker(false);
+      }
+      if (historyRef.current && !historyRef.current.contains(event.target as Node)) {
+        setShowHistory(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-pin active file when switching scopes logic if needed, 
-  // but we prefer manual pinning for the "World Class" feel.
-
   const handleSend = async () => {
     if (!input.trim()) return;
+
+    // Save history
+    const trimmedInput = input.trim();
+    setPromptHistory(prev => {
+        const newHist = [trimmedInput, ...prev.filter(p => p !== trimmedInput)].slice(0, 50);
+        localStorage.setItem('vibe_prompt_history', JSON.stringify(newHist));
+        return newHist;
+    });
     
     if (mode === 'chat') {
         if (isGenerating) return;
@@ -180,12 +197,19 @@ const AIPanel: React.FC<AIPanelProps> = ({
         
         onSendMessage(input, contextIds.length > 0 ? contextIds : undefined);
         setInput('');
-        setPinnedFiles([]); // Optional: clear pins after send? Maybe keep them. Let's keep them for flow.
+        setPinnedFiles([]); 
     } else {
         if (isAgentRunning) return;
         runAgent(input);
         setInput('');
     }
+  };
+
+  const handleClearHistory = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setPromptHistory([]);
+      localStorage.removeItem('vibe_prompt_history');
+      setShowHistory(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -468,6 +492,44 @@ const AIPanel: React.FC<AIPanelProps> = ({
           <div className={`absolute -inset-0.5 bg-gradient-to-r rounded-xl opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200 blur ${mode === 'agent' ? 'from-orange-500 to-red-500' : 'from-vibe-accent to-purple-600'}`}></div>
           <div className="relative flex items-end gap-2 bg-[#0a0a0f]/90 border border-white/10 rounded-xl p-2 shadow-inner">
              
+             {/* Prompt History Button */}
+             <div className="relative" ref={historyRef}>
+                <button 
+                    onClick={() => setShowHistory(!showHistory)}
+                    className={`p-2 rounded-lg transition-colors ${showHistory ? 'text-vibe-glow bg-vibe-accent/10' : 'text-slate-500 hover:text-white hover:bg-white/10'}`}
+                    title="Prompt History"
+                >
+                    <IconClock size={18} />
+                </button>
+                
+                {/* History Popover */}
+                {showHistory && (
+                    <div className="absolute bottom-full left-0 mb-2 w-64 max-h-60 bg-[#0f0f16] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-100 z-50">
+                        <div className="p-2 border-b border-white/10 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                            <span>Recent Prompts</span>
+                            {promptHistory.length > 0 && (
+                                <button onClick={handleClearHistory} className="text-xs text-red-400 hover:text-red-300 p-1 rounded hover:bg-white/5 transition-colors" title="Clear History">
+                                    <IconTrash size={12} />
+                                </button>
+                            )}
+                        </div>
+                        <div className="overflow-y-auto custom-scrollbar p-1">
+                            {promptHistory.map((prompt, idx) => (
+                                <button 
+                                    key={idx}
+                                    onClick={() => { setInput(prompt); setShowHistory(false); }}
+                                    className="w-full text-left px-2 py-2 rounded text-xs text-slate-300 hover:bg-white/5 hover:text-white truncate border-b border-white/5 last:border-0 transition-colors"
+                                    title={prompt}
+                                >
+                                    {prompt}
+                                </button>
+                            ))}
+                            {promptHistory.length === 0 && <div className="p-4 text-center text-xs text-slate-600 italic">No history yet</div>}
+                        </div>
+                    </div>
+                )}
+             </div>
+
              {/* Context Picker Button */}
              <div className="relative" ref={pickerRef}>
                 <button 
@@ -480,7 +542,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
                 
                 {/* Context Picker Popover */}
                 {showContextPicker && (
-                    <div className="absolute bottom-full left-0 mb-2 w-64 max-h-60 bg-[#0f0f16] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-100">
+                    <div className="absolute bottom-full left-0 mb-2 w-64 max-h-60 bg-[#0f0f16] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-100 z-50">
                         <div className="p-2 border-b border-white/10 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             Select Files to Pin
                         </div>
