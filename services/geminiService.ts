@@ -1,6 +1,3 @@
-
-
-
 import { GoogleGenAI, Chat, Content, GenerateContentResponse, Tool, Type } from "@google/genai";
 import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File } from '../types';
 import { getAIConfig } from './configService';
@@ -78,16 +75,39 @@ const getOpenAITools = () => {
 // --- Helper Functions ---
 
 const removeOverlap = (suggestion: string, suffix: string): string => {
-    // Check for overlap at the end of suggestion matching start of suffix
+    // 1. Exact overlap removal
+    // Check if the END of the suggestion matches the START of the suffix
     const maxCheck = Math.min(suggestion.length, suffix.length);
-
     for (let i = maxCheck; i > 0; i--) {
-        const sTail = suggestion.slice(-i);
-        const sHead = suffix.slice(0, i);
-        if (sTail === sHead) {
+        if (suggestion.endsWith(suffix.slice(0, i))) {
             return suggestion.slice(0, -i);
         }
     }
+
+    // 2. Fuzzy overlap for common delimiters (closing braces, parens, semicolons)
+    // This prevents issues where the model generates "})" and the suffix is "  })".
+    const trimmedSuffix = suffix.trimStart();
+    const closingChars = ['}', ')', ']', ';', '>'];
+    
+    // Get the last significant character of the suggestion
+    const trimmedSuggestion = suggestion.trimEnd();
+    if (trimmedSuggestion.length === 0) return suggestion;
+    
+    const lastChar = trimmedSuggestion.slice(-1);
+    
+    // If suggestion ends with a delimiter and suffix starts with it (ignoring whitespace)
+    if (closingChars.includes(lastChar) && trimmedSuffix.startsWith(lastChar)) {
+         const lastIdx = suggestion.lastIndexOf(lastChar);
+         if (lastIdx !== -1) {
+             // Remove the char from suggestion, preserving trailing whitespace if any
+             const tail = suggestion.slice(lastIdx + 1);
+             // Only perform this fuzzy removal if everything after the char is just whitespace
+             if (!tail.trim()) {
+                  return suggestion.slice(0, lastIdx) + tail; 
+             }
+         }
+    }
+
     return suggestion;
 };
 
@@ -340,7 +360,9 @@ export const getCodeCompletion = async (
 1.  **Output Format:** Return ONLY the code sequence to fill the gap. Do NOT include markdown blocks (\`\`\`), explanations, or conversational text.
 2.  **Context Awareness:** Analyze the indentation, variable naming conventions, and coding style of the ${language} code in the Prefix/Suffix. Mimic this style exactly.
 3.  **Syntactic Integrity:** Ensure the generated code creates a syntactically valid bridge between the Prefix and Suffix.
-4.  **Suffix Handling:** Look at the Suffix carefully. Do NOT repeat code that already exists immediately after the cursor. If the Suffix contains the closing brace/parenthesis, do not generate it again.
+4.  **Suffix Handling:** The Suffix is the code that immediately follows the cursor.
+    - **CRITICAL:** Do NOT repeat code that is already at the start of the Suffix.
+    - If the Suffix starts with a closing brace/parenthesis/semicolon that completes the block you are generating, DO NOT generate it again.
 5.  **Indentation:** Your output must start with the correct indentation level relative to the Prefix.
 
 **Heuristics:**
@@ -393,7 +415,7 @@ Generate the code that belongs strictly between </PREFIX> and <SUFFIX>.`;
           ],
           temperature: 0.1,
           max_tokens: 128,
-          stop: ["```", "\n\n"]
+          stop: ["```"]
         })
       });
       if (!res.ok) throw new Error(`OpenAI completion failed: ${res.statusText}`);
@@ -407,9 +429,9 @@ Generate the code that belongs strictly between </PREFIX> and <SUFFIX>.`;
         contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
         config: {
           systemInstruction: systemPrompt,
-          maxOutputTokens: 128,
+          maxOutputTokens: 256, // Increased to allow multi-line completions
           temperature: 0.1,
-          stopSequences: ["```", "\n\n"]
+          stopSequences: ["```"] // Removed \n\n to allow multi-line blocks
         }
       });
       text = response.text || "";

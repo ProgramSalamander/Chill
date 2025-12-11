@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -85,6 +83,7 @@ function App() {
   // Refs & Timers
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSuggestionResolve = useRef<((value: string | null) => void) | null>(null);
   const debounceIndexRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatSessionRef = useRef<AISession | null>(null);
   const messagesRef = useRef(messages);
@@ -257,9 +256,20 @@ function App() {
   }, [fs, addTerminalLine]);
 
   const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
+    // Cancel any pending suggestion request
+    if (pendingSuggestionResolve.current) {
+        pendingSuggestionResolve.current(null);
+        pendingSuggestionResolve.current = null;
+    }
+    // Clear previous timer
+    if (suggestionDebounceRef.current) clearTimeout(suggestionDebounceRef.current);
+
     return new Promise((resolve) => {
-        if (suggestionDebounceRef.current) clearTimeout(suggestionDebounceRef.current);
+        pendingSuggestionResolve.current = resolve;
+        
         suggestionDebounceRef.current = setTimeout(async () => {
+            pendingSuggestionResolve.current = null; // Claim ownership of this execution
+
             const currentFile = activeFileIdRef.current ? filesRef.current.find(f => f.id === activeFileIdRef.current) : null;
             if (!currentFile || isGenerating || isIndexing) {
                 resolve(null);
@@ -272,7 +282,7 @@ function App() {
                 console.error("Suggestion fetch failed:", e);
                 resolve(null);
             }
-        }, 250); // Decreased debounce to 250ms
+        }, 400); // Slightly increased debounce to reduce spam
     });
   }, [isGenerating, isIndexing]);
 
