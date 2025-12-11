@@ -390,6 +390,7 @@ function App() {
                <AIPanel 
                   isOpen={isAIOpen} messages={messages} onSendMessage={sendMessage} isGenerating={isGenerating}
                   activeFile={activeFile} onClose={() => setIsAIOpen(false)}
+                  onClearChat={() => setMessages([])}
                   onApplyCode={(c) => fs.updateFileContent(c, true)}
                   onInsertCode={(c) => fs.updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
                   contextScope={contextScope} setContextScope={setContextScope} files={fs.files} onAgentAction={handleAgentAction}

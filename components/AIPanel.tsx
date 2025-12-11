@@ -12,6 +12,7 @@ interface AIPanelProps {
   isOpen: boolean;
   messages: Message[];
   onSendMessage: (text: string, contextFileIds?: string[]) => void;
+  onClearChat: () => void;
   isGenerating: boolean;
   activeFile: File | null;
   onClose: () => void;
@@ -260,6 +261,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   isOpen, 
   messages, 
   onSendMessage, 
+  onClearChat,
   isGenerating, 
   activeFile,
   onClose,
@@ -285,7 +287,7 @@ const AIPanel: React.FC<AIPanelProps> = ({
   const pickerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
 
-  const { agentSteps, isAgentRunning, runAgent } = useAgent(onAgentAction);
+  const { agentSteps, isAgentRunning, runAgent, setAgentSteps } = useAgent(onAgentAction);
 
   useEffect(() => {
     if (isOpen) {
@@ -418,9 +420,18 @@ const AIPanel: React.FC<AIPanelProps> = ({
                   </h3>
               </div>
             </div>
-            <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
-              <IconClose size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+                <button 
+                    onClick={() => mode === 'chat' ? onClearChat() : setAgentSteps([])}
+                    className="text-slate-500 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-full"
+                    title={mode === 'chat' ? "Clear Chat" : "Reset Agent"}
+                >
+                  <IconTrash size={16} />
+                </button>
+                <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
+                  <IconClose size={18} />
+                </button>
+            </div>
           </div>
 
           {/* Mode Switcher */}
