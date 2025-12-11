@@ -1,5 +1,7 @@
 
 
+import React from 'react';
+
 
 export interface File {
   id: string;
@@ -129,6 +131,18 @@ export interface AISession {
   sendMessage: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AIResponse>;
   sendMessageStream: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AsyncIterable<{ text: string }>>;
 }
+
+export interface SidebarViewConfig {
+  id: string;
+  title: string;
+  icon: React.FC<any>;
+}
+
+export type SidebarView = SidebarViewConfig & {
+  order: number;
+  visible: boolean;
+};
+
 
 declare global {
   interface AIStudio {

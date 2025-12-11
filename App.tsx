@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -22,16 +23,17 @@ import { getCodeCompletion, editCode } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { projectService } from './services/projectService';
 import { ragService } from './services/ragService';
-import { File, TerminalLine, Diagnostic, ProjectMeta } from './types';
+import { File, TerminalLine, Diagnostic, ProjectMeta, SidebarView } from './types';
 import { getFilePath, resolveFileByPath } from './utils/fileUtils';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { useFileSystem } from './hooks/useFileSystem';
 import { useGit } from './hooks/useGit';
 import { useAIChat } from './hooks/useAIChat';
+import { SIDEBAR_VIEWS } from './views/sidebarViews';
 
 function App() {
   // --- UI State ---
-  const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'git' | null>(() => {
+  const [activeSidebarView, setActiveSidebarView] = useState<string | null>(() => {
       try { return JSON.parse(localStorage.getItem('vibe_layout_sidebar') || '"explorer"'); } catch { return 'explorer'; }
   });
   const [isTerminalOpen, setIsTerminalOpen] = useState(() => {
@@ -51,6 +53,38 @@ function App() {
   const addTerminalLine = useCallback((text: string, type: TerminalLine['type'] = 'info') => {
     setTerminalLines(prev => [...prev, { id: Math.random().toString(36).slice(2, 11), text, type, timestamp: Date.now() }]);
   }, []);
+
+  // --- Sidebar Customization State ---
+  const [sidebarViews, setSidebarViews] = useState<SidebarView[]>(() => {
+    try {
+      const saved = localStorage.getItem('vibe_sidebar_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const allViewIds = SIDEBAR_VIEWS.map(v => v.id);
+        const savedViewIds = parsed.map((v: SidebarView) => v.id);
+        const newViews = SIDEBAR_VIEWS.filter(v => !savedViewIds.includes(v.id));
+        const finalViews = [
+            ...parsed,
+            ...newViews.map((v, i) => ({ ...v, order: parsed.length + i, visible: true }))
+        ];
+        return finalViews.filter((v: SidebarView) => allViewIds.includes(v.id));
+      }
+    } catch (e) { console.warn("Could not parse sidebar config", e) }
+    return SIDEBAR_VIEWS.map((view, index) => ({
+      ...view,
+      order: index,
+      visible: true,
+    }));
+  });
+
+  useEffect(() => {
+    localStorage.setItem('vibe_sidebar_config', JSON.stringify(sidebarViews));
+  }, [sidebarViews]);
+
+  const visibleSortedViews = useMemo(() => 
+    sidebarViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
+    [sidebarViews]
+  );
 
   // --- Core Hooks ---
   const fs = useFileSystem(addTerminalLine);
@@ -317,6 +351,9 @@ function App() {
         <div className="flex flex-col gap-3 h-full">
            <Sidebar 
             activeView={activeSidebarView} setActiveView={setActiveSidebarView} 
+            views={visibleSortedViews}
+            allViews={sidebarViews}
+            onUpdateViews={setSidebarViews}
             onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)} gitStatus={git.status}
           />
