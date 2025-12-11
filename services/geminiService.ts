@@ -256,7 +256,7 @@ class OpenAISession implements AISession {
     private async performFetch(body: any): Promise<Response> {
         const apiKey = getApiKey(this.modelConfig);
         const { baseUrl, modelId } = this.modelConfig;
-        const endpoint = new URL('/chat/completions', baseUrl || 'https://api.openai.com/v1').toString();
+        const endpoint = `${(baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')}/chat/completions`;
         
         return fetch(endpoint, {
             method: 'POST',
@@ -381,7 +381,7 @@ async function generateGeneric(
     if (!apiKey) throw new Error("API Key not configured.");
 
     if (config.provider === 'openai') {
-        const endpoint = new URL('/chat/completions', config.baseUrl || 'https://api.openai.com/v1').toString();
+        const endpoint = `${(config.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')}/chat/completions`;
         const body: any = {
             model: config.modelId,
             messages: [{ role: 'user', content: prompt }],
