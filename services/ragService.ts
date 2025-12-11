@@ -1,5 +1,4 @@
 import { File } from '../types';
-// FIX: Added 'generateProjectStructureContext' to the import from '../utils/fileUtils' to resolve undefined errors.
 import { getFilePath, generateProjectStructureContext } from '../utils/fileUtils';
 
 const STOP_WORDS = new Set([

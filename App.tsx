@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -13,7 +14,6 @@ import CommandPalette from './components/CommandPalette';
 import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
 import CloneModal from './components/CloneModal';
-// FIX: Add missing imports for MenuBar and ContextBar
 import MenuBar from './components/MenuBar';
 import ContextBar from './components/ContextBar';
 

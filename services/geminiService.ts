@@ -1,11 +1,17 @@
 
+
 import { GoogleGenAI, Content, GenerateContentResponse, Tool, Type, Schema, Part, FunctionDeclaration } from "@google/genai";
 import { Message, MessageRole, AIConfig, AIModelConfig, AISession, AIResponse, AIToolCall, AIToolResponse, File, AgentPlanItem, AgentRole } from '../types';
 import { getAIConfig } from './configService';
 import { ragService } from './ragService';
 import { getFilePath } from '../utils/fileUtils';
 
-const ENV_API_KEY = process.env.API_KEY || '';
+// --- API Key Management ---
+const getApiKey = (config: AIModelConfig): string => {
+    if (config.apiKey) return config.apiKey;
+    if (config.provider === 'gemini') return process.env.API_KEY || '';
+    return '';
+};
 
 // --- Agent Personas ---
 
@@ -126,30 +132,47 @@ const AGENT_TOOLS_GEMINI: Tool[] = [
   }
 ];
 
-// --- Session Implementation ---
+const AGENT_TOOLS_OPENAI: any[] = AGENT_TOOLS_GEMINI[0].functionDeclarations.map(fd => ({
+    type: 'function',
+    function: {
+        name: fd.name,
+        description: fd.description,
+        parameters: {
+            ...(fd.parameters as any),
+            properties: Object.fromEntries(
+                Object.entries(fd.parameters.properties).map(([key, value]) => {
+                    const { type, ...rest } = value as any;
+                    return [key, { ...rest, type: type.toLowerCase() }];
+                })
+            )
+        }
+    }
+}));
+
+
+// --- Gemini Session Implementation ---
 
 class GeminiSession implements AISession {
   private chat: any;
-  private modelId: string;
+  private modelConfig: AIModelConfig;
 
   constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false) {
-    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
-    // Use Pro for agents (complex reasoning), Flash for generic chat
-    this.modelId = isAgent ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
+    this.modelConfig = getAIConfig().chat;
+    const apiKey = getApiKey(this.modelConfig);
+    const ai = new GoogleGenAI({ apiKey });
     
-    // Transform history to Gemini format
     const geminiHistory = history.map(msg => ({
       role: msg.role === MessageRole.USER ? 'user' : 'model',
       parts: [{ text: msg.text }]
     }));
 
     this.chat = ai.chats.create({
-      model: this.modelId,
+      model: this.modelConfig.modelId,
       history: geminiHistory,
       config: {
         systemInstruction,
         tools: isAgent ? AGENT_TOOLS_GEMINI : undefined,
-        temperature: isAgent ? 0 : 0.7, // Deterministic for agents
+        temperature: isAgent ? 0 : 0.7,
       }
     });
   }
@@ -158,17 +181,6 @@ class GeminiSession implements AISession {
     let parts: Part[] = [];
 
     if (props.toolResponses && props.toolResponses.length > 0) {
-      // Send tool responses
-      const functionResponses = props.toolResponses.map(tr => ({
-        id: tr.id,
-        name: tr.name,
-        response: { result: tr.result }
-      }));
-      parts = [{ functionResponse: { name: functionResponses[0].name, response: functionResponses[0].response } }]; // SDK expects simple structure for single response or array
-      // Actually @google/genai SDK format for functionResponse:
-      // parts: [{ functionResponse: { name: string, response: object, id?: string } }]
-      
-      // Fix for SDK type alignment:
       parts = props.toolResponses.map(tr => ({
           functionResponse: {
               name: tr.name,
@@ -182,17 +194,14 @@ class GeminiSession implements AISession {
       parts.push({ text: props.message });
     }
 
-    // If we have parts, send them. If generic text message only, send string.
     const response: GenerateContentResponse = await this.chat.sendMessage({ 
-        content: parts.length > 0 ? parts : props.message 
+        content: parts.length > 0 ? { parts } : props.message 
     });
     
     return this.parseResponse(response);
   }
 
   async sendMessageStream(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AsyncIterable<{ text: string }>> {
-    // Basic streaming implementation for text-only for now
-    // Tool usage in streaming is complex, fallback to non-streaming if tools present for simplicity in this demo
     if (props.toolResponses) {
         const response = await this.sendMessage(props);
         return (async function* () { yield { text: response.text }; })();
@@ -222,10 +231,139 @@ class GeminiSession implements AISession {
   }
 }
 
+// --- OpenAI Session Implementation ---
 
-// --- Exported Functions ---
+const toOpenAIMessages = (messages: Message[]) => {
+    return messages.map(msg => ({
+        role: msg.role === MessageRole.MODEL ? 'assistant' : msg.role as ('user' | 'system'),
+        content: msg.text
+    }));
+};
+
+class OpenAISession implements AISession {
+    private modelConfig: AIModelConfig;
+    private systemInstruction: string;
+    private history: Message[];
+    private isAgent: boolean;
+
+    constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false) {
+        this.modelConfig = getAIConfig().chat;
+        this.systemInstruction = systemInstruction;
+        this.history = history;
+        this.isAgent = isAgent;
+    }
+
+    private async performFetch(body: any): Promise<Response> {
+        const apiKey = getApiKey(this.modelConfig);
+        const { baseUrl, modelId } = this.modelConfig;
+        const endpoint = new URL('/chat/completions', baseUrl || 'https://api.openai.com/v1').toString();
+        
+        return fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: modelId,
+                ...body
+            })
+        });
+    }
+
+    async sendMessage(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AIResponse> {
+        const messages: any[] = [
+            { role: 'system', content: this.systemInstruction },
+            ...toOpenAIMessages(this.history)
+        ];
+
+        if (props.message) {
+            messages.push({ role: 'user', content: props.message });
+        }
+        
+        if (props.toolResponses) {
+            props.toolResponses.forEach(tr => {
+                messages.push({
+                    role: 'tool',
+                    tool_call_id: tr.id,
+                    content: JSON.stringify(tr.result)
+                });
+            });
+        }
+
+        const body: any = { messages };
+        if (this.isAgent) {
+            body.tools = AGENT_TOOLS_OPENAI;
+            body.tool_choice = "auto";
+        }
+
+        const res = await this.performFetch(body);
+        if (!res.ok) throw new Error(`OpenAI API error: ${await res.text()}`);
+
+        const data = await res.json();
+        const responseMsg = data.choices[0].message;
+
+        if (props.message) this.history.push({ id: Date.now().toString(), role: MessageRole.USER, text: props.message, timestamp: Date.now() });
+        this.history.push({ id: (Date.now() + 1).toString(), role: MessageRole.MODEL, text: responseMsg.content || 'Tool call', timestamp: Date.now() });
+
+        const aiResponse: AIResponse = { text: responseMsg.content || '' };
+        if (responseMsg.tool_calls) {
+            aiResponse.toolCalls = responseMsg.tool_calls.map((tc: any) => ({
+                id: tc.id,
+                name: tc.function.name,
+                args: JSON.parse(tc.function.arguments)
+            }));
+        }
+        
+        return aiResponse;
+    }
+
+    async sendMessageStream(props: { message: string }): Promise<AsyncIterable<{ text: string }>> {
+        const messages: any[] = [
+            { role: 'system', content: this.systemInstruction },
+            ...toOpenAIMessages(this.history),
+            { role: 'user', content: props.message }
+        ];
+
+        const body = { messages, stream: true };
+        const res = await this.performFetch(body);
+        if (!res.ok) throw new Error(`OpenAI API stream error: ${await res.text()}`);
+
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+
+        return (async function* () {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.substring(6);
+                        if (data.trim() === '[DONE]') return;
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices[0]?.delta?.content;
+                            if (delta) {
+                                yield { text: delta };
+                            }
+                        } catch (e) { /* ignore parse errors on incomplete chunks */ }
+                    }
+                }
+            }
+        })();
+    }
+}
+
+
+// --- Session Factory ---
 
 export const createChatSession = (systemInstruction: string, history: Message[] = [], isAgent: boolean = false): AISession => {
+  const config = getAIConfig().chat;
+  if (config.provider === 'openai') {
+    return new OpenAISession(systemInstruction, history, isAgent);
+  }
   return new GeminiSession(systemInstruction, history, isAgent);
 };
 
@@ -233,52 +371,85 @@ export const sendMessageStream = async (session: AISession, message: string) => 
   return session.sendMessageStream({ message });
 };
 
+// --- Generic Text Generation Helper ---
+async function generateGeneric(
+    prompt: string,
+    config: AIModelConfig,
+    options: { responseMimeType?: string, responseSchema?: any, temperature?: number, maxOutputTokens?: number } = {}
+): Promise<string> {
+    const apiKey = getApiKey(config);
+    if (!apiKey) throw new Error("API Key not configured.");
+
+    if (config.provider === 'openai') {
+        const endpoint = new URL('/chat/completions', config.baseUrl || 'https://api.openai.com/v1').toString();
+        const body: any = {
+            model: config.modelId,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: options.temperature || 0.2,
+            max_tokens: options.maxOutputTokens
+        };
+        if (options.responseMimeType === 'application/json') {
+            body.response_format = { type: "json_object" };
+        }
+
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`OpenAI API error: ${await res.text()}`);
+        const data = await res.json();
+        return data.choices[0].message.content || '';
+    } else {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+            model: config.modelId,
+            contents: prompt,
+            config: {
+                temperature: options.temperature,
+                maxOutputTokens: options.maxOutputTokens,
+                responseMimeType: options.responseMimeType,
+                responseSchema: options.responseSchema,
+            }
+        });
+        return response.text || '';
+    }
+}
+
+
 // --- Agent Planning ---
 
 export const generateAgentPlan = async (goal: string, context: string): Promise<AgentPlanItem[]> => {
-    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
-    
-    const prompt = `
-    GOAL: ${goal}
-    CONTEXT: ${context}
-    
-    Create a step-by-step implementation plan for an autonomous coding agent.
-    Each step should be clear, actionable, and assigned to a specific role.
-    
-    Roles:
-    - planner: Breaks down tasks (you are doing this now)
-    - coder: Writes/Modifies code
-    - tester: Verifies changes
-    - debugger: Fixes issues
-    
-    Return a JSON array of steps.
-    `;
-
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview', // Use Pro for reasoning
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        id: { type: Type.STRING },
-                        title: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        status: { type: Type.STRING, enum: ['pending'] }, // Initial status
-                        assignedAgent: { type: Type.STRING, enum: ['planner', 'coder', 'tester', 'debugger', 'user'] }
-                    },
-                    required: ['id', 'title', 'description', 'status', 'assignedAgent']
-                }
-            }
+    const config = getAIConfig().chat;
+    const geminiSchema = {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                id: { type: Type.STRING },
+                title: { type: Type.STRING },
+                description: { type: Type.STRING },
+                status: { type: Type.STRING, enum: ['pending'] },
+                assignedAgent: { type: Type.STRING, enum: ['planner', 'coder', 'tester', 'debugger', 'user'] }
+            },
+            required: ['id', 'title', 'description', 'status', 'assignedAgent']
         }
-    });
+    };
+    
+    let prompt: string;
+    if (config.provider === 'openai') {
+        prompt = `GOAL: ${goal}\nCONTEXT: ${context}\n\nCreate a step-by-step implementation plan... Return a JSON object with a single key "plan" which is an array of step objects. Each step object must have keys: "id", "title", "description", "status", "assignedAgent".`;
+    } else {
+        prompt = `GOAL: ${goal}\nCONTEXT: ${context}\n\nCreate a step-by-step implementation plan... Return a JSON array of steps.`;
+    }
 
     try {
-        const text = response.text || '[]';
-        return JSON.parse(text) as AgentPlanItem[];
+        const responseText = await generateGeneric(prompt, config, {
+            responseMimeType: 'application/json',
+            responseSchema: config.provider === 'gemini' ? geminiSchema : undefined,
+        });
+        const parsed = JSON.parse(responseText);
+        return config.provider === 'openai' ? parsed.plan : parsed;
     } catch (e) {
         console.error("Failed to parse plan", e);
         return [];
@@ -288,15 +459,11 @@ export const generateAgentPlan = async (goal: string, context: string): Promise<
 // --- Utility Functions ---
 
 export const generateCommitMessage = async (diff: string): Promise<string> => {
-    if (!ENV_API_KEY) return "Update files";
-    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
-    
+    const config = getAIConfig().completion;
+    const prompt = `Generate a concise, conventional commit message (max 50 chars) for these changes:\n${diff.slice(0, 2000)}`;
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Generate a concise, conventional commit message (max 50 chars) for these changes:\n${diff.slice(0, 2000)}`,
-        });
-        return response.text?.trim() || "Update files";
+        const response = await generateGeneric(prompt, config);
+        return response.trim() || "Update files";
     } catch (e) {
         return "Update files";
     }
@@ -309,33 +476,11 @@ export const getCodeCompletion = async (
     file: File, 
     allFiles: File[]
 ): Promise<string | null> => {
-    if (!ENV_API_KEY) return null;
-    
-    // Quick debounce check handled in UI, here we just request
-    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
-    
-    // Small context window for speed
-    const prompt = `
-    You are a code completion engine. Complete the code at the cursor.
-    Language: ${language}
-    Filename: ${file.name}
-    
-    Context:
-    ${prefix.slice(-1000)}
-    
-    Return ONLY the completion code. No markdown. No explanation.
-    `;
-
+    const config = getAIConfig().completion;
+    const prompt = `You are a code completion engine. Complete the code at the cursor.\nLanguage: ${language}\nFilename: ${file.name}\n\nContext:\n${prefix.slice(-1000)}\n\nReturn ONLY the completion code. No markdown. No explanation.`;
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                temperature: 0.2,
-                maxOutputTokens: 64
-            }
-        });
-        return response.text || null;
+        const response = await generateGeneric(prompt, config, { temperature: 0.2, maxOutputTokens: 64 });
+        return response || null;
     } catch (e) {
         return null;
     }
@@ -349,33 +494,11 @@ export const editCode = async (
     file: File, 
     allFiles: File[]
 ): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: ENV_API_KEY });
+    const config = getAIConfig().completion;
+    const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-500)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 500)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
     
-    const prompt = `
-    Instruction: ${instruction}
-    
-    File: ${file.name}
-    Language: ${file.language}
-    
-    Code Context:
-    ${prefix.slice(-500)}
-    [START SELECTION]
-    ${selection}
-    [END SELECTION]
-    ${suffix.slice(0, 500)}
-    
-    Rewrite the [SELECTION] based on the instruction.
-    Return ONLY the new code for the selection.
-    `;
-
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt
-        });
-        
-        let text = response.text || '';
-        // Strip markdown if present
+        let text = await generateGeneric(prompt, config);
         if (text.startsWith('```')) {
             text = text.replace(/```\w*\n?/, '').replace(/```$/, '');
         }
