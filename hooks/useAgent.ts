@@ -1,5 +1,6 @@
 
 
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, PreFlightCheck } from '../types';
 import { createChatSession, generateAgentPlan } from '../services/geminiService';
@@ -236,14 +237,26 @@ export const useAgent = (
               });
               setStatus('action_review');
           } else {
-              if (response.text.toLowerCase().includes('step complete') || response.text.toLowerCase().includes('done')) {
+              if (response.text && (response.text.toLowerCase().includes('step complete') || response.text.toLowerCase().includes('done'))) {
                   updatedPlan[stepIndex].status = 'completed';
                   setPlan(updatedPlan);
                   await processNextStep(updatedPlan);
               } else {
-                  updatedPlan[stepIndex].status = 'completed';
-                  setPlan(updatedPlan);
-                  await processNextStep(updatedPlan);
+                  // Agent returned a thought without a tool call or completion signal.
+                  // This is an ambiguous state. We will mark the step as failed to prevent runaway execution.
+                  setStatus('failed');
+                  const activeIndex = updatedPlan.findIndex(p => p.status === 'active');
+                  if (activeIndex !== -1) {
+                      const failedPlan = [...updatedPlan];
+                      failedPlan[activeIndex] = { ...failedPlan[activeIndex], status: 'failed' };
+                      setPlan(failedPlan);
+                  }
+                  setAgentSteps(prev => [...prev, {
+                      id: Date.now().toString(),
+                      type: 'error',
+                      text: "Agent stalled. It provided a thought but no clear action or completion. Please review the plan and try again.",
+                      timestamp: Date.now()
+                  }]);
               }
           }
 
