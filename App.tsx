@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -271,7 +272,7 @@ function App() {
                 console.error("Suggestion fetch failed:", e);
                 resolve(null);
             }
-        }, 300);
+        }, 250); // Decreased debounce to 250ms
     });
   }, [isGenerating, isIndexing]);
 

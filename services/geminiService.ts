@@ -73,6 +73,22 @@ const getOpenAITools = () => {
   }));
 };
 
+// --- Helper Functions ---
+
+const removeOverlap = (suggestion: string, suffix: string): string => {
+    // Check for overlap at the end of suggestion matching start of suffix
+    const maxCheck = Math.min(suggestion.length, suffix.length);
+
+    for (let i = maxCheck; i > 0; i--) {
+        const sTail = suggestion.slice(-i);
+        const sHead = suffix.slice(0, i);
+        if (sTail === sHead) {
+            return suggestion.slice(0, -i);
+        }
+    }
+    return suggestion;
+};
+
 // --- Providers ---
 
 class GeminiSessionWrapper implements AISession {
@@ -307,27 +323,48 @@ export const getCodeCompletion = async (
 ): Promise<string> => {
   const config = getAIConfig();
   
-  // Split code at cursor
+  // 1. Prepare Context
   const prefix = code.slice(0, cursorOffset);
   const suffix = code.slice(cursorOffset);
-  const contextPrefix = prefix.slice(-2500);
+  
+  // Expanded context for better awareness
+  const contextPrefix = prefix.slice(-3000); 
   const contextSuffix = suffix.slice(0, 1000);
 
-  const ragQuery = contextPrefix;
-  const projectContext = ragService.getContext(ragQuery, activeFile, allFiles, 3);
+  // RAG: Query based on the last few lines of code to infer immediate intent
+  const ragQuery = prefix.split('\n').slice(-10).join('\n');
+  const projectContext = ragService.getContext(ragQuery, activeFile, allFiles, 2);
 
-  const prompt = `You are a super-fast, intelligent coding assistant. 
-  ${projectContext ? `[SMART CONTEXT]\n${projectContext}\n` : ''}
-  [CURRENT FILE: ${language}]
-  ${contextPrefix}[CURSOR]${contextSuffix}
-
+  // 2. Prompt Engineering
+  const systemPrompt = `You are an ultra-fast, intelligent code completion engine for ${language}.
+  Your task is to generate the code that naturally follows the cursor position.
+  
   Instructions:
-  1. Output ONLY the code to insert at [CURSOR].
-  2. No markdown, no explanations.
-  3. Start exactly where the cursor is.
+  - Return ONLY the code snippet to be inserted. No markdown fences, no conversational text.
+  - Analyze the [Code After Cursor]. Do NOT regenerate code that is already present in the suffix.
+  - If the user is typing a statement, complete it.
+  - If the user is starting a block/function, complete the signature and/or body intelligently.
+  - Prefer concise, single-line completions unless a multi-line block is clearly intended.
+  - If no completion is needed (e.g., cursor is at end of complete statement), return an empty string.
+  `;
+
+  const userPrompt = `
+  [Project Context]
+  ${projectContext}
+
+  [Code Before Cursor]
+  ${contextPrefix}
+
+  [Code After Cursor]
+  ${contextSuffix}
+
+  [Completion Request]
+  Generate the code insertion for the cursor location.
   `;
 
   try {
+      let text = "";
+
       if (config.completion.provider === 'openai') {
           // OpenAI Completion
           const url = `${config.completion.baseUrl || 'https://api.openai.com/v1'}/chat/completions`;
@@ -340,33 +377,44 @@ export const getCodeCompletion = async (
               body: JSON.stringify({
                   model: config.completion.modelId,
                   messages: [
-                      { role: 'system', content: 'You are a code completion engine.' },
-                      { role: 'user', content: prompt }
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: userPrompt }
                   ],
-                  temperature: 0.1,
-                  max_tokens: 128,
-                  stop: ["[BEGIN", "[END", "```"]
+                  temperature: 0.1, // Low temperature for deterministic code
+                  max_tokens: 128, // Allow for multi-line but limit runaways
+                  stop: ["```"] // Stop if model tries to markdown
               })
           });
           const data = await res.json();
-          let text = data.choices?.[0]?.message?.content || "";
-          return text.replace(/^```\w*\n/, '').replace(/```$/, '');
+          text = data.choices?.[0]?.message?.content || "";
 
       } else {
           // Gemini Completion
           const ai = new GoogleGenAI({ apiKey: config.completion.apiKey || ENV_API_KEY || '' });
           const response = await ai.models.generateContent({
             model: config.completion.modelId,
-            contents: prompt,
+            contents: [{
+                role: 'user', 
+                parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
+            }],
             config: {
                 maxOutputTokens: 128,
                 temperature: 0.1,
-                stopSequences: ["[BEGIN", "[END", "```"] 
+                stopSequences: ["```"] 
             }
           });
-          let text = response.text || "";
-          return text.replace(/^```\w*\n/, '').replace(/```$/, '');
+          text = response.text || "";
       }
+      
+      // 3. Post-Processing
+      // Remove markdown blocks if model ignored instructions
+      text = text.replace(/^```\w*\n/, '').replace(/```$/, '');
+      
+      // Merge repeated code (Suffix Overlap)
+      text = removeOverlap(text, suffix);
+      
+      return text;
+
   } catch (error) {
       console.error("Completion Error:", error);
       return "";
