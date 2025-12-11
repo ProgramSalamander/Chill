@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   IconTerminal, IconFilePlus, IconFolderOpen, IconSparkles, 
@@ -17,22 +18,16 @@ import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
 import CloneModal from './components/CloneModal';
 
-import { createChatSession, sendMessageStream, getCodeCompletion, editCode } from './services/geminiService';
+import { getCodeCompletion, editCode } from './services/geminiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { projectService } from './services/projectService';
 import { ragService } from './services/ragService';
-import { File, Message, MessageRole, TerminalLine, Diagnostic, AISession, ProjectMeta } from './types';
+import { File, TerminalLine, Diagnostic, ProjectMeta } from './types';
 import { getFilePath, resolveFileByPath } from './utils/fileUtils';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { useFileSystem } from './hooks/useFileSystem';
 import { useGit } from './hooks/useGit';
-
-const SYSTEM_INSTRUCTION = `You are VibeCode AI, an expert coding assistant integrated into a futuristic IDE. 
-Your goal is to help the user write clean, modern, and efficient code.
-When providing code, wrap it in markdown code blocks with the language specified.
-Be concise, helpful, and "vibey" - professional but modern and slightly enthusiastic.
-If the user asks to modify the current file, provide the full updated code block so they can apply it.
-You have access to the project structure and contents when the user enables full context. Use this to understand dependencies and imports.`;
+import { useAIChat } from './hooks/useAIChat';
 
 function App() {
   // --- UI State ---
@@ -60,6 +55,9 @@ function App() {
   // --- Core Hooks ---
   const fs = useFileSystem(addTerminalLine);
   const git = useGit(fs.files, addTerminalLine);
+  
+  // --- AI Chat Hook ---
+  const { messages, isGenerating, sendMessage, initChat, setMessages } = useAIChat(fs.files, fs.activeFile, contextScope, addTerminalLine);
 
   // --- Project Management State ---
   const [activeProject, setActiveProject] = useState<ProjectMeta | null>(null);
@@ -67,13 +65,6 @@ function App() {
   const debounceSaveProjectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- Editor State ---
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = localStorage.getItem('vibe_chat_history');
-      return saved ? JSON.parse(saved).map((m: Message) => ({ ...m, isStreaming: false })) : [];
-    } catch { return []; }
-  });
-  const [isGenerating, setIsGenerating] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [fileToDelete, setFileToDelete] = useState<File | null>(null);
   const [selectedCode, setSelectedCode] = useState<string>('');
@@ -85,8 +76,6 @@ function App() {
   const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSuggestionResolve = useRef<((value: string | null) => void) | null>(null);
   const debounceIndexRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const chatSessionRef = useRef<AISession | null>(null);
-  const messagesRef = useRef(messages);
   const lastCursorPosRef = useRef(0);
   const activeFileIdRef = useRef(fs.activeFileId);
   const filesRef = useRef(fs.files);
@@ -94,10 +83,6 @@ function App() {
   // --- Effects ---
   useEffect(() => { filesRef.current = fs.files; }, [fs.files]);
   useEffect(() => { activeFileIdRef.current = fs.activeFileId; }, [fs.activeFileId]);
-  useEffect(() => { 
-      messagesRef.current = messages; 
-      localStorage.setItem('vibe_chat_history', JSON.stringify(messages));
-  }, [messages]);
   useEffect(() => { localStorage.setItem('vibe_layout_sidebar', JSON.stringify(activeSidebarView)); }, [activeSidebarView]);
   useEffect(() => { localStorage.setItem('vibe_layout_terminal', JSON.stringify(isTerminalOpen)); }, [isTerminalOpen]);
   useEffect(() => { localStorage.setItem('vibe_context_scope', contextScope); }, [contextScope]);
@@ -148,13 +133,7 @@ function App() {
   useEffect(() => {
     initRuff().then(() => console.log('Ruff Linter initialized'));
     initChat();
-  }, []);
-
-  const initChat = useCallback(() => {
-      const history = messagesRef.current.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
-      chatSessionRef.current = createChatSession(SYSTEM_INSTRUCTION, history);
-      addTerminalLine('System initialized. VibeCode AI connected.', 'info');
-  }, [addTerminalLine]);
+  }, [initChat]);
   
   // Debounced Linting Effect
   useEffect(() => {
@@ -286,34 +265,6 @@ function App() {
     });
   }, [isGenerating, isIndexing]);
 
-  const handleSendMessage = async (text: string) => {
-    if (!chatSessionRef.current) return;
-    const userMsg: Message = { id: Date.now().toString(), role: MessageRole.USER, text, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
-    setIsGenerating(true);
-    try {
-      let prompt = text;
-      if (contextScope === 'project') {
-          const context = ragService.getContext(text, fs.activeFile, fs.files);
-          prompt = `[SMART CONTEXT]\n${context}\n\n[QUERY]\n${text}`;
-      } else if (fs.activeFile) {
-          prompt = `[FILE: ${fs.activeFile.name}]\n${fs.activeFile.content}\n\n[QUERY]\n${text}`;
-      }
-      const stream = await sendMessageStream(chatSessionRef.current, prompt);
-      const responseId = (Date.now() + 1).toString();
-      setMessages(p => [...p, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }]);
-      let fullText = '';
-      for await (const chunk of stream) {
-        if (chunk.text) {
-            fullText += chunk.text;
-            setMessages(p => p.map(m => m.id === responseId ? { ...m, text: fullText } : m));
-        }
-      }
-      setMessages(p => p.map(m => m.id === responseId ? { ...m, isStreaming: false } : m));
-    } catch (error: any) { addTerminalLine('AI Error', 'error'); } 
-    finally { setIsGenerating(false); }
-  };
-
   const handleInlineAssist = async (instruction: string, range: any) => {
       if (!fs.activeFile) return;
       const file = fs.activeFile;
@@ -423,7 +374,7 @@ function App() {
                        />
                        {selectedCode && (
                           <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-                              <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); handleSendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                              <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
                           </div>
                        )}
                    </div>
@@ -437,7 +388,7 @@ function App() {
                    </div>
                )}
                <AIPanel 
-                  isOpen={isAIOpen} messages={messages} onSendMessage={handleSendMessage} isGenerating={isGenerating}
+                  isOpen={isAIOpen} messages={messages} onSendMessage={sendMessage} isGenerating={isGenerating}
                   activeFile={activeFile} onClose={() => setIsAIOpen(false)}
                   onApplyCode={(c) => fs.updateFileContent(c, true)}
                   onInsertCode={(c) => fs.updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
