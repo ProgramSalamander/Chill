@@ -1,4 +1,5 @@
 
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, PreFlightCheck } from '../types';
 import { createChatSession, generateAgentPlan } from '../services/geminiService';
@@ -249,7 +250,13 @@ export const useAgent = (
       } catch (e: any) {
           console.error(e);
           setStatus('failed');
-          setAgentSteps(prev => [...prev, { id: Date.now().toString(), type: 'error', text: e.message, timestamp: Date.now() }]);
+          const activeIndex = updatedPlan.findIndex(p => p.status === 'active');
+          if (activeIndex !== -1) {
+              const newPlan = [...updatedPlan];
+              newPlan[activeIndex] = { ...newPlan[activeIndex], status: 'failed' };
+              setPlan(newPlan);
+          }
+          setAgentSteps(prev => [...prev, { id: Date.now().toString(), type: 'error', text: `Agent failed to decide next action: ${e.message}`, timestamp: Date.now() }]);
       }
   };
   
@@ -274,6 +281,16 @@ export const useAgent = (
           result = await onAgentAction(toolName, args);
       } catch (e: any) {
           result = `Error executing ${toolName}: ${e.message}`;
+          const activeIndex = plan.findIndex(p => p.status === 'active');
+          if (activeIndex !== -1) {
+              const newPlan = [...plan];
+              newPlan[activeIndex] = { ...newPlan[activeIndex], status: 'failed' };
+              setPlan(newPlan);
+          }
+          setStatus('failed');
+          setAgentSteps(prev => [...prev, { id: Date.now().toString(), type: 'error', text: result, timestamp: Date.now() }]);
+          setPendingAction(null);
+          return;
       }
 
       setAgentSteps(prev => [...prev, {

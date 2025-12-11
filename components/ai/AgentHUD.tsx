@@ -6,6 +6,8 @@
 
 
 
+
+
 import React, { useState, useEffect } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, PreFlightResult } from '../../types';
 import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconArrowRight, IconXCircle, IconWorkflow, IconList } from '../Icons';
@@ -108,7 +110,8 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                <div className={`
                     w-2 h-2 rounded-full 
                     ${status === 'thinking' || status === 'executing' ? 'bg-orange-400 animate-ping' : 
-                      status === 'completed' ? 'bg-green-400' : 'bg-vibe-glow'}
+                      status === 'completed' ? 'bg-green-400' : 
+                      status === 'failed' ? 'bg-red-400' : 'bg-vibe-glow'}
                `}></div>
                <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-500">
                    {status.replace('_', ' ')}

@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useRef, useState } from 'react';
 import { AgentStep, AgentPlanItem, AgentPendingAction } from '../../types';
 import { 
@@ -12,7 +13,9 @@ import {
   IconSearch,
   IconEye,
   IconEdit,
-  IconBrain
+  IconBrain,
+  IconAlert,
+  IconXCircle
 } from '../Icons';
 
 interface AgentStrategyMapProps {
@@ -25,6 +28,7 @@ interface AgentStrategyMapProps {
 const AgentStrategyMap: React.FC<AgentStrategyMapProps> = ({ plan, agentSteps, pendingAction, status }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeThought, setActiveThought] = useState<string>('');
+  const lastError = [...agentSteps].reverse().find(s => s.type === 'error');
 
   useEffect(() => {
     // Find the latest thought to display in the active node context
@@ -94,6 +98,7 @@ const AgentStrategyMap: React.FC<AgentStrategyMapProps> = ({ plan, agentSteps, p
             const isCompleted = step.status === 'completed';
             const isSkipped = step.status === 'skipped';
             const isPending = step.status === 'pending';
+            const isFailed = step.status === 'failed';
 
             return (
                 <div key={step.id} className="relative w-full pl-14 pr-2 pb-8 last:pb-0 z-10 group">
@@ -102,7 +107,8 @@ const AgentStrategyMap: React.FC<AgentStrategyMapProps> = ({ plan, agentSteps, p
                         absolute left-4 top-0 w-3 h-3 -translate-x-[1px] rounded-full border-2 transition-all duration-500
                         ${isActive ? 'bg-orange-500 border-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.6)] scale-125' : 
                           isCompleted ? 'bg-green-500 border-green-400' : 
-                          isSkipped ? 'bg-slate-700 border-slate-600' : 'bg-[#0f0f16] border-slate-600'}
+                          isSkipped ? 'bg-slate-700 border-slate-600' : 
+                          isFailed ? 'bg-red-500 border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.6)] scale-125' : 'bg-[#0f0f16] border-slate-600'}
                     `}></div>
 
                     {/* Step Card */}
@@ -110,20 +116,36 @@ const AgentStrategyMap: React.FC<AgentStrategyMapProps> = ({ plan, agentSteps, p
                         relative p-3 rounded-xl border transition-all duration-300
                         ${isActive ? 'bg-[#181824] border-orange-500/30 shadow-[0_0_20px_rgba(0,0,0,0.3)]' : 
                           isCompleted ? 'bg-white/5 border-green-500/20 opacity-70 hover:opacity-100' : 
-                          isSkipped ? 'bg-white/5 border-white/5 opacity-40 grayscale' : 'bg-white/5 border-white/10 opacity-60'}
+                          isSkipped ? 'bg-white/5 border-white/5 opacity-40 grayscale' : 
+                          isFailed ? 'bg-red-900/30 border-red-500/30' : 'bg-white/5 border-white/10 opacity-60'}
                     `}>
                         <div className="flex items-center justify-between mb-1">
-                            <h4 className={`text-xs font-bold ${isActive ? 'text-white' : isCompleted ? 'text-green-200' : 'text-slate-400'}`}>
+                            <h4 className={`text-xs font-bold ${isActive ? 'text-white' : isCompleted ? 'text-green-200' : isFailed ? 'text-red-200' : 'text-slate-400'}`}>
                                 {step.title}
                             </h4>
                             <div className="text-slate-500">
                                 {isCompleted && <IconCheckCircle size={12} className="text-green-400" />}
+                                {isFailed && <IconXCircle size={12} className="text-red-400" />}
                                 {isActive && <div className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-ping"></div>}
                             </div>
                         </div>
                         <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">
                             {step.description}
                         </p>
+
+                        {/* FAILED STATE EXPANSION */}
+                        {isFailed && lastError && (
+                            <div className="mt-4 pt-3 border-t border-red-500/20 animate-in slide-in-from-top-2">
+                                <div className="flex gap-3">
+                                    <IconAlert size={14} className="text-red-400 shrink-0 mt-0.5" />
+                                    <div className="text-[10px] text-red-200 bg-black/30 p-2 rounded-lg border border-red-500/20 relative">
+                                        <div className="absolute -left-1.5 top-2 w-2 h-2 bg-black/30 border-l border-t border-red-500/20 -rotate-45"></div>
+                                        <strong className="text-red-300 block mb-1">Execution Failed:</strong>
+                                        {lastError.text}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* ACTIVE STATE EXPANSION */}
                         {isActive && (

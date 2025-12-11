@@ -153,7 +153,7 @@ export interface AgentPlanItem {
   id: string;
   title: string;
   description?: string;
-  status: 'pending' | 'active' | 'completed' | 'skipped';
+  status: 'pending' | 'active' | 'completed' | 'skipped' | 'failed';
   assignedAgent?: AgentRole; // Which agent should handle this step
 }
 

@@ -3,7 +3,7 @@
 
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, File } from '../types';
+import { Message, File } from '../../types';
 import { useAgent } from '../hooks/useAgent';
 import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
 import AgentHUD from './ai/AgentHUD';
@@ -78,8 +78,8 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
               <div className="relative">
                   {mode === 'agent' ? (
                     <div className="relative">
-                       <div className={`absolute inset-0 blur-lg opacity-40 animate-pulse ${status === 'completed' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-                       <IconCpu size={24} className={`${status === 'completed' ? 'text-green-400' : 'text-orange-400'} relative z-10 ${isAgentRunning ? 'animate-spin-slow' : ''}`} />
+                       <div className={`absolute inset-0 blur-lg opacity-40 animate-pulse ${status === 'completed' ? 'bg-green-500' : status === 'failed' ? 'bg-red-500' : 'bg-orange-500'}`}></div>
+                       <IconCpu size={24} className={`${status === 'completed' ? 'text-green-400' : status === 'failed' ? 'text-red-400' : 'text-orange-400'} relative z-10 ${isAgentRunning ? 'animate-spin-slow' : ''}`} />
                     </div>
                   ) : (
                     <div className="relative">
