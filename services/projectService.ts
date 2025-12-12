@@ -1,4 +1,3 @@
-
 import { File, ProjectMeta } from '../types';
 
 const RECENT_KEY = 'vibe_recent_projects';
@@ -58,5 +57,24 @@ export const projectService = {
 
   clearActiveProject: () => {
     localStorage.removeItem(ACTIVE_ID_KEY);
-  }
+  },
+
+  deleteProject: (id: string) => {
+    try {
+      // Remove project files
+      localStorage.removeItem(`vibe_project_${id}`);
+
+      // Update Recents
+      const recents = projectService.getRecents();
+      const newRecents = recents.filter(p => p.id !== id);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(newRecents));
+
+      // Check if it was the active project
+      if (projectService.getActiveProjectId() === id) {
+        projectService.clearActiveProject();
+      }
+    } catch (e) {
+      console.error("Failed to delete project", e);
+    }
+  },
 };

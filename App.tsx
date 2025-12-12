@@ -4,6 +4,7 @@ import AIPanel from './components/AIPanel';
 import Terminal from './components/Terminal';
 import SettingsModal from './components/SettingsModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
+import DeleteProjectConfirmModal from './components/DeleteProjectConfirmModal';
 import CommandPalette from './components/CommandPalette';
 import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
@@ -223,6 +224,7 @@ function App() {
       </div>
       <SettingsModal />
       <DeleteConfirmModal />
+      <DeleteProjectConfirmModal />
       <CloneModal />
       <CommandPalette />
     </div>

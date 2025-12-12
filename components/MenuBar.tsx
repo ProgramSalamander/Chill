@@ -7,7 +7,8 @@ import {
   IconGitBranch,
   IconClock,
   IconSun,
-  IconMoon
+  IconMoon,
+  IconTrash
 } from './Icons';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
@@ -27,6 +28,7 @@ const MenuBar: React.FC = () => {
   const handleLoadProject = useFileStore(state => state.handleLoadProject);
   const saveAllFiles = useFileStore(state => state.saveAllFiles);
   const files = useFileStore(state => state.files);
+  const setProjectToDelete = useFileStore(state => state.setProjectToDelete);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -91,20 +93,36 @@ const MenuBar: React.FC = () => {
                         </div>
                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
                           {recentProjects.map(proj => (
-                            <button 
+                            <div 
                               key={proj.id}
-                              onClick={() => { handleLoadProject(proj); closeMenu(); }} 
-                              className="w-full group px-3 py-2 text-xs text-left text-text-secondary hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-primary flex items-center gap-3 transition-colors mx-1 rounded-lg"
+                              className="group flex items-center justify-between px-1 text-xs text-left text-text-secondary transition-colors mx-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10"
                             >
-                                <IconFolder size={14} className="text-text-tertiary group-hover:text-vibe-accent" /> 
-                                <div className="flex flex-col truncate">
-                                  <span className="truncate">{proj.name}</span>
-                                  <span className="text-[9px] text-text-tertiary font-normal flex items-center gap-1">
-                                    <IconClock size={8} />
-                                    {new Date(proj.lastOpened).toLocaleDateString()}
-                                  </span>
-                                </div>
-                            </button>
+                                <button
+                                    onClick={() => { handleLoadProject(proj); closeMenu(); }}
+                                    className="flex-1 flex items-center gap-3 px-2 py-2 group-hover:text-text-primary"
+                                >
+                                    <IconFolder size={14} className="text-text-tertiary group-hover:text-vibe-accent" />
+                                    <div className="flex flex-col truncate">
+                                        <span className="truncate">{proj.name}</span>
+                                        <span className="text-[9px] text-text-tertiary font-normal flex items-center gap-1">
+                                            <IconClock size={8} />
+                                            {new Date(proj.lastOpened).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </button>
+                                <Tooltip content="Delete Project" position="right">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setProjectToDelete(proj);
+                                            closeMenu();
+                                        }}
+                                        className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                        <IconTrash size={14}/>
+                                    </button>
+                                </Tooltip>
+                            </div>
                           ))}
                         </div>
                       </>

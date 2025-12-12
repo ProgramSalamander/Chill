@@ -13,6 +13,7 @@ interface FileState {
   openFileIds: string[];
   activeFile: File | null;
   fileToDelete: File | null;
+  projectToDelete: ProjectMeta | null;
   activeProject: ProjectMeta | null;
   recentProjects: ProjectMeta[];
 
@@ -33,6 +34,8 @@ interface FileState {
   setActiveFileId: (id: string) => void;
   setFileToDelete: (file: File | null) => void;
   confirmDelete: () => Promise<void>;
+  setProjectToDelete: (project: ProjectMeta | null) => void;
+  confirmDeleteProject: () => Promise<void>;
   loadInitialProject: () => void;
   handleNewProject: () => Promise<void>;
   handleLoadProject: (project: ProjectMeta) => Promise<void>;
@@ -46,6 +49,7 @@ export const useFileStore = create<FileState>()(
       openFileIds: [],
       activeFile: null,
       fileToDelete: null,
+      projectToDelete: null,
       activeProject: null,
       recentProjects: [],
 
@@ -54,7 +58,7 @@ export const useFileStore = create<FileState>()(
       },
 
       resetProject: () => {
-        set({ files: [], activeFileId: '', openFileIds: [], activeFile: null });
+        set({ files: [], activeFileId: '', openFileIds: [], activeFile: null, activeProject: null });
       },
 
       createNode: async (type, parentId, name, initialContent) => {
@@ -188,6 +192,36 @@ export const useFileStore = create<FileState>()(
             await useGitStore.getState().deleteFile(fileToDelete);
         }
         set({ fileToDelete: null });
+      },
+
+      // Project Deletion
+      setProjectToDelete: (project) => set({ projectToDelete: project }),
+      
+      confirmDeleteProject: async () => {
+        const { projectToDelete, activeProject, resetProject } = get();
+        if (!projectToDelete) return;
+        
+        const wasActive = activeProject?.id === projectToDelete.id;
+
+        projectService.deleteProject(projectToDelete.id);
+
+        if (wasActive) {
+          resetProject();
+          useGitStore.getState().reset();
+          useChatStore.getState().clearChat();
+          useTerminalStore.getState().clearTerminal();
+          useTerminalStore.getState().addTerminalLine(`Deleted active project: ${projectToDelete.name}`, 'info');
+        }
+
+        set({ 
+          recentProjects: projectService.getRecents(),
+          projectToDelete: null,
+        });
+        
+        // If the active project was deleted and there are others, load the most recent one.
+        if (wasActive && get().recentProjects.length > 0) {
+          get().handleLoadProject(get().recentProjects[0]);
+        }
       },
 
       // Project Management
