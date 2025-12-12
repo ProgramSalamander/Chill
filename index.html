@@ -119,6 +119,13 @@
         color: rgb(var(--vibe-accent)) !important;
         font-style: italic;
       }
+
+      /* Removes the background color from the code blocks */
+      .prism-code,
+      pre[class*="language-"],
+      code[class*="language-"] {
+        background-color: transparent !important;
+      }
     </style>
     <script>
       tailwind.config = {
