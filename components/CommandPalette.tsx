@@ -26,9 +26,15 @@ const CommandPalette: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { isCommandPaletteOpen, setIsCommandPaletteOpen, setIsTerminalOpen, setIsSettingsOpen, setActiveSidebarView } = useUIStore();
-  const { files, selectFile, createNode } = useFileStore();
-  const { refresh } = useGitStore();
+  const isCommandPaletteOpen = useUIStore(state => state.isCommandPaletteOpen);
+  const setIsCommandPaletteOpen = useUIStore(state => state.setIsCommandPaletteOpen);
+  const setIsTerminalOpen = useUIStore(state => state.setIsTerminalOpen);
+  const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
+  const setActiveSidebarView = useUIStore(state => state.setActiveSidebarView);
+  const files = useFileStore(state => state.files);
+  const selectFile = useFileStore(state => state.selectFile);
+  const createNode = useFileStore(state => state.createNode);
+  const refresh = useGitStore(state => state.refresh);
 
   useEffect(() => {
     if (isCommandPaletteOpen) {

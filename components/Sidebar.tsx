@@ -8,19 +8,17 @@ import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
 
 const Sidebar: React.FC = () => {
-  const { 
-    activeSidebarView, setActiveSidebarView, 
-    // FIX: Changed 'allViews' to the correct property 'sidebarViews'
-    sidebarViews, updateSidebarViews, 
-    setIsCommandPaletteOpen, setIsSettingsOpen
-  } = useUIStore();
+  const activeSidebarView = useUIStore(state => state.activeSidebarView);
+  const setActiveSidebarView = useUIStore(state => state.setActiveSidebarView);
+  const sidebarViews = useUIStore(state => state.sidebarViews);
+  const updateSidebarViews = useUIStore(state => state.updateSidebarViews);
+  const setIsCommandPaletteOpen = useUIStore(state => state.setIsCommandPaletteOpen);
+  const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
 
   const gitStatus = useGitStore(state => state.status);
 
   const visibleSortedViews = useMemo(() => 
-    // FIX: Use 'sidebarViews'
     sidebarViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
-    // FIX: Use 'sidebarViews'
     [sidebarViews]
   );
   
@@ -84,9 +82,7 @@ const Sidebar: React.FC = () => {
     const targetIndex = visibleIds.indexOf(targetView.id);
     visibleIds.splice(targetIndex, 0, movedId);
 
-    // FIX: Use 'sidebarViews'
     const hidden = sidebarViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
-    // FIX: Use 'sidebarViews'
     const newVisible = visibleIds.map(id => sidebarViews.find(v => v.id === id)!);
     const finalViews = [...newVisible, ...hidden].map((view, index) => ({...view, order: index}));
 
@@ -99,19 +95,16 @@ const Sidebar: React.FC = () => {
   const handleHide = () => {
     if (!contextMenu) return;
     if (contextMenu.view.id === activeSidebarView) { setActiveSidebarView(null); }
-    // FIX: Use 'sidebarViews'
     const newViews = sidebarViews.map(v => v.id === contextMenu.view.id ? { ...v, visible: false } : v);
     updateSidebarViews(newViews);
     setContextMenu(null);
   };
 
   const handleShow = (id: string) => {
-    // FIX: Use 'sidebarViews'
     const newViews = sidebarViews.map(v => v.id === id ? { ...v, visible: true } : v);
     updateSidebarViews(newViews);
   };
 
-  // FIX: Use 'sidebarViews'
   const hiddenViews = sidebarViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
 
   return (

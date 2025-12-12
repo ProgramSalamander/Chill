@@ -19,14 +19,25 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // State from Stores
-  const { messages, isGenerating, clearChat } = useChatStore();
-  const { activeFile, updateFileContent } = useFileStore();
-  const { isOpen, setIsAIOpen } = useUIStore(state => ({ isOpen: state.isAIOpen, setIsAIOpen: state.setIsAIOpen }));
-  const { 
-      status, agentSteps, plan, pendingAction, preFlightResult, 
-      resetAgent, startAgent, approvePlan, approveAction, 
-      rejectAction, updatePendingActionArgs, sendFeedback
-  } = useAgentStore();
+  const messages = useChatStore(state => state.messages);
+  const isGenerating = useChatStore(state => state.isGenerating);
+  const clearChat = useChatStore(state => state.clearChat);
+  const activeFile = useFileStore(state => state.activeFile);
+  const updateFileContent = useFileStore(state => state.updateFileContent);
+  const isOpen = useUIStore(state => state.isAIOpen);
+  const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
+  const status = useAgentStore(state => state.status);
+  const agentSteps = useAgentStore(state => state.agentSteps);
+  const plan = useAgentStore(state => state.plan);
+  const pendingAction = useAgentStore(state => state.pendingAction);
+  const preFlightResult = useAgentStore(state => state.preFlightResult);
+  const resetAgent = useAgentStore(state => state.resetAgent);
+  const startAgent = useAgentStore(state => state.startAgent);
+  const approvePlan = useAgentStore(state => state.approvePlan);
+  const approveAction = useAgentStore(state => state.approveAction);
+  const rejectAction = useAgentStore(state => state.rejectAction);
+  const updatePendingActionArgs = useAgentStore(state => state.updatePendingActionArgs);
+  const sendFeedback = useAgentStore(state => state.sendFeedback);
 
   const isAgentRunning = status === 'thinking' || status === 'executing' || status === 'planning';
   const lastStep = agentSteps[agentSteps.length - 1];

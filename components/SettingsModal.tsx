@@ -9,7 +9,8 @@ const SettingsModal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'completion'>('chat');
   const [config, setConfig] = useState<AIConfig>(getAIConfig());
   const [hasSystemKey, setHasSystemKey] = useState(false);
-  const { isSettingsOpen, setIsSettingsOpen } = useUIStore();
+  const isSettingsOpen = useUIStore(state => state.isSettingsOpen);
+  const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
   const initChat = useChatStore(state => state.initChat);
 
   useEffect(() => {

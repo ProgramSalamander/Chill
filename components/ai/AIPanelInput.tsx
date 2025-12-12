@@ -32,7 +32,8 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
     } catch { return []; }
   });
 
-  const { contextScope, setContextScope } = useChatStore();
+  const contextScope = useChatStore(state => state.contextScope);
+  const setContextScope = useChatStore(state => state.setContextScope);
   const files = useFileStore(state => state.files);
 
   const pickerRef = useRef<HTMLDivElement>(null);

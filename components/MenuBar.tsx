@@ -17,8 +17,16 @@ const MenuBar: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { theme, toggleTheme, setIsSettingsOpen, setIsCloneModalOpen } = useUIStore();
-  const { activeProject, recentProjects, handleNewProject, handleLoadProject, saveAllFiles, files } = useFileStore();
+  const theme = useUIStore(state => state.theme);
+  const toggleTheme = useUIStore(state => state.toggleTheme);
+  const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
+  const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
+  const activeProject = useFileStore(state => state.activeProject);
+  const recentProjects = useFileStore(state => state.recentProjects);
+  const handleNewProject = useFileStore(state => state.handleNewProject);
+  const handleLoadProject = useFileStore(state => state.handleLoadProject);
+  const saveAllFiles = useFileStore(state => state.saveAllFiles);
+  const files = useFileStore(state => state.files);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

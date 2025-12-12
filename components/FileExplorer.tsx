@@ -21,7 +21,13 @@ interface FileTreeNodeProps {
 }
 
 const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
-  const { files, activeFileId, selectFile, setFileToDelete, renameNode, createNode, toggleFolder } = useFileStore();
+  const files = useFileStore(state => state.files);
+  const activeFileId = useFileStore(state => state.activeFileId);
+  const selectFile = useFileStore(state => state.selectFile);
+  const setFileToDelete = useFileStore(state => state.setFileToDelete);
+  const renameNode = useFileStore(state => state.renameNode);
+  const createNode = useFileStore(state => state.createNode);
+  const toggleFolder = useFileStore(state => state.toggleFolder);
   const agentAwareness = useAgentStore(state => state.agentAwareness);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -256,7 +262,8 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 };
 
 const FileExplorer: React.FC = () => {
-    const { files, createNode } = useFileStore();
+    const files = useFileStore(state => state.files);
+    const createNode = useFileStore(state => state.createNode);
     return (
         <div className="flex flex-col h-full">
             <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between items-center tracking-wider border-b border-white/5 shrink-0">

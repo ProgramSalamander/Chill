@@ -5,14 +5,10 @@ import { useGitStore } from '../stores/gitStore';
 
 const CloneModal: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
-  const { isCloneModalOpen, setIsCloneModalOpen } = useUIStore(state => ({
-    isCloneModalOpen: state.isCloneModalOpen,
-    setIsCloneModalOpen: state.setIsCloneModalOpen,
-  }));
-  const { isCloning, clone } = useGitStore(state => ({
-    isCloning: state.isCloning,
-    clone: state.clone,
-  }));
+  const isCloneModalOpen = useUIStore(state => state.isCloneModalOpen);
+  const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
+  const isCloning = useGitStore(state => state.isCloning);
+  const clone = useGitStore(state => state.clone);
 
   useEffect(() => {
     if (isCloneModalOpen) {

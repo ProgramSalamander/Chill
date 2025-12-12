@@ -8,8 +8,10 @@ const Terminal: React.FC = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'terminal' | 'problems'>('terminal');
   
-  const { lines, diagnostics } = useTerminalStore();
-  const { isTerminalOpen, setIsTerminalOpen } = useUIStore();
+  const lines = useTerminalStore(state => state.lines);
+  const diagnostics = useTerminalStore(state => state.diagnostics);
+  const isTerminalOpen = useUIStore(state => state.isTerminalOpen);
+  const setIsTerminalOpen = useUIStore(state => state.setIsTerminalOpen);
   const selectFile = useFileStore(state => state.selectFile);
 
   useEffect(() => {

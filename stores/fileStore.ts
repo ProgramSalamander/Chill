@@ -5,7 +5,6 @@ import { getLanguage } from '../utils/fileUtils';
 import { useTerminalStore } from './terminalStore';
 import { useGitStore } from './gitStore';
 import { projectService } from '../services/projectService';
-// FIX: Add missing import for useChatStore
 import { useChatStore } from './chatStore';
 
 interface FileState {
@@ -217,7 +216,6 @@ export const useFileStore = create<FileState>()(
         set({ activeProject: newMeta, files: [], activeFileId: '', openFileIds: [], recentProjects: projectService.getRecents() });
         
         useGitStore.getState().reset();
-        // FIX: Added missing import for useChatStore
         useChatStore.getState().clearChat();
         useTerminalStore.getState().clearTerminal();
         useTerminalStore.getState().addTerminalLine(`New project created: ${name}`, 'success');
@@ -253,7 +251,6 @@ export const useFileStore = create<FileState>()(
           }, 1);
         }
       },
-      // FIX: Removed invalid 'onStateChange' property. This logic is moved to the 'subscribe' block below.
     }
   )
 );
@@ -261,7 +258,6 @@ export const useFileStore = create<FileState>()(
 // Subscribe to self to update derived state `activeFile`
 useFileStore.subscribe(
   (state, prevState) => {
-    // FIX: Moved logic from invalid `onStateChange` to here for side effects
     if (state.activeFileId !== prevState.activeFileId || state.files !== prevState.files) {
       const activeFile = state.files.find(f => f.id === state.activeFileId) || null;
       useFileStore.setState({ activeFile });

@@ -26,16 +26,18 @@ function App() {
   // --- STATE FROM ZUSTAND STORES ---
   const theme = useUIStore(state => state.theme);
   
-  const { 
-    files, activeFile, openFileIds,
-    updateFileContent, selectFile, closeFile,
-    setActiveFileId, undo, redo, loadInitialProject
-  } = useFileStore();
+  const files = useFileStore(state => state.files);
+  const activeFile = useFileStore(state => state.activeFile);
+  const updateFileContent = useFileStore(state => state.updateFileContent);
+  const undo = useFileStore(state => state.undo);
+  const redo = useFileStore(state => state.redo);
+  const loadInitialProject = useFileStore(state => state.loadInitialProject);
 
   const setDiagnostics = useTerminalStore(state => state.setDiagnostics);
   const diagnostics = useTerminalStore(state => state.diagnostics);
   
-  const { isAIOpen, setIsAIOpen } = useUIStore(state => ({ isAIOpen: state.isAIOpen, setIsAIOpen: state.setIsAIOpen }));
+  const isAIOpen = useUIStore(state => state.isAIOpen);
+  const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
 
   const initChat = useChatStore(state => state.initChat);

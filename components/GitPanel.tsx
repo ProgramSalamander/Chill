@@ -20,10 +20,19 @@ const GitPanel: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const {
-    isInitialized, status: gitStatus, commits, isCloning, isPulling, isFetching,
-    stage, unstage, commit, init, clone, pull, fetch: fetchGit
-  } = useGitStore();
+  const isInitialized = useGitStore(state => state.isInitialized);
+  const gitStatus = useGitStore(state => state.status);
+  const commits = useGitStore(state => state.commits);
+  const isCloning = useGitStore(state => state.isCloning);
+  const isPulling = useGitStore(state => state.isPulling);
+  const isFetching = useGitStore(state => state.isFetching);
+  const stage = useGitStore(state => state.stage);
+  const unstage = useGitStore(state => state.unstage);
+  const commit = useGitStore(state => state.commit);
+  const init = useGitStore(state => state.init);
+  const clone = useGitStore(state => state.clone);
+  const pull = useGitStore(state => state.pull);
+  const fetchGit = useGitStore(state => state.fetch);
 
   const files = useFileStore(state => state.files);
 

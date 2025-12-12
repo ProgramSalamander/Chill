@@ -13,8 +13,15 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
   onClearSelection,
   onRunCode
 }) => {
-  const { openFileIds, activeFileId, files, setActiveFileId, closeFile } = useFileStore();
-  const { isPreviewOpen, setIsPreviewOpen, isAIOpen, setIsAIOpen } = useUIStore();
+  const openFileIds = useFileStore(state => state.openFileIds);
+  const activeFileId = useFileStore(state => state.activeFileId);
+  const files = useFileStore(state => state.files);
+  const setActiveFileId = useFileStore(state => state.setActiveFileId);
+  const closeFile = useFileStore(state => state.closeFile);
+  const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
+  const setIsPreviewOpen = useUIStore(state => state.setIsPreviewOpen);
+  const isAIOpen = useUIStore(state => state.isAIOpen);
+  const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
 
   return (
     <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
