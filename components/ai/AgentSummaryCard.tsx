@@ -32,7 +32,8 @@ const AgentSummaryCard: React.FC<AgentSummaryCardProps> = ({ summaryText }) => {
                     AI Summary
                 </h4>
                 <div className="text-sm text-slate-300 leading-relaxed">
-                   <RichText text={cleanSummary} />
+                   {/* FIX: Pass dummy functions for onApplyCode and onInsertCode as they are not applicable in a summary view. */}
+                   <RichText text={cleanSummary} onApplyCode={() => {}} onInsertCode={() => {}} />
                 </div>
             </div>
 

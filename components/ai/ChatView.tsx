@@ -1,7 +1,6 @@
 import React from 'react';
 import { Message, MessageRole } from '../../types';
 import { IconSparkles } from '../Icons';
-import CodeBlock from './CodeBlock';
 import RichText from './RichText';
 
 interface ChatViewProps {
@@ -13,35 +12,15 @@ interface ChatViewProps {
 
 const ChatView: React.FC<ChatViewProps> = ({ messages, isGenerating, onApplyCode, onInsertCode }) => {
   const renderMessageContent = (text: string, role: MessageRole, isStreaming?: boolean) => {
-    if (role === MessageRole.USER) {
-      return <p className="whitespace-pre-wrap leading-relaxed">{text}</p>;
-    }
+    // Add a blinking cursor character to the end of the text if the AI is streaming a response.
+    const displayText = text + (isStreaming && role === MessageRole.MODEL ? '▍' : '');
 
-    const parts = text.split(/(```[\s\S]*?```)/g);
-    
     return (
-      <div className="space-y-2">
-        {parts.map((part, idx) => {
-          if (part.startsWith('```')) {
-            const match = part.match(/```(\w+)?\n([\s\S]*?)```/);
-            const code = match ? match[2] : part.slice(3, -3);
-            const lang = match ? match[1] : '';
-            return (
-              <CodeBlock 
-                key={idx} 
-                code={code} 
-                language={lang} 
-                onApply={onApplyCode} 
-                onInsert={onInsertCode}
-              />
-            );
-          }
-          return <RichText key={idx} text={part} />;
-        })}
-        {isStreaming && (
-             <span className="inline-block w-1.5 h-4 bg-vibe-accent ml-1 align-middle animate-pulse"></span>
-        )}
-      </div>
+      <RichText
+        text={displayText}
+        onApplyCode={onApplyCode}
+        onInsertCode={onInsertCode}
+      />
     );
   };
 
