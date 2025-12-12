@@ -14,7 +14,23 @@ const RichText: React.FC<RichTextProps> = ({ text, onApplyCode, onInsertCode }) 
     h1: ({node, ...props}: any) => <h1 className="text-2xl font-bold text-white mt-4 mb-2 pb-1 border-b border-white/10" {...props} />,
     h2: ({node, ...props}: any) => <h2 className="text-xl font-bold text-white mt-4 mb-2 pb-1 border-b border-white/10" {...props} />,
     h3: ({node, ...props}: any) => <h3 className="text-lg font-bold text-white mt-4 mb-2 pb-1 border-b border-white/10" {...props} />,
-    p: ({node, ...props}: any) => <p className="my-2" {...props} />,
+    p: ({ node, ...props }: any) => {
+      // This is a fix for a known issue with react-markdown where it can wrap
+      // block-level elements (like our custom CodeBlock which renders a div/pre)
+      // inside a <p> tag, which is invalid HTML.
+      // We check if the paragraph's only child is a non-inline code block.
+      if (
+        node &&
+        node.children.length === 1 &&
+        node.children[0].tagName === 'code'
+      ) {
+        // This paragraph only contains a code block.
+        // It's likely a fenced code block that got wrapped, so we render its
+        // children directly to avoid the invalid <p> wrapper.
+        return <>{props.children}</>;
+      }
+      return <p className="my-2" {...props} />;
+    },
     strong: ({node, ...props}: any) => <strong className="text-white font-bold" {...props} />,
     em: ({node, ...props}: any) => <em className="italic text-slate-300" {...props} />,
     blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-vibe-accent/50 pl-4 my-2 text-slate-400 italic" {...props} />,
@@ -47,7 +63,7 @@ const RichText: React.FC<RichTextProps> = ({ text, onApplyCode, onInsertCode }) 
   };
 
   return (
-    <div className="text-sm leading-relaxed text-slate-300 space-y-3 prose-p:my-0">
+    <div className="text-sm leading-relaxed text-slate-300 space-y-3">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}
