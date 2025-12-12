@@ -212,14 +212,14 @@ function App() {
                        <p className="text-xs opacity-50">Cmd+P to search files</p>
                    </div>
                )}
-               <AIPanel 
-                  onInsertCode={(c) => updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
-               />
            </div>
            <div className="transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]">
               <Terminal />
            </div>
         </div>
+        <AIPanel 
+          onInsertCode={(c) => updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
+        />
       </div>
       <SettingsModal />
       <DeleteConfirmModal />

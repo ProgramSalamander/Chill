@@ -47,15 +47,13 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
   }, [messages, agentSteps, isOpen, mode, status, plan, lastStep]);
-
-  if (!isOpen) return null;
   
   return (
     <div 
       className={`
-        w-[450px] flex flex-col glass-panel absolute right-4 top-4 bottom-4 z-50 rounded-2xl shadow-2xl 
-        transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) transform border border-white/10 overflow-hidden
-        ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'}
+        flex flex-col glass-panel rounded-2xl shadow-2xl 
+        transition-all duration-300 ease-in-out border-white/10 overflow-hidden shrink-0
+        ${isOpen ? 'w-[450px]' : 'w-0 p-0 border-0 opacity-0'}
       `}
     >
       <div className="absolute inset-0 z-[-1] opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat opacity-20 mix-blend-overlay"></div>
