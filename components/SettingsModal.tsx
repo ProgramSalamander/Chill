@@ -1,26 +1,23 @@
-
 import React, { useEffect, useState } from 'react';
 import { IconClose, IconSettings, IconZap, IconCpu, IconSparkles, IconTerminal } from './Icons';
-import { AIConfig, AIModelConfig, AIProvider } from '../types';
+import { AIConfig, AIModelConfig } from '../types';
 import { getAIConfig, saveAIConfig } from '../services/configService';
+import { useUIStore } from '../../stores/uiStore';
+import { useChatStore } from '../../stores/chatStore';
 
-interface SettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onKeyUpdate: () => void;
-}
-
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpdate }) => {
+const SettingsModal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'completion'>('chat');
   const [config, setConfig] = useState<AIConfig>(getAIConfig());
   const [hasSystemKey, setHasSystemKey] = useState(false);
+  const { isSettingsOpen, setIsSettingsOpen } = useUIStore();
+  const initChat = useChatStore(state => state.initChat);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isSettingsOpen) {
       setConfig(getAIConfig());
       checkKey();
     }
-  }, [isOpen]);
+  }, [isSettingsOpen]);
 
   const checkKey = async () => {
     if (window.aistudio) {
@@ -31,8 +28,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpd
 
   const handleSave = () => {
       saveAIConfig(config);
-      onKeyUpdate();
-      onClose();
+      initChat();
+      setIsSettingsOpen(false);
   };
 
   const updateConfig = (section: 'chat' | 'completion', key: keyof AIModelConfig, value: string) => {
@@ -45,7 +42,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpd
       }));
   };
 
-  if (!isOpen) return null;
+  if (!isSettingsOpen) return null;
 
   const renderConfigForm = (section: 'chat' | 'completion') => {
       const modelConfig = config[section];
@@ -127,7 +124,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpd
             </div>
             <h2 className="text-lg font-semibold text-white tracking-tight">AI Settings</h2>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1"><IconClose size={18} /></button>
+          <button onClick={() => setIsSettingsOpen(false)} className="text-slate-500 hover:text-white transition-colors p-1"><IconClose size={18} /></button>
         </div>
         
         {/* Tabs */}
@@ -153,7 +150,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onKeyUpd
         {/* Footer */}
         <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">
           <button 
-            onClick={onClose} 
+            onClick={() => setIsSettingsOpen(false)} 
             className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
           >
             Cancel

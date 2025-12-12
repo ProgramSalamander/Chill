@@ -9,34 +9,16 @@ import {
   IconSun,
   IconMoon
 } from './Icons';
-import { ProjectMeta } from '../types';
 import Tooltip from './Tooltip';
+import { useUIStore } from '../../stores/uiStore';
+import { useFileStore } from '../../stores/fileStore';
 
-interface MenuBarProps {
-  onNewProject: () => void;
-  onSaveAll?: () => void;
-  projectName?: string;
-  onOpenSettings: () => void;
-  onOpenCloneModal: () => void;
-  recentProjects?: ProjectMeta[];
-  onLoadProject?: (project: ProjectMeta) => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-}
-
-const MenuBar: React.FC<MenuBarProps> = ({ 
-  onNewProject, 
-  onSaveAll, 
-  projectName,
-  onOpenSettings,
-  onOpenCloneModal,
-  recentProjects = [],
-  onLoadProject,
-  theme,
-  onToggleTheme
-}) => {
+const MenuBar: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const { theme, toggleTheme, setIsSettingsOpen, setIsCloneModalOpen } = useUIStore();
+  const { activeProject, recentProjects, handleNewProject, handleLoadProject, saveAllFiles, files } = useFileStore();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -53,6 +35,8 @@ const MenuBar: React.FC<MenuBarProps> = ({
   };
 
   const closeMenu = () => setActiveMenu(null);
+
+  const projectName = activeProject?.name || (files.length > 0 ? "Draft Workspace" : undefined);
 
   return (
     <div className="h-10 w-full bg-vibe-900 border-b border-vibe-border flex items-center px-4 select-none z-50 shrink-0" ref={menuRef}>
@@ -77,16 +61,16 @@ const MenuBar: React.FC<MenuBarProps> = ({
             </button>
             {activeMenu === 'projects' && (
                 <div className="absolute top-[calc(100%+4px)] left-0 w-64 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                    <button onClick={() => { onNewProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                    <button onClick={() => { handleNewProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                         <IconPlus size={14} className="text-text-tertiary group-hover:text-vibe-glow" /> 
                         <span>New Project</span>
                     </button>
-                    <button onClick={() => { onOpenCloneModal(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                    <button onClick={() => { setIsCloneModalOpen(true); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                         <IconGitBranch size={14} className="text-text-tertiary group-hover:text-vibe-glow" /> 
                         <span>Clone Project...</span>
                     </button>
                     <div className="h-[1px] bg-vibe-border my-1 mx-2" />
-                    <button onClick={() => { if(onSaveAll) onSaveAll(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                    <button onClick={() => { saveAllFiles(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                          <IconSave size={14} className="text-text-tertiary group-hover:text-vibe-glow" /> 
                          <span>Save All</span>
                     </button>
@@ -101,7 +85,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
                           {recentProjects.map(proj => (
                             <button 
                               key={proj.id}
-                              onClick={() => { if(onLoadProject) onLoadProject(proj); closeMenu(); }} 
+                              onClick={() => { handleLoadProject(proj); closeMenu(); }} 
                               className="w-full group px-3 py-2 text-xs text-left text-text-secondary hover:bg-black/10 dark:hover:bg-white/10 hover:text-text-primary flex items-center gap-3 transition-colors mx-1 rounded-lg"
                             >
                                 <IconFolder size={14} className="text-text-tertiary group-hover:text-vibe-accent" /> 
@@ -131,7 +115,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
             </button>
             {activeMenu === 'view' && (
                 <div className="absolute top-[calc(100%+4px)] left-0 w-48 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                     <button onClick={() => { onOpenSettings(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                     <button onClick={() => { setIsSettingsOpen(true); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-text-secondary hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                         <IconSettings size={14} className="text-text-tertiary group-hover:text-vibe-glow" />
                         <span>Settings</span>
                      </button>
@@ -154,7 +138,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
       <div className="flex items-center gap-2">
         <Tooltip content={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`} position="bottom">
             <button
-                onClick={onToggleTheme}
+                onClick={toggleTheme}
                 className="p-2 rounded-full text-text-tertiary hover:text-text-primary bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
             >
                 {theme === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}

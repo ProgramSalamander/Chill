@@ -4,15 +4,14 @@ import {
   IconZap, IconPlus, IconFileCode, IconX, IconClock, 
   IconTrash, IconCheck
 } from '../Icons';
+import { useChatStore } from '../../stores/chatStore';
+import { useFileStore } from '../../stores/fileStore';
 
 interface AIPanelInputProps {
   mode: 'chat' | 'agent';
   isGenerating: boolean;
   isAgentRunning: boolean;
   onSend: (text: string, contextFileIds?: string[]) => void;
-  files: File[];
-  contextScope: 'project' | 'file';
-  setContextScope: (scope: 'project' | 'file') => void;
   activeFile: File | null;
 }
 
@@ -21,9 +20,6 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
   isGenerating,
   isAgentRunning,
   onSend,
-  files,
-  contextScope,
-  setContextScope,
   activeFile
 }) => {
   const [input, setInput] = useState('');
@@ -35,6 +31,9 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
       return JSON.parse(localStorage.getItem('vibe_prompt_history') || '[]');
     } catch { return []; }
   });
+
+  const { contextScope, setContextScope } = useChatStore();
+  const files = useFileStore(state => state.files);
 
   const pickerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -159,14 +158,14 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
                   Select Files to Pin
                 </div>
                 <div className="overflow-y-auto custom-scrollbar p-1">
-                  {files.map(f => (
+                  {files.filter(f => f.type === 'file').map(f => (
                     <button
                       key={f.id}
                       onClick={() => togglePin(f.id)}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left ${pinnedFiles.includes(f.id) ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}
                     >
                       <span className={pinnedFiles.includes(f.id) ? 'text-vibe-glow' : 'opacity-50'}>
-                        {f.type === 'folder' ? <IconX className="rotate-45" size={12}/> : <IconFileCode size={14} />}
+                        <IconFileCode size={14} />
                       </span>
                       <span className="truncate">{f.name}</span>
                       {pinnedFiles.includes(f.id) && <IconCheck size={12} className="ml-auto text-vibe-glow" />}

@@ -1,37 +1,21 @@
-
-
 import React from 'react';
-import { File, Diagnostic } from '../types';
 import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles } from './Icons';
 import Tooltip from './Tooltip';
+import { useFileStore } from '../../stores/fileStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface EditorTabsProps {
-  openFileIds: string[];
-  activeFileId: string;
-  files: File[];
-  setActiveFileId: (id: string) => void;
-  onCloseTab: (e: React.MouseEvent, id: string) => void;
   onClearSelection: () => void;
-  isPreviewOpen: boolean;
-  setIsPreviewOpen: (v: boolean) => void;
-  isAIOpen: boolean;
-  setIsAIOpen: (v: boolean) => void;
   onRunCode: () => void;
 }
 
 const EditorTabs: React.FC<EditorTabsProps> = ({
-  openFileIds,
-  activeFileId,
-  files,
-  setActiveFileId,
-  onCloseTab,
   onClearSelection,
-  isPreviewOpen,
-  setIsPreviewOpen,
-  isAIOpen,
-  setIsAIOpen,
   onRunCode
 }) => {
+  const { openFileIds, activeFileId, files, setActiveFileId, closeFile } = useFileStore();
+  const { isPreviewOpen, setIsPreviewOpen, isAIOpen, setIsAIOpen } = useUIStore();
+
   return (
     <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)]">
@@ -56,7 +40,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
                   <span className="text-xs truncate flex-1 font-medium">{file.name}</span>
                   {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse"></div>}
                   <button 
-                      onClick={(e) => onCloseTab(e, id)}
+                      onClick={(e) => { e.stopPropagation(); closeFile(id); }}
                       className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/20 rounded-md ${isActive ? 'text-slate-300 hover:text-white' : ''}`}
                   >
                       <IconClose size={12} />

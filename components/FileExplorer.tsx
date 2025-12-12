@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo } from 'react';
 import { File } from '../types';
 import { 
@@ -15,35 +13,18 @@ import {
   IconClose,
   IconBrain
 } from './Icons';
+import { useFileStore } from '../../stores/fileStore';
+import { useAgentStore } from '../../stores/agentStore';
 
-interface FileExplorerProps {
-  files: File[];
-  activeFileId: string;
-  onFileClick: (file: File) => void;
-  onDelete: (file: File) => void;
-  onRename: (fileId: string, newName: string) => void;
-  onCreate: (type: 'file' | 'folder', parentId: string | null, name: string) => void;
-  onToggleFolder: (fileId: string) => void;
-  agentAwareness?: Set<string>;
-}
-
-interface FileTreeNodeProps extends FileExplorerProps {
+interface FileTreeNodeProps {
   nodeId: string | null;
   depth: number;
 }
 
-const FileTreeNode: React.FC<FileTreeNodeProps> = ({ 
-  files, 
-  nodeId, 
-  depth, 
-  activeFileId, 
-  onFileClick, 
-  onDelete,
-  onRename,
-  onCreate,
-  onToggleFolder,
-  agentAwareness
-}) => {
+const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
+  const { files, activeFileId, selectFile, setFileToDelete, renameNode, createNode, toggleFolder } = useFileStore();
+  const agentAwareness = useAgentStore(state => state.agentAwareness);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [showActions, setShowActions] = useState(false);
@@ -66,14 +47,6 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
             key={child.id} 
             nodeId={child.id} 
             depth={0} 
-            files={files}
-            activeFileId={activeFileId}
-            onFileClick={onFileClick}
-            onDelete={onDelete}
-            onRename={onRename}
-            onCreate={onCreate}
-            onToggleFolder={onToggleFolder}
-            agentAwareness={agentAwareness}
           />
         ))}
       </div>
@@ -96,7 +69,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
 
   const handleSaveEdit = () => {
     if (editName.trim()) {
-      onRename(node.id, editName.trim());
+      renameNode(node.id, editName.trim());
     }
     setIsEditing(false);
   };
@@ -106,14 +79,14 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
     setIsCreating(type);
     setNewChildName('');
     if (!node.isOpen) {
-        onToggleFolder(node.id);
+        toggleFolder(node.id);
     }
     setShowActions(false);
   };
 
   const saveCreate = () => {
     if (newChildName.trim() && isCreating) {
-      onCreate(isCreating, node.id, newChildName.trim());
+      createNode(isCreating, node.id, newChildName.trim());
     }
     setIsCreating(null);
   };
@@ -127,7 +100,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
           ${isAware && activeFileId !== node.id ? 'bg-vibe-glow/5 border border-vibe-glow/10 shadow-[0_0_10px_rgba(199,210,254,0.05)]' : ''}
         `}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
-        onClick={() => onFileClick(node)}
+        onClick={() => selectFile(node)}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
@@ -217,7 +190,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
                     <IconEdit size={12} />
                 </button>
                 <button 
-                    onClick={(e) => { e.stopPropagation(); onDelete(node); }} 
+                    onClick={(e) => { e.stopPropagation(); setFileToDelete(node); }} 
                     className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-red-400 transition-colors"
                     title="Delete"
                 >
@@ -266,14 +239,6 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
                 key={child.id} 
                 nodeId={child.id} 
                 depth={depth + 1} 
-                files={files}
-                activeFileId={activeFileId}
-                onFileClick={onFileClick}
-                onDelete={onDelete}
-                onRename={onRename}
-                onCreate={onCreate}
-                onToggleFolder={onToggleFolder}
-                agentAwareness={agentAwareness}
               />
             ))}
             {children.length === 0 && !isCreating && (
@@ -291,28 +256,29 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({
   );
 };
 
-const FileExplorer: React.FC<FileExplorerProps> = (props) => {
+const FileExplorer: React.FC = () => {
+    const { files, createNode } = useFileStore();
     return (
         <div className="flex flex-col h-full">
             <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between items-center tracking-wider border-b border-white/5 shrink-0">
                 <span>Explorer</span>
                 <div className="flex items-center gap-2 text-slate-400">
-                    <button onClick={() => props.onCreate('file', null, `untitled.ts`)} className="hover:text-white transition-colors" title="New File">
+                    <button onClick={() => createNode('file', null, `untitled.ts`)} className="hover:text-white transition-colors" title="New File">
                         <IconFilePlus size={14} />
                     </button>
-                    <button onClick={() => props.onCreate('folder', null, `new-folder`)} className="hover:text-white transition-colors" title="New Folder">
+                    <button onClick={() => createNode('folder', null, `new-folder`)} className="hover:text-white transition-colors" title="New Folder">
                         <IconFolderPlus size={14} />
                     </button>
                 </div>
             </div>
-            {props.files.length === 0 ? (
+            {files.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
                     <IconFolderOpen size={32} />
                     <p className="text-xs">No files yet</p>
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
-                    <FileTreeNode nodeId={null} depth={-1} {...props} />
+                    <FileTreeNode nodeId={null} depth={-1} />
                 </div>
             )}
         </div>

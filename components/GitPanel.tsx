@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { File, Commit } from '../types';
+import { Commit } from '../types';
 import { generateCommitMessage } from '../services/geminiService';
 import { GitStatus } from '../services/gitService';
 import { 
@@ -14,47 +13,22 @@ import {
   IconRefresh,
   IconArrowDown
 } from './Icons';
+import { useGitStore } from '../../stores/gitStore';
+import { useFileStore } from '../../stores/fileStore';
 
-interface GitPanelProps {
-  isInitialized: boolean;
-  files: File[];
-  gitStatus: GitStatus[];
-  commits: Commit[];
-  onStage: (fileId: string) => void;
-  onUnstage: (fileId: string) => void;
-  onCommit: (message: string) => void;
-  onInitialize: () => void;
-  onClone: (url: string) => void;
-  isCloning: boolean;
-  onPull: () => void;
-  onFetch: () => void;
-  isPulling: boolean;
-  isFetching: boolean;
-}
-
-const GitPanel: React.FC<GitPanelProps> = ({ 
-  isInitialized,
-  files, 
-  gitStatus,
-  commits, 
-  onStage, 
-  onUnstage, 
-  onCommit,
-  onInitialize,
-  onClone,
-  isCloning,
-  onPull,
-  onFetch,
-  isPulling,
-  isFetching
-}) => {
+const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Helper to map file path back to File object for the app
+  const {
+    isInitialized, status: gitStatus, commits, isCloning, isPulling, isFetching,
+    stage, unstage, commit, init, clone, pull, fetch: fetchGit
+  } = useGitStore();
+
+  const files = useFileStore(state => state.files);
+
   const getFileIdByPath = (path: string) => {
-      // Simple exact match name logic used in app
       const file = files.find(f => f.name === path || path.endsWith(f.name));
       return file ? file.id : null;
   };
@@ -69,13 +43,13 @@ const GitPanel: React.FC<GitPanelProps> = ({
 
   const handleCommit = () => {
     if (!commitMessage.trim() || stagedFiles.length === 0) return;
-    onCommit(commitMessage);
+    commit(commitMessage);
     setCommitMessage('');
   };
 
   const handleClone = () => {
     if (repoUrl.trim()) {
-      onClone(repoUrl.trim());
+      clone(repoUrl.trim());
     }
   };
 
@@ -124,9 +98,9 @@ const GitPanel: React.FC<GitPanelProps> = ({
              </div>
              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                  {isStaged ? (
-                     <button onClick={() => fileId && onUnstage(fileId)} className="p-1 hover:text-white text-slate-500" title="Unstage"><IconMinusCircle size={14} /></button>
+                     <button onClick={() => fileId && unstage(fileId)} className="p-1 hover:text-white text-slate-500" title="Unstage"><IconMinusCircle size={14} /></button>
                  ) : (
-                     <button onClick={() => fileId && onStage(fileId)} className="p-1 hover:text-white text-slate-500" title="Stage"><IconPlusCircle size={14} /></button>
+                     <button onClick={() => fileId && stage(fileId)} className="p-1 hover:text-white text-slate-500" title="Stage"><IconPlusCircle size={14} /></button>
                  )}
              </div>
          </div>
@@ -143,7 +117,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
               
               <div className="space-y-3">
                   <button 
-                    onClick={onInitialize}
+                    onClick={init}
                     className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:bg-white/10 transition-colors flex items-center justify-center gap-2 text-slate-300 hover:text-white"
                   >
                       <IconSparkles size={14} />
@@ -195,7 +169,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
           {/* Action Header */}
           <div className="p-2 border-b border-white/5 flex items-center gap-2 shrink-0">
             <button 
-              onClick={onFetch}
+              onClick={fetchGit}
               disabled={isPulling || isFetching}
               className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
@@ -203,7 +177,7 @@ const GitPanel: React.FC<GitPanelProps> = ({
               <span>{isFetching ? 'Fetching...' : 'Fetch'}</span>
             </button>
             <button 
-              onClick={onPull}
+              onClick={pull}
               disabled={isPulling || isFetching}
               className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
             >

@@ -1,72 +1,50 @@
-
-
-
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, File } from '../../types';
-import { useAgent } from '../hooks/useAgent';
-import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
 import AgentHUD from './ai/AgentHUD';
 import ChatView from './ai/ChatView';
 import AIPanelInput from './ai/AIPanelInput';
 import Tooltip from './Tooltip';
+import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
+
+import { useChatStore } from '../../stores/chatStore';
+import { useFileStore } from '../../stores/fileStore';
+import { useAgentStore } from '../../stores/agentStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface AIPanelProps {
-  isOpen: boolean;
-  messages: Message[];
-  onSendMessage: (text: string, contextFileIds?: string[]) => void;
-  onClearChat: () => void;
-  isGenerating: boolean;
-  activeFile: File | null;
-  onClose: () => void;
-  onApplyCode: (code: string) => void;
   onInsertCode: (code: string) => void;
-  contextScope: 'project' | 'file';
-  setContextScope: (scope: 'project' | 'file') => void;
-  files: File[];
-  onAgentAction: (action: string, args: any) => Promise<string>;
 }
 
-const AIPanel: React.FC<AIPanelProps> = (props) => {
+const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const [mode, setMode] = useState<'chat' | 'agent'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // State from Stores
+  const { messages, isGenerating, clearChat } = useChatStore();
+  const { activeFile, updateFileContent } = useFileStore();
+  const { isOpen, setIsAIOpen } = useUIStore(state => ({ isOpen: state.isAIOpen, setIsAIOpen: state.setIsAIOpen }));
   const { 
-      status,
-      agentSteps,
-      plan,
-      pendingAction,
-      preFlightResult,
-      startAgent,
-      approvePlan,
-      approveAction,
-      rejectAction,
-      updatePendingActionArgs,
-      setAgentSteps,
-      sendFeedback
-  } = useAgent(props.onAgentAction, props.files);
+      status, agentSteps, plan, pendingAction, preFlightResult, 
+      resetAgent, startAgent, approvePlan, approveAction, 
+      rejectAction, updatePendingActionArgs, sendFeedback
+  } = useAgentStore();
 
   const isAgentRunning = status === 'thinking' || status === 'executing' || status === 'planning';
+  const lastStep = agentSteps[agentSteps.length - 1];
 
   useEffect(() => {
-    if (props.isOpen) {
+    if (isOpen) {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
-  }, [props.messages, agentSteps, props.isOpen, mode, status, plan]); // Added status/plan deps to scroll on updates
+  }, [messages, agentSteps, isOpen, mode, status, plan, lastStep]);
 
-  const handleSend = (text: string, contextFileIds?: string[]) => {
-    if (mode === 'chat') {
-      props.onSendMessage(text, contextFileIds);
-    } else {
-      startAgent(text); // Start the planning phase
-    }
-  };
+  if (!isOpen) return null;
   
   return (
     <div 
       className={`
         w-[450px] flex flex-col glass-panel absolute right-4 top-4 bottom-4 z-50 rounded-2xl shadow-2xl 
         transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) transform border border-white/10 overflow-hidden
-        ${props.isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'}
+        ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-[110%] opacity-0 pointer-events-none'}
       `}
     >
       <div className="absolute inset-0 z-[-1] opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat opacity-20 mix-blend-overlay"></div>
@@ -98,14 +76,14 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
             <div className="flex items-center gap-1">
                 <Tooltip content={mode === 'chat' ? "Clear Chat" : "Reset Agent"} position="left">
                   <button 
-                      onClick={() => mode === 'chat' ? props.onClearChat() : setAgentSteps([])}
+                      onClick={() => mode === 'chat' ? clearChat() : resetAgent()}
                       className="text-slate-500 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-full"
                   >
                     <IconTrash size={16} />
                   </button>
                 </Tooltip>
                 <Tooltip content="Close Panel" position="left">
-                  <button onClick={props.onClose} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
+                  <button onClick={() => setIsAIOpen(false)} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
                     <IconClose size={18} />
                   </button>
                 </Tooltip>
@@ -143,10 +121,10 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
       <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/30">
         {mode === 'chat' ? (
           <ChatView 
-            messages={props.messages}
-            isGenerating={props.isGenerating}
-            onApplyCode={props.onApplyCode}
-            onInsertCode={props.onInsertCode}
+            messages={messages}
+            isGenerating={isGenerating}
+            onApplyCode={(c) => updateFileContent(c, true)}
+            onInsertCode={onInsertCode}
           />
         ) : (
           <AgentHUD 
@@ -168,13 +146,16 @@ const AIPanel: React.FC<AIPanelProps> = (props) => {
       {/* Input Area */}
       <AIPanelInput
         mode={mode}
-        isGenerating={props.isGenerating}
+        isGenerating={isGenerating}
         isAgentRunning={isAgentRunning}
-        onSend={handleSend}
-        files={props.files}
-        contextScope={props.contextScope}
-        setContextScope={props.setContextScope}
-        activeFile={props.activeFile}
+        onSend={(text, contextFileIds) => {
+          if (mode === 'chat') {
+            useChatStore.getState().sendMessage(text, contextFileIds);
+          } else {
+            startAgent(text);
+          }
+        }}
+        activeFile={activeFile}
       />
     </div>
   );

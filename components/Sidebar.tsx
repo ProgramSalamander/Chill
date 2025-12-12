@@ -1,64 +1,29 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen } from './Icons';
-import { GitStatus } from '../services/gitService';
-import { SidebarView, File, Commit } from '../types';
+import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
-import { SIDEBAR_VIEWS } from '../views/sidebarViews';
 import Tooltip from './Tooltip';
+import { useUIStore } from '../../stores/uiStore';
+import { useGitStore } from '../../stores/gitStore';
 
-// --- PROPS INTERFACE ---
-interface SidebarProps {
-  // View Management
-  allViews: SidebarView[];
-  onUpdateViews: (views: SidebarView[]) => void;
-  onOpenCommandPalette: () => void;
-  onOpenSettings: () => void;
+const Sidebar: React.FC = () => {
+  const { 
+    activeSidebarView, setActiveSidebarView, 
+    // FIX: Changed 'allViews' to the correct property 'sidebarViews'
+    sidebarViews, updateSidebarViews, 
+    setIsCommandPaletteOpen, setIsSettingsOpen
+  } = useUIStore();
 
-  // File Explorer Data
-  files: File[];
-  activeFileId: string;
-  onFileClick: (file: File) => void;
-  onDelete: (file: File) => void;
-  onRename: (fileId: string, newName: string) => void;
-  onCreate: (type: 'file' | 'folder', parentId: string | null, name: string) => void;
-  onToggleFolder: (fileId: string) => void;
+  const gitStatus = useGitStore(state => state.status);
 
-  // Git Data
-  isGitInitialized: boolean;
-  gitStatus: GitStatus[];
-  gitCommits: Commit[];
-  onStage: (fileId: string) => void;
-  onUnstage: (fileId: string) => void;
-  onCommit: (message: string) => void;
-  onInitializeGit: () => void;
-  onClone: (url: string) => void;
-  isCloning: boolean;
-  onPull: () => void;
-  onFetch: () => void;
-  isPulling: boolean;
-  isFetching: boolean;
-
-  // Agent Awareness
-  agentAwareness: Set<string>;
-}
-
-const Sidebar: React.FC<SidebarProps> = (props) => {
-  const [activeView, setActiveView] = useState<string | null>(() => {
-    try { return JSON.parse(localStorage.getItem('vibe_layout_sidebar') || '"explorer"'); } catch { return 'explorer'; }
-  });
-
-  const { allViews, onUpdateViews } = props;
   const visibleSortedViews = useMemo(() => 
-    allViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
-    [allViews]
+    // FIX: Use 'sidebarViews'
+    sidebarViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
+    // FIX: Use 'sidebarViews'
+    [sidebarViews]
   );
   
-  useEffect(() => {
-    localStorage.setItem('vibe_layout_sidebar', JSON.stringify(activeView));
-  }, [activeView]);
-
   // --- ACTIVITY BAR STATE & LOGIC ---
   const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, opacity: 0 });
   const iconRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -71,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const activeIndex = visibleSortedViews.findIndex(v => v.id === activeView);
+    const activeIndex = visibleSortedViews.findIndex(v => v.id === activeSidebarView);
     if (activeIndex !== -1) {
       const activeIcon = iconRefs.current[activeIndex];
       if (activeIcon) {
@@ -83,7 +48,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     } else {
        setIndicatorStyle({ top: indicatorStyle.top, opacity: 0 });
     }
-  }, [activeView, visibleSortedViews]);
+  }, [activeSidebarView, visibleSortedViews]);
 
 
   useEffect(() => {
@@ -119,11 +84,13 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const targetIndex = visibleIds.indexOf(targetView.id);
     visibleIds.splice(targetIndex, 0, movedId);
 
-    const hidden = allViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
-    const newVisible = visibleIds.map(id => allViews.find(v => v.id === id)!);
+    // FIX: Use 'sidebarViews'
+    const hidden = sidebarViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
+    // FIX: Use 'sidebarViews'
+    const newVisible = visibleIds.map(id => sidebarViews.find(v => v.id === id)!);
     const finalViews = [...newVisible, ...hidden].map((view, index) => ({...view, order: index}));
 
-    onUpdateViews(finalViews);
+    updateSidebarViews(finalViews);
   };
 
   const handleDragEnd = () => { setDraggedId(null); setDragOverId(null); };
@@ -131,18 +98,21 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
   
   const handleHide = () => {
     if (!contextMenu) return;
-    if (contextMenu.view.id === activeView) { setActiveView(null); }
-    const newViews = allViews.map(v => v.id === contextMenu.view.id ? { ...v, visible: false } : v);
-    onUpdateViews(newViews);
+    if (contextMenu.view.id === activeSidebarView) { setActiveSidebarView(null); }
+    // FIX: Use 'sidebarViews'
+    const newViews = sidebarViews.map(v => v.id === contextMenu.view.id ? { ...v, visible: false } : v);
+    updateSidebarViews(newViews);
     setContextMenu(null);
   };
 
   const handleShow = (id: string) => {
-    const newViews = allViews.map(v => v.id === id ? { ...v, visible: true } : v);
-    onUpdateViews(newViews);
+    // FIX: Use 'sidebarViews'
+    const newViews = sidebarViews.map(v => v.id === id ? { ...v, visible: true } : v);
+    updateSidebarViews(newViews);
   };
 
-  const hiddenViews = allViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
+  // FIX: Use 'sidebarViews'
+  const hiddenViews = sidebarViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
 
   return (
     <div className="flex gap-3 h-full">
@@ -157,8 +127,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                  style={indicatorStyle}
               />
               {visibleSortedViews.map((view, index) => {
-                const isActive = activeView === view.id;
-                const hasGitBadge = view.id === 'git' && props.gitStatus.filter(s => s.status !== 'unmodified').length > 0;
+                const isActive = activeSidebarView === view.id;
+                const hasGitBadge = view.id === 'git' && gitStatus.filter(s => s.status !== 'unmodified').length > 0;
                 const isDragged = draggedId === view.id;
                 const isDragOver = dragOverId === view.id;
 
@@ -172,7 +142,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                       onDrop={e => handleDrop(e, view)}
                       onDragEnd={handleDragEnd}
                       onContextMenu={e => handleContextMenu(e, view)}
-                      onClick={() => setActiveView(isActive ? null : view.id)}
+                      onClick={() => setActiveSidebarView(isActive ? null : view.id)}
                       className={`p-3 rounded-xl transition-all duration-300 relative group w-[44px] h-[44px] flex items-center justify-center cursor-pointer
                         ${isActive ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:text-white hover:bg-white/10'}
                         ${isDragged ? 'opacity-30 scale-90' : 'opacity-100 scale-100'}
@@ -194,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
             <Tooltip content="Command Palette" shortcut="⌘P">
               <button 
-                onClick={props.onOpenCommandPalette}
+                onClick={() => setIsCommandPaletteOpen(true)}
                 className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:scale-105"
               >
                 <IconSearch size={20} strokeWidth={1.5} />
@@ -205,7 +175,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             
             <Tooltip content="Settings">
               <button 
-                onClick={props.onOpenSettings}
+                onClick={() => setIsSettingsOpen(true)}
                 className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:rotate-90"
               >
                 <IconSettings size={20} strokeWidth={1.5} />
@@ -260,23 +230,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         </div>
         
         {/* Content Panel */}
-        {activeView && (
+        {activeSidebarView && (
             <div className="w-64 glass-panel rounded-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 h-full overflow-hidden shadow-2xl">
-               {activeView === 'explorer' && (
-                  <FileExplorer 
-                    files={props.files} activeFileId={props.activeFileId} onFileClick={props.onFileClick}
-                    onDelete={props.onDelete} onRename={props.onRename} onCreate={props.onCreate} onToggleFolder={props.onToggleFolder}
-                    agentAwareness={props.agentAwareness}
-                  />
-               )}
-               {activeView === 'git' && (
-                  <GitPanel 
-                    isInitialized={props.isGitInitialized} files={props.files} gitStatus={props.gitStatus} commits={props.gitCommits}
-                    onStage={props.onStage} onUnstage={props.onUnstage} onCommit={props.onCommit} onInitialize={props.onInitializeGit}
-                    onClone={props.onClone} isCloning={props.isCloning}
-                    onPull={props.onPull} onFetch={props.onFetch} isPulling={props.isPulling} isFetching={props.isFetching}
-                  />
-               )}
+               {activeSidebarView === 'explorer' && <FileExplorer />}
+               {activeSidebarView === 'git' && <GitPanel />}
             </div>
         )}
     </div>

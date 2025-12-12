@@ -1,15 +1,15 @@
 import React from 'react';
 import { IconClose, IconTrash } from './Icons';
+import { useFileStore } from '../../stores/fileStore';
 
-interface DeleteConfirmModalProps {
-  isOpen: boolean;
-  fileName: string;
-  onClose: () => void;
-  onConfirm: () => void;
-}
+const DeleteConfirmModal: React.FC = () => {
+  const { fileToDelete, setFileToDelete, confirmDelete } = useFileStore(state => ({
+    fileToDelete: state.fileToDelete,
+    setFileToDelete: state.setFileToDelete,
+    confirmDelete: state.confirmDelete,
+  }));
 
-const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, fileName, onClose, onConfirm }) => {
-  if (!isOpen) return null;
+  if (!fileToDelete) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -22,7 +22,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, fileNam
             <h2 className="text-lg font-semibold text-white tracking-tight">Delete File</h2>
           </div>
           <button 
-            onClick={onClose} 
+            onClick={() => setFileToDelete(null)} 
             className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-md"
           >
             <IconClose size={18} />
@@ -31,7 +31,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, fileNam
         
         <div className="p-6">
           <p className="text-slate-300 text-sm leading-relaxed">
-            Are you sure you want to delete <span className="font-mono text-white bg-white/5 px-1.5 py-0.5 rounded border border-white/10">{fileName}</span>?
+            Are you sure you want to delete <span className="font-mono text-white bg-white/5 px-1.5 py-0.5 rounded border border-white/10">{fileToDelete.name}</span>?
           </p>
           <p className="text-slate-500 text-xs mt-2">
             This action cannot be undone. The file will be permanently removed from your workspace.
@@ -40,13 +40,13 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, fileNam
 
         <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">
           <button 
-            onClick={onClose} 
+            onClick={() => setFileToDelete(null)} 
             className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
           >
             Cancel
           </button>
           <button 
-            onClick={onConfirm} 
+            onClick={confirmDelete} 
             className="px-4 py-2 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 transition-colors shadow-lg shadow-red-900/20"
           >
             Delete File

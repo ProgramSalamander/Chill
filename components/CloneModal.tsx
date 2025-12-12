@@ -1,31 +1,35 @@
-
 import React, { useState, useEffect } from 'react';
 import { IconClose, IconGitBranch } from './Icons';
+import { useUIStore } from '../../stores/uiStore';
+import { useGitStore } from '../../stores/gitStore';
 
-interface CloneModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onClone: (url: string) => void;
-  isCloning: boolean;
-}
-
-const CloneModal: React.FC<CloneModalProps> = ({ isOpen, onClose, onClone, isCloning }) => {
+const CloneModal: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
+  const { isCloneModalOpen, setIsCloneModalOpen } = useUIStore(state => ({
+    isCloneModalOpen: state.isCloneModalOpen,
+    setIsCloneModalOpen: state.setIsCloneModalOpen,
+  }));
+  const { isCloning, clone } = useGitStore(state => ({
+    isCloning: state.isCloning,
+    clone: state.clone,
+  }));
 
   useEffect(() => {
-    if (isOpen) {
+    if (isCloneModalOpen) {
       setRepoUrl(''); // Clear input on open
     }
-  }, [isOpen]);
+  }, [isCloneModalOpen]);
 
-  const handleConfirmClone = () => {
+  const handleConfirmClone = async () => {
     if (repoUrl.trim() && !isCloning) {
-      onClone(repoUrl.trim());
-      // onClose will be called by App.tsx after `onClone`
+      const success = await clone(repoUrl.trim());
+      if (success) {
+        setIsCloneModalOpen(false);
+      }
     }
   };
 
-  if (!isOpen) return null;
+  if (!isCloneModalOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -38,7 +42,7 @@ const CloneModal: React.FC<CloneModalProps> = ({ isOpen, onClose, onClone, isClo
             <h2 className="text-lg font-semibold text-white tracking-tight">Clone Repository</h2>
           </div>
           <button 
-            onClick={onClose} 
+            onClick={() => setIsCloneModalOpen(false)} 
             className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-md"
           >
             <IconClose size={18} />
@@ -64,7 +68,7 @@ const CloneModal: React.FC<CloneModalProps> = ({ isOpen, onClose, onClone, isClo
 
         <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">
           <button 
-            onClick={onClose} 
+            onClick={() => setIsCloneModalOpen(false)} 
             className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
             disabled={isCloning}
           >
