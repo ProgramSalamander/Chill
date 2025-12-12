@@ -45,7 +45,7 @@ class GeminiSession implements AISession {
     }
 
     const response: GenerateContentResponse = await this.chat.sendMessage({ 
-        content: parts.length > 0 ? { parts } : props.message 
+        message: parts.length > 0 ? parts : props.message
     });
     
     return this.parseResponse(response);
@@ -57,7 +57,7 @@ class GeminiSession implements AISession {
         return (async function* () { yield { text: response.text }; })();
     }
 
-    const resultStream = await this.chat.sendMessageStream({ content: props.message });
+    const resultStream = await this.chat.sendMessageStream({ message: props.message });
     
     return (async function* () {
       for await (const chunk of resultStream) {
