@@ -1,13 +1,12 @@
 
-import git from 'isomorphic-git';
+import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
-import FS from '@isomorphic-git/lightning-fs';
+import LightningFS from '@isomorphic-git/lightning-fs';
 import { File } from '../types';
 import { getLanguage } from '../utils/fileUtils';
 
 // Initialize in-memory filesystem
-// @ts-ignore
-const fs = new FS('vibecode-fs', { wipe: true });
+const fs = new LightningFS('vibecode-fs', { wipe: true });
 const pfs = fs.promises;
 
 export interface GitStatus {

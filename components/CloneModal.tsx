@@ -5,6 +5,7 @@ import { useGitStore } from '../stores/gitStore';
 
 const CloneModal: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
+  const [error, setError] = useState('');
   const isCloneModalOpen = useUIStore(state => state.isCloneModalOpen);
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
   const isCloning = useGitStore(state => state.isCloning);
@@ -13,14 +14,18 @@ const CloneModal: React.FC = () => {
   useEffect(() => {
     if (isCloneModalOpen) {
       setRepoUrl(''); // Clear input on open
+      setError('');
     }
   }, [isCloneModalOpen]);
 
   const handleConfirmClone = async () => {
     if (repoUrl.trim() && !isCloning) {
+      setError('');
       const success = await clone(repoUrl.trim());
       if (success) {
         setIsCloneModalOpen(false);
+      } else {
+        setError('Failed to clone repository. Please check the URL and terminal for more details.');
       }
     }
   };
@@ -57,6 +62,11 @@ const CloneModal: React.FC = () => {
             className="w-full bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-vibe-accent placeholder-slate-600"
             disabled={isCloning}
           />
+           {error && (
+            <p className="text-red-400 text-xs mt-2 animate-in fade-in">
+              {error}
+            </p>
+          )}
           <p className="text-slate-500 text-xs mt-2">
             This will overwrite your current in-memory workspace.
           </p>
@@ -76,10 +86,10 @@ const CloneModal: React.FC = () => {
             className="px-4 py-2 rounded-lg text-xs font-medium bg-vibe-accent text-white border border-vibe-accent/20 hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:shadow-none"
           >
             {isCloning ? (
-                <>
-                   <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                   Cloning...
-                </>
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                   <span>Cloning...</span>
+                </div>
             ) : (
                 'Clone Repository'
             )}
