@@ -15,6 +15,12 @@ const ChatView: React.FC<ChatViewProps> = ({ messages, isGenerating, onApplyCode
     // Add a blinking cursor character to the end of the text if the AI is streaming a response.
     const displayText = text + (isStreaming && role === MessageRole.MODEL ? '▍' : '');
 
+    // User messages should be plain text to avoid rendering their input as markdown.
+    if (role === MessageRole.USER) {
+      return <div className="whitespace-pre-wrap">{displayText}</div>;
+    }
+
+    // Model messages are rendered with markdown support.
     return (
       <RichText
         text={displayText}
