@@ -164,6 +164,32 @@ function App() {
       }
   };
 
+  const handleAICommand = (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => {
+    const file = useFileStore.getState().activeFile;
+    if (!file) return;
+
+    if (type === 'fix') {
+      const { error, range } = context;
+      addTerminalLine(`Auto-fixing: ${error}...`, 'info');
+      // Use inline assist to fix directly
+      const instruction = `Fix this error: "${error}". Return the corrected code block.`;
+      
+      // Calculate a range slightly around the error for context if needed, 
+      // but Monaco context object passed here usually has the error range.
+      // We pass the error range directly to inline assist.
+      handleInlineAssist(instruction, range);
+    } else if (type === 'test') {
+      setIsAIOpen(true);
+      sendMessage(`Generate comprehensive unit tests for the following code:\n\`\`\`${file.language}\n${context.code}\n\`\`\``);
+    } else if (type === 'docs') {
+      const instruction = "Add detailed documentation (JSDoc/Docstring) to this code.";
+      handleInlineAssist(instruction, context.range);
+    } else if (type === 'refactor') {
+      const instruction = "Refactor this code to be cleaner, more efficient, and robust. Maintain functionality.";
+      handleInlineAssist(instruction, context.range);
+    }
+  };
+
   const handleRunCode = () => {
       if (!activeFile) return;
       const { setIsPreviewOpen } = useUIStore.getState();
@@ -214,6 +240,7 @@ function App() {
                               onSave={handleSaveFile}
                               showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
                               onInlineAssist={handleInlineAssist}
+                              onAICommand={handleAICommand}
                           />
                           {selectedCode && (
                              <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
