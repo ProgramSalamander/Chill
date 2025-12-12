@@ -105,6 +105,32 @@ export const useUIStore = create<UIState>()(
         activeSidebarView: state.activeSidebarView,
         sidebarViews: state.sidebarViews.map(({ id, order, visible }) => ({ id, order, visible })),
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const savedViewsConfig: Array<{ id: string; order: number; visible: boolean }> = state.sidebarViews || [];
+          const baseViewsMap = new Map(SIDEBAR_VIEWS.map(v => [v.id, v]));
+          
+          const mergedViews = savedViewsConfig
+            .map(savedView => {
+              const baseView = baseViewsMap.get(savedView.id);
+              if (!baseView) return null;
+              return {
+                ...baseView,
+                order: savedView.order,
+                visible: savedView.visible,
+              };
+            })
+            .filter((v): v is SidebarView => v !== null);
+
+          SIDEBAR_VIEWS.forEach(baseView => {
+            if (!mergedViews.some(v => v.id === baseView.id)) {
+              mergedViews.push({ ...baseView, order: mergedViews.length, visible: true });
+            }
+          });
+          
+          state.sidebarViews = mergedViews.sort((a, b) => a.order - b.order);
+        }
+      },
     }
   )
 );
