@@ -6,6 +6,7 @@ import { useTerminalStore } from './terminalStore';
 import { useGitStore } from './gitStore';
 import { useProjectStore } from './projectStore';
 import { notify } from '../stores/notificationStore';
+import { ragService } from '../services/ragService';
 
 interface FileTreeState {
   files: File[];
@@ -44,6 +45,7 @@ export const useFileTreeStore = create<FileTreeState>()(
 
       setAllFiles: (newFiles) => {
         set({ files: newFiles, openFileIds: [], activeFileId: '', activeFile: null });
+        ragService.triggerDebouncedUpdate(newFiles);
       },
 
       resetFiles: () => {
@@ -131,6 +133,7 @@ export const useFileTreeStore = create<FileTreeState>()(
         set(state => ({ files: state.files.map(f => f.id === file.id ? { ...f, isModified: false } : f) }));
         notify(`Saved ${file.name}`, 'success');
         useGitStore.getState().syncFile(file);
+        ragService.triggerDebouncedUpdate(get().files);
         return true;
       },
 

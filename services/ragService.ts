@@ -45,6 +45,7 @@ export interface SearchResult {
 class RAGService {
   private index: TFIDFIndex | null = null;
   public isIndexing: boolean = false;
+  private debounceIndexRef: ReturnType<typeof setTimeout> | null = null;
 
   private tokenize(text: string): string[] {
     return text
@@ -166,6 +167,21 @@ class RAGService {
     }
   }
 
+  public triggerDebouncedUpdate(files: File[]): void {
+    if (this.debounceIndexRef) clearTimeout(this.debounceIndexRef);
+
+    this.debounceIndexRef = setTimeout(() => {
+      if (files.length > 0) {
+        const { setIndexingStatus } = useUIStore.getState();
+        setIndexingStatus('indexing');
+        this.updateIndex(files).then(() => {
+          setIndexingStatus('ready');
+          setTimeout(() => setIndexingStatus('idle'), 3000);
+        });
+      }
+    }, 2000);
+  }
+  
   private cosineSimilarity(vecA: Map<string, number>, vecB: Map<string, number>): number {
       let dotProduct = 0;
       // Iterate over the smaller map for efficiency

@@ -45,7 +45,6 @@ function App() {
   const isAIOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
-  const setIndexingStatus = useUIStore(state => state.setIndexingStatus);
 
   const initChat = useChatStore(state => state.initChat);
   const sendMessage = useChatStore(state => state.sendMessage);
@@ -56,7 +55,6 @@ function App() {
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSuggestionResolve = useRef<((value: string | null) => void) | null>(null);
-  const debounceIndexRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addTerminalLine = useTerminalStore(state => state.addTerminalLine);
 
   // --- EFFECTS ---
@@ -75,20 +73,6 @@ function App() {
     loadInitialProject();
   }, [initChat, loadInitialProject]);
   
-  // RAG Indexing Effect
-  useEffect(() => {
-    if (debounceIndexRef.current) clearTimeout(debounceIndexRef.current);
-    debounceIndexRef.current = setTimeout(() => {
-      if (files.length > 0) {
-        setIndexingStatus('indexing');
-        ragService.updateIndex(files).then(() => {
-          setIndexingStatus('ready');
-          setTimeout(() => setIndexingStatus('idle'), 3000);
-        });
-      }
-    }, 2000);
-  }, [files, setIndexingStatus]);
-
   // Debounced Linting Effect
   useEffect(() => {
     if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
