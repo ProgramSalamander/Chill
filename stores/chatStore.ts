@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Message, MessageRole, File, AISession } from '../types';
-import { createChatSession, sendMessageStream } from '../services/geminiService';
+import { aiService } from '../services/aiService';
 import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
 import { useFileStore } from './fileStore';
@@ -38,7 +38,7 @@ export const useChatStore = create<ChatState>()(
 
       initChat: () => {
         const history = get().messages.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
-        const session = createChatSession(SYSTEM_INSTRUCTION, history);
+        const session = aiService.createChatSession({ systemInstruction: SYSTEM_INSTRUCTION, history });
         set({ chatSession: session });
         useTerminalStore.getState().addTerminalLine('System initialized. VibeCode AI connected.', 'info');
       },
@@ -68,7 +68,7 @@ export const useChatStore = create<ChatState>()(
               prompt = `[FILE: ${activeFile.name}]\n${activeFile.content}\n\n[QUERY]\n${text}`;
           }
 
-          const stream = await sendMessageStream(chatSession, prompt);
+          const stream = await aiService.sendMessageStream(chatSession, prompt);
           const responseId = (Date.now() + 1).toString();
           set(state => ({ messages: [...state.messages, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }] }));
           

@@ -1,6 +1,7 @@
 
 
 import React from 'react';
+// FIX: Removed incorrect import of AIModelConfig. It is now defined and exported from this file to resolve circular dependency issues.
 
 
 export interface File {
@@ -98,10 +99,11 @@ export interface ProjectMeta {
 
 export type AIProvider = 'gemini' | 'openai';
 
+// FIX: Defined and exported AIModelConfig here to resolve circular dependency issues.
 export interface AIModelConfig {
   provider: AIProvider;
   modelId: string;
-  baseUrl: string; // e.g. https://api.openai.com/v1 or http://localhost:11434/v1
+  baseUrl: string; 
   apiKey: string;
 }
 
@@ -132,6 +134,30 @@ export interface AIResponse {
 export interface AISession {
   sendMessage: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AIResponse>;
   sendMessageStream: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AsyncIterable<{ text: string }>>;
+}
+
+export interface AIProviderAdapter {
+  createChatSession(props: {
+    systemInstruction: string;
+    history?: Message[];
+    isAgent?: boolean;
+    config: AIModelConfig;
+  }): AISession;
+
+  generateText(props: {
+    prompt: string;
+    config: AIModelConfig;
+    options?: {
+      temperature?: number;
+      maxOutputTokens?: number;
+    };
+  }): Promise<string>;
+
+  generateAgentPlan(props: {
+    goal: string;
+    context: string;
+    config: AIModelConfig;
+  }): Promise<AgentPlanItem[]>;
 }
 
 export interface SidebarViewConfig {

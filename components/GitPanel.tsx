@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { generateCommitMessage } from '../services/geminiService';
+import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
 import { 
   IconPlusCircle, 
@@ -75,7 +75,7 @@ const GitPanel: React.FC = () => {
          return `File: ${f.filepath} (${prefix})\n`; 
       }).join('\n');
 
-      const msg = await generateCommitMessage(changes);
+      const msg = await aiService.generateCommitMessage(changes);
       if (msg) setCommitMessage(msg);
     } catch (e) {
       console.error(e);

@@ -17,7 +17,7 @@ import { useFileStore } from './stores/fileStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
 
-import { getCodeCompletion, editCode } from './services/geminiService';
+import { aiService } from './services/aiService';
 import { initRuff, runPythonLint } from './services/lintingService';
 import { ragService } from './services/ragService';
 import { generatePreviewHtml } from './utils/previewUtils';
@@ -121,7 +121,7 @@ function App() {
                 return;
             }
             try {
-                const sugg = await getCodeCompletion(code, offset, currentFile.language, currentFile, useFileStore.getState().files);
+                const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileStore.getState().files);
                 resolve(sugg || null);
             } catch (e) {
                 console.error("Suggestion fetch failed:", e);
@@ -142,7 +142,7 @@ function App() {
           let suffix = lines[endLine].substring(endCol) + (endLine < lines.length -1 ? '\n' : '') + lines.slice(endLine + 1).join('\n');
           let selectedText = file.content.substring(file.content.indexOf(prefix) + prefix.length, file.content.lastIndexOf(suffix));
           
-          const newCode = await editCode(prefix, selectedText, suffix, instruction, file, useFileStore.getState().files);
+          const newCode = await aiService.editCode(prefix, selectedText, suffix, instruction, file, useFileStore.getState().files);
           if (newCode) {
               const updatedContent = prefix + newCode + suffix;
               updateFileContent(updatedContent);

@@ -1,7 +1,9 @@
 
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message, MessageRole, File, AISession } from '../types';
-import { createChatSession, sendMessageStream } from '../services/geminiService';
+// FIX: Replaced import from empty geminiService.ts with aiService.
+import { aiService } from '../services/aiService';
 import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
 
@@ -35,7 +37,8 @@ export const useAIChat = (
 
   const initChat = useCallback(() => {
       const history = messagesRef.current.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
-      chatSessionRef.current = createChatSession(SYSTEM_INSTRUCTION, history);
+      // FIX: Call aiService.createChatSession with the correct object argument.
+      chatSessionRef.current = aiService.createChatSession({ systemInstruction: SYSTEM_INSTRUCTION, history });
       addTerminalLine('System initialized. VibeCode AI connected.', 'info');
   }, [addTerminalLine]);
 
@@ -68,7 +71,8 @@ export const useAIChat = (
           prompt = `[FILE: ${activeFile.name}]\n${activeFile.content}\n\n[QUERY]\n${text}`;
       }
 
-      const stream = await sendMessageStream(chatSessionRef.current, prompt);
+      // FIX: Call aiService.sendMessageStream.
+      const stream = await aiService.sendMessageStream(chatSessionRef.current, prompt);
       const responseId = (Date.now() + 1).toString();
       setMessages(p => [...p, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }]);
       let fullText = '';

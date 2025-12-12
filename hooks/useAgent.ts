@@ -1,9 +1,11 @@
 
 
 
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, PreFlightCheck } from '../types';
-import { createChatSession, generateAgentPlan } from '../services/geminiService';
+// FIX: Replaced import from empty geminiService.ts with aiService.
+import { aiService } from '../services/aiService';
 import { validateCode } from '../services/lintingService';
 import { getLanguage } from '../utils/fileUtils';
 
@@ -169,7 +171,8 @@ export const useAgent = (
 
       try {
           const context = `Project contains ${files.length} files.`; 
-          const generatedPlan = await generateAgentPlan(goal, context);
+          // FIX: Call aiService.generateAgentPlan with the correct object argument.
+          const generatedPlan = await aiService.generateAgentPlan({ goal, context });
           setPlan(generatedPlan);
           setStatus('plan_review');
           
@@ -195,7 +198,8 @@ export const useAgent = (
       You should output a Tool Call to perform an action (e.g., readFile, writeFile).
       Wait for the user to confirm the action, then I will give you the result.
       `;
-      agentChatRef.current = createChatSession(systemPrompt, [], true);
+      // FIX: Call aiService.createChatSession with the correct object argument.
+      agentChatRef.current = aiService.createChatSession({ systemInstruction: systemPrompt, history: [], isAgent: true });
       await processNextStep(modifiedPlan || plan);
   };
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, File } from '../types';
-import { createChatSession, generateAgentPlan } from '../services/geminiService';
+import { aiService } from '../services/aiService';
 import { validateCode } from '../services/lintingService';
 import { getLanguage, resolveFileByPath, getFilePath, extractSymbols } from '../utils/fileUtils';
 import { useFileStore } from './fileStore';
@@ -55,7 +55,7 @@ const useAgentStore = create<AgentState>((set, get) => ({
     try {
       const files = useFileStore.getState().files;
       const context = `Project contains ${files.length} files.`;
-      const generatedPlan = await generateAgentPlan(goal, context);
+      const generatedPlan = await aiService.generateAgentPlan({ goal, context });
       set({ plan: generatedPlan, status: 'plan_review' });
     } catch (e: any) {
       console.error(e);
@@ -75,7 +75,7 @@ Current Plan:
 ${JSON.stringify(plan, null, 2)}
 For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action. Wait for the user to confirm the action, then I will give you the result.`;
     
-    const session = createChatSession(systemPrompt, [], true);
+    const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true });
     set({ agentChatSession: session });
     await processNextStep();
   },
