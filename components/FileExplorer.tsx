@@ -14,6 +14,8 @@ import {
 } from './Icons';
 import { useFileStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
+import { useGitStore } from '../stores/gitStore';
+import { getFilePath } from '../utils/fileUtils';
 
 interface FileTreeNodeProps {
   nodeId: string | null;
@@ -29,6 +31,9 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const createNode = useFileStore(state => state.createNode);
   const toggleFolder = useFileStore(state => state.toggleFolder);
   const agentAwareness = useAgentStore(state => state.agentAwareness);
+
+  const isGitInitialized = useGitStore(state => state.isInitialized);
+  const gitStatus = useGitStore(state => state.status);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -61,8 +66,18 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const node = files.find(f => f.id === nodeId);
   if (!node) return null;
 
-  const isAdded = node.type === 'file' && node.committedContent === undefined;
-  const isModified = node.type === 'file' && !isAdded && node.content !== (node.committedContent || '');
+  const filePath = useMemo(() => getFilePath(node, files), [node, files]);
+
+  const nodeGitStatus = useMemo(() => {
+    if (!isGitInitialized || node.type !== 'file') return null;
+    return gitStatus.find(s => s.filepath === filePath);
+  }, [isGitInitialized, gitStatus, filePath, node.type]);
+
+  // 'added' in gitService means untracked
+  const isAdded = nodeGitStatus?.status === 'added';
+  // 'modified' means modified in the working directory
+  const isModified = nodeGitStatus?.status === 'modified';
+  
   const isAware = agentAwareness?.has(node.id);
 
   const handleStartEdit = (e: React.MouseEvent) => {
