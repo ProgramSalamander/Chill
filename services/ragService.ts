@@ -107,7 +107,6 @@ class RAGService {
       
       const docFrequencies = new Map<string, number>();
       const vocabulary = new Set<string>();
-      // FIX: The type was incorrect. It should be a map of chunk IDs to their term frequency maps.
       const chunkTermFrequencies = new Map<string, Map<string, number>>();
 
       for (const chunk of allChunks) {

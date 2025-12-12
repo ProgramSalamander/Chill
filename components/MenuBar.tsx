@@ -12,7 +12,8 @@ import {
 } from './Icons';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
+import { useProjectStore } from '../stores/projectStore';
 
 const MenuBar: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -22,13 +23,14 @@ const MenuBar: React.FC = () => {
   const toggleTheme = useUIStore(state => state.toggleTheme);
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
-  const activeProject = useFileStore(state => state.activeProject);
-  const recentProjects = useFileStore(state => state.recentProjects);
-  const handleNewProject = useFileStore(state => state.handleNewProject);
-  const handleLoadProject = useFileStore(state => state.handleLoadProject);
-  const saveAllFiles = useFileStore(state => state.saveAllFiles);
-  const files = useFileStore(state => state.files);
-  const setProjectToDelete = useFileStore(state => state.setProjectToDelete);
+  const activeProject = useProjectStore(state => state.activeProject);
+  const recentProjects = useProjectStore(state => state.recentProjects);
+  const handleNewProject = useProjectStore(state => state.handleNewProject);
+  const handleLoadProject = useProjectStore(state => state.handleLoadProject);
+  const setProjectToDelete = useProjectStore(state => state.setProjectToDelete);
+  const saveAllFiles = useFileTreeStore(state => state.saveAllFiles);
+  const files = useFileTreeStore(state => state.files);
+
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

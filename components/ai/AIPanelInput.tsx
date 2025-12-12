@@ -5,7 +5,7 @@ import {
   IconTrash, IconCheck
 } from '../Icons';
 import { useChatStore } from '../../stores/chatStore';
-import { useFileStore } from '../../stores/fileStore';
+import { useFileTreeStore } from '../../stores/fileStore';
 
 interface AIPanelInputProps {
   mode: 'chat' | 'agent';
@@ -34,7 +34,7 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
 
   const contextScope = useChatStore(state => state.contextScope);
   const setContextScope = useChatStore(state => state.setContextScope);
-  const files = useFileStore(state => state.files);
+  const files = useFileTreeStore(state => state.files);
 
   const pickerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);

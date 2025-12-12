@@ -13,7 +13,7 @@ import {
   IconArrowDown
 } from './Icons';
 import { useGitStore } from '../stores/gitStore';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
 
 const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -34,7 +34,7 @@ const GitPanel: React.FC = () => {
   const pull = useGitStore(state => state.pull);
   const fetchGit = useGitStore(state => state.fetch);
 
-  const files = useFileStore(state => state.files);
+  const files = useFileTreeStore(state => state.files);
 
   const getFileIdByPath = (path: string) => {
       const file = files.find(f => f.name === path || path.endsWith(f.name));

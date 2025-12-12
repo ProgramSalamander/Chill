@@ -16,7 +16,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
 
 import { useUIStore } from './stores/uiStore';
-import { useFileStore } from './stores/fileStore';
+import { useFileTreeStore } from './stores/fileStore';
+import { useProjectStore } from './stores/projectStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
 
@@ -30,13 +31,13 @@ function App() {
   // --- STATE FROM ZUSTAND STORES ---
   const theme = useUIStore(state => state.theme);
   
-  const files = useFileStore(state => state.files);
-  const activeFile = useFileStore(state => state.activeFile);
-  const updateFileContent = useFileStore(state => state.updateFileContent); 
-  const undo = useFileStore(state => state.undo);
-  const redo = useFileStore(state => state.redo);
-  const loadInitialProject = useFileStore(state => state.loadInitialProject);
-  const saveFile = useFileStore(state => state.saveFile);
+  const files = useFileTreeStore(state => state.files);
+  const activeFile = useFileTreeStore(state => state.activeFile);
+  const updateFileContent = useFileTreeStore(state => state.updateFileContent); 
+  const undo = useFileTreeStore(state => state.undo);
+  const redo = useFileTreeStore(state => state.redo);
+  const saveFile = useFileTreeStore(state => state.saveFile);
+  const loadInitialProject = useProjectStore(state => state.loadInitialProject);
 
   const setDiagnostics = useTerminalStore(state => state.setDiagnostics);
   const diagnostics = useTerminalStore(state => state.diagnostics);
@@ -125,13 +126,13 @@ function App() {
         suggestionDebounceRef.current = setTimeout(async () => {
             pendingSuggestionResolve.current = null; 
 
-            const currentFile = useFileStore.getState().activeFile;
+            const currentFile = useFileTreeStore.getState().activeFile;
             if (!currentFile || useChatStore.getState().isGenerating || isIndexing) {
                 resolve(null);
                 return;
             }
             try {
-                const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileStore.getState().files);
+                const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
                 resolve(sugg || null);
             } catch (e) {
                 console.error("Suggestion fetch failed:", e);
@@ -142,7 +143,7 @@ function App() {
   }, [isIndexing]);
 
   const handleInlineAssist = async (instruction: string, range: any) => {
-      const file = useFileStore.getState().activeFile;
+      const file = useFileTreeStore.getState().activeFile;
       if (!file) return;
       try {
           const lines = file.content.split('\n');
@@ -152,7 +153,7 @@ function App() {
           let suffix = lines[endLine].substring(endCol) + (endLine < lines.length -1 ? '\n' : '') + lines.slice(endLine + 1).join('\n');
           let selectedText = file.content.substring(file.content.indexOf(prefix) + prefix.length, file.content.lastIndexOf(suffix));
           
-          const newCode = await aiService.editCode(prefix, selectedText, suffix, instruction, file, useFileStore.getState().files);
+          const newCode = await aiService.editCode(prefix, selectedText, suffix, instruction, file, useFileTreeStore.getState().files);
           if (newCode) {
               const updatedContent = prefix + newCode + suffix;
               updateFileContent(updatedContent);
@@ -165,7 +166,7 @@ function App() {
   };
 
   const handleAICommand = (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => {
-    const file = useFileStore.getState().activeFile;
+    const file = useFileTreeStore.getState().activeFile;
     if (!file) return;
 
     if (type === 'fix') {

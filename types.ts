@@ -1,8 +1,6 @@
 
 
 import React from 'react';
-// FIX: Removed incorrect import of AIModelConfig. It is now defined and exported from this file to resolve circular dependency issues.
-
 
 export interface File {
   id: string;
@@ -99,7 +97,6 @@ export interface ProjectMeta {
 
 export type AIProvider = 'gemini' | 'openai';
 
-// FIX: Defined and exported AIModelConfig here to resolve circular dependency issues.
 export interface AIModelConfig {
   provider: AIProvider;
   modelId: string;
@@ -207,6 +204,9 @@ export interface PreFlightResult {
 }
 
 declare global {
+  interface Window {
+    aistudio?: AIStudio;
+  }
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;

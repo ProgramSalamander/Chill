@@ -9,7 +9,7 @@ import {
   IconGitBranch
 } from './Icons';
 import { useUIStore } from '../stores/uiStore';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
 import { useGitStore } from '../stores/gitStore';
 
 interface CommandAction {
@@ -31,9 +31,9 @@ const CommandPalette: React.FC = () => {
   const setIsTerminalOpen = useUIStore(state => state.setIsTerminalOpen);
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
   const setActiveSidebarView = useUIStore(state => state.setActiveSidebarView);
-  const files = useFileStore(state => state.files);
-  const selectFile = useFileStore(state => state.selectFile);
-  const createNode = useFileStore(state => state.createNode);
+  const files = useFileTreeStore(state => state.files);
+  const selectFile = useFileTreeStore(state => state.selectFile);
+  const createNode = useFileTreeStore(state => state.createNode);
   const refresh = useGitStore(state => state.refresh);
 
   useEffect(() => {

@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { IconClose } from './Icons';
 import { useTerminalStore } from '../stores/terminalStore';
 import { useUIStore } from '../stores/uiStore';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
 
 const Terminal: React.FC = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -12,7 +12,7 @@ const Terminal: React.FC = () => {
   const diagnostics = useTerminalStore(state => state.diagnostics);
   const isTerminalOpen = useUIStore(state => state.isTerminalOpen);
   const setIsTerminalOpen = useUIStore(state => state.setIsTerminalOpen);
-  const selectFile = useFileStore(state => state.selectFile);
+  const selectFile = useFileTreeStore(state => state.selectFile);
 
   useEffect(() => {
     if (isTerminalOpen && activeTab === 'terminal') {
@@ -23,7 +23,7 @@ const Terminal: React.FC = () => {
   const handleSelectDiagnostic = (line: number, col: number) => {
     // For now, this just selects the active file, assuming diagnostics are for it.
     // A more complex implementation would find the file associated with the diagnostic.
-    const activeFile = useFileStore.getState().activeFile;
+    const activeFile = useFileTreeStore.getState().activeFile;
     if (activeFile) {
         selectFile(activeFile);
         // We'd also need to tell the editor to jump to this line/col.

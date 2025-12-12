@@ -1,5 +1,4 @@
 import { Tool, Type } from "@google/genai";
-// FIX: Changed import path for AIModelConfig to resolve import error.
 import { AIModelConfig } from "../../types";
 
 // --- API Key Management ---

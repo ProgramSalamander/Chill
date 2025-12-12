@@ -12,7 +12,7 @@ import {
   IconClose,
   IconBrain
 } from './Icons';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useGitStore } from '../stores/gitStore';
 import { getFilePath } from '../utils/fileUtils';
@@ -23,13 +23,13 @@ interface FileTreeNodeProps {
 }
 
 const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
-  const files = useFileStore(state => state.files);
-  const activeFileId = useFileStore(state => state.activeFileId);
-  const selectFile = useFileStore(state => state.selectFile);
-  const setFileToDelete = useFileStore(state => state.setFileToDelete);
-  const renameNode = useFileStore(state => state.renameNode);
-  const createNode = useFileStore(state => state.createNode);
-  const toggleFolder = useFileStore(state => state.toggleFolder);
+  const files = useFileTreeStore(state => state.files);
+  const activeFileId = useFileTreeStore(state => state.activeFileId);
+  const selectFile = useFileTreeStore(state => state.selectFile);
+  const setFileToDelete = useFileTreeStore(state => state.setFileToDelete);
+  const renameNode = useFileTreeStore(state => state.renameNode);
+  const createNode = useFileTreeStore(state => state.createNode);
+  const toggleFolder = useFileTreeStore(state => state.toggleFolder);
   const agentAwareness = useAgentStore(state => state.agentAwareness);
 
   const isGitInitialized = useGitStore(state => state.isInitialized);
@@ -277,8 +277,8 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 };
 
 const FileExplorer: React.FC = () => {
-    const files = useFileStore(state => state.files);
-    const createNode = useFileStore(state => state.createNode);
+    const files = useFileTreeStore(state => state.files);
+    const createNode = useFileTreeStore(state => state.createNode);
     return (
         <div className="flex flex-col h-full">
             <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between items-center tracking-wider border-b border-white/5 shrink-0">

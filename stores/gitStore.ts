@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { gitService, GitStatus } from '../services/gitService';
 import { Commit, File } from '../types';
 import { getFilePath } from '../utils/fileUtils';
-import { useFileStore } from './fileStore';
+import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
 import { notify } from './notificationStore';
 
@@ -51,7 +51,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   init: async () => {
     const { addTerminalLine } = useTerminalStore.getState();
-    const { files } = useFileStore.getState();
+    const { files } = useFileTreeStore.getState();
     await gitService.init();
     set({ isInitialized: true });
 
@@ -67,32 +67,32 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   syncFile: async (file) => {
     if (!get().isInitialized) return;
-    const path = getFilePath(file, useFileStore.getState().files);
+    const path = getFilePath(file, useFileTreeStore.getState().files);
     await gitService.writeFile(path, file.content);
     get().refresh();
   },
 
   deleteFile: async (file) => {
     if (!get().isInitialized) return;
-    const path = getFilePath(file, useFileStore.getState().files);
+    const path = getFilePath(file, useFileTreeStore.getState().files);
     await gitService.deleteFile(path);
     get().refresh();
   },
 
   stage: async (fileId) => {
     if (!get().isInitialized) return;
-    const file = useFileStore.getState().files.find(f => f.id === fileId);
+    const file = useFileTreeStore.getState().files.find(f => f.id === fileId);
     if (!file) return;
-    const path = getFilePath(file, useFileStore.getState().files);
+    const path = getFilePath(file, useFileTreeStore.getState().files);
     await gitService.add(path);
     get().refresh();
   },
 
   unstage: async (fileId) => {
     if (!get().isInitialized) return;
-    const file = useFileStore.getState().files.find(f => f.id === fileId);
+    const file = useFileTreeStore.getState().files.find(f => f.id === fileId);
     if (!file) return;
-    const path = getFilePath(file, useFileStore.getState().files);
+    const path = getFilePath(file, useFileTreeStore.getState().files);
     await gitService.reset(path);
     get().refresh();
   },
@@ -121,7 +121,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await gitService.clear();
       await gitService.clone(url, undefined, onProgress);
       const newFiles = await gitService.loadFilesToMemory();
-      useFileStore.getState().setAllFiles(newFiles);
+      useFileTreeStore.getState().setAllFiles(newFiles);
       set({ isInitialized: true, isCloning: false, cloneProgress: null });
       notify('Repository cloned successfully.', 'success');
       get().refresh();
@@ -142,7 +142,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       await gitService.pull();
       const newFiles = await gitService.loadFilesToMemory();
-      useFileStore.getState().setAllFiles(newFiles);
+      useFileTreeStore.getState().setAllFiles(newFiles);
       notify('Pull successful. Workspace updated.', 'success');
       set({ isPulling: false });
       get().refresh();

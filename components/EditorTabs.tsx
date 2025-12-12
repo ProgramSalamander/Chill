@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles } from './Icons';
 import Tooltip from './Tooltip';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
 import { useUIStore } from '../stores/uiStore';
 
 interface EditorTabsProps {
@@ -13,11 +13,11 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
   onClearSelection,
   onRunCode
 }) => {
-  const openFileIds = useFileStore(state => state.openFileIds);
-  const activeFileId = useFileStore(state => state.activeFileId);
-  const files = useFileStore(state => state.files);
-  const setActiveFileId = useFileStore(state => state.setActiveFileId);
-  const closeFile = useFileStore(state => state.closeFile);
+  const openFileIds = useFileTreeStore(state => state.openFileIds);
+  const activeFileId = useFileTreeStore(state => state.activeFileId);
+  const files = useFileTreeStore(state => state.files);
+  const setActiveFileId = useFileTreeStore(state => state.setActiveFileId);
+  const closeFile = useFileTreeStore(state => state.closeFile);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
   const setIsPreviewOpen = useUIStore(state => state.setIsPreviewOpen);
   const isAIOpen = useUIStore(state => state.isAIOpen);

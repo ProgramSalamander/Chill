@@ -6,7 +6,7 @@ import Tooltip from './Tooltip';
 import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
 
 import { useChatStore } from '../stores/chatStore';
-import { useFileStore } from '../stores/fileStore';
+import { useFileTreeStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useUIStore } from '../stores/uiStore';
 
@@ -22,8 +22,8 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const messages = useChatStore(state => state.messages);
   const isGenerating = useChatStore(state => state.isGenerating);
   const clearChat = useChatStore(state => state.clearChat);
-  const activeFile = useFileStore(state => state.activeFile);
-  const updateFileContent = useFileStore(state => state.updateFileContent);
+  const activeFile = useFileTreeStore(state => state.activeFile);
+  const updateFileContent = useFileTreeStore(state => state.updateFileContent);
   const isOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const status = useAgentStore(state => state.status);

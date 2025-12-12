@@ -90,7 +90,6 @@ export const gitService = {
         const parts = filepath.split('/');
         if (parts.length > 1) {
            const dir = parts.slice(0, -1).join('/');
-           // Fixed: 'recursive' option is not in the type definition for lightning-fs mkdir but is supported at runtime
            // @ts-ignore
            await pfs.mkdir(`/${dir}`, { recursive: true });
         }

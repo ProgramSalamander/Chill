@@ -1,11 +1,11 @@
 import React from 'react';
 import { IconClose, IconTrash } from './Icons';
-import { useFileStore } from '../stores/fileStore';
+import { useProjectStore } from '../stores/projectStore';
 
 const DeleteProjectConfirmModal: React.FC = () => {
-  const projectToDelete = useFileStore(state => state.projectToDelete);
-  const setProjectToDelete = useFileStore(state => state.setProjectToDelete);
-  const confirmDeleteProject = useFileStore(state => state.confirmDeleteProject);
+  const projectToDelete = useProjectStore(state => state.projectToDelete);
+  const setProjectToDelete = useProjectStore(state => state.setProjectToDelete);
+  const confirmDeleteProject = useProjectStore(state => state.confirmDeleteProject);
 
   if (!projectToDelete) return null;
 

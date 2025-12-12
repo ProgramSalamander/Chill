@@ -3,6 +3,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { Diagnostic } from '../types';
 import { InlineInput } from './InlineInput';
 import { ragService } from '../services/ragService';
+import { vibeDarkTheme, vibeLightTheme } from '../utils/monacoThemes';
 
 interface CodeEditorProps {
   code: string;
@@ -79,66 +80,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     disposablesRef.current.forEach(d => d.dispose());
     disposablesRef.current = [];
 
-    // --- Vibe Dark Theme Definition ---
-    monaco.editor.defineTheme('vibe-dark-theme', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'comment', foreground: '6272a4', fontStyle: 'italic' },
-        { token: 'keyword', foreground: 'ff79c6', fontStyle: 'bold' },
-        { token: 'string', foreground: 'f1fa8c' },
-        { token: 'number', foreground: 'bd93f9' },
-        { token: 'type', foreground: '8be9fd' },
-        { token: 'class', foreground: '8be9fd' },
-        { token: 'function', foreground: '50fa7b' },
-        { token: 'variable', foreground: 'f8f8f2' },
-        { token: 'delimiter', foreground: 'f8f8f2' },
-      ],
-      colors: {
-        'editor.background': '#00000000', // Transparent for glass effect
-        'editor.foreground': '#f8f8f2',
-        'editor.lineHighlightBackground': '#ffffff08',
-        'editor.selectionBackground': '#818cf840',
-        'editorCursor.foreground': '#818cf8',
-        'editorWhitespace.foreground': '#3b3a32',
-        'editorIndentGuide.background': '#ffffff10',
-        'editorIndentGuide.activeBackground': '#ffffff30',
-        'editorLineNumber.foreground': '#6272a4',
-        'editorLineNumber.activeForeground': '#f8f8f2',
-        'scrollbarSlider.background': '#ffffff10',
-        'scrollbarSlider.hoverBackground': '#ffffff20',
-        'scrollbarSlider.activeBackground': '#ffffff30',
-        // Code Lens colors
-        'editorCodeLens.foreground': '#6272a4'
-      }
-    });
-
-    // --- Vibe Light Theme Definition ---
-    monaco.editor.defineTheme('vibe-light-theme', {
-        base: 'vs',
-        inherit: true,
-        rules: [
-          { token: 'keyword', foreground: '8500b6', fontStyle: 'bold' },
-          { token: 'string', foreground: '2d8f25' },
-          { token: 'number', foreground: 'cd3838' },
-          { token: 'type', foreground: '0075c3' },
-          { token: 'function', foreground: '5f3ac1' },
-          { token: 'comment', foreground: '9ca3af', fontStyle: 'italic' },
-        ],
-        colors: {
-            'editor.background': '#00000000',
-            'editor.foreground': '#111827',
-            'editor.lineHighlightBackground': '#00000008',
-            'editor.selectionBackground': '#4f46e520',
-            'editorCursor.foreground': '#4f46e5',
-            'editorLineNumber.foreground': '#a1a1aa',
-            'editorLineNumber.activeForeground': '#1f2937',
-            'scrollbarSlider.background': '#00000010',
-            'scrollbarSlider.hoverBackground': '#00000020',
-            'scrollbarSlider.activeBackground': '#00000030',
-        }
-    });
-
+    // --- Define Custom Themes ---
+    monaco.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
+    monaco.editor.defineTheme('vibe-light-theme', vibeLightTheme);
     monaco.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
     
     // --- 1. Inline Completions Provider (AI) ---
@@ -417,7 +361,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 // Enable CodeLens
                 codeLens: true,
                 // Enable Lightbulb
-                lightbulb: { enabled: 'on' }
+// FIX: Changed 'on' to true to fix type error. Other boolean `enabled` properties in this config suggest this is the correct value.
+                lightbulb: { enabled: true }
             }}
          />
       </div>

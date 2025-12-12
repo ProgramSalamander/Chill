@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Message, MessageRole, File, AISession } from '../types';
+import { Message, MessageRole, AISession } from '../types';
 import { aiService } from '../services/aiService';
 import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
-import { useFileStore } from './fileStore';
+import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
 
 interface ChatState {
@@ -51,7 +51,7 @@ export const useChatStore = create<ChatState>()(
         set(state => ({ messages: [...state.messages, userMsg], isGenerating: true }));
 
         try {
-          const { files, activeFile } = useFileStore.getState();
+          const { files, activeFile } = useFileTreeStore.getState();
           let prompt = text;
           
           if (contextFileIds && contextFileIds.length > 0) {

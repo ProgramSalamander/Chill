@@ -1,0 +1,73 @@
+import { editor } from 'monaco-editor';
+
+export const vibeDarkTheme: editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'c678dd' },
+    { token: 'number', foreground: 'd19a66' },
+    { token: 'string', foreground: '98c379' },
+    { token: 'operator', foreground: '56b6c2' },
+    { token: 'identifier', foreground: 'abb2bf' },
+    { token: 'type.identifier', foreground: 'e5c07b' },
+    { token: 'delimiter', foreground: 'abb2bf' },
+    { token: 'tag', foreground: 'e06c75' },
+    { token: 'attribute.name', foreground: 'd19a66' },
+    { token: 'attribute.value', foreground: '98c379' },
+    { token: 'string.escape', foreground: '56b6c2' },
+    { token: 'predefined', foreground: 'e5c07b' },
+  ],
+  colors: {
+    'editor.background': '#0A0A0F',
+    'editor.foreground': '#ABB2BF',
+    'editor.inactiveSelectionBackground': '#3a3d41',
+    'editor.selectionBackground': '#2C313A',
+    'editorCursor.foreground': '#C7D2FE',
+    'editorLineNumber.foreground': '#4B5563',
+    'editorLineNumber.activeForeground': '#C7D2FE',
+    'editorHoverWidget.background': '#1A1A22',
+    'editorHoverWidget.border': '#2A2A33',
+    'editorSuggestWidget.background': '#1A1A22',
+    'editorSuggestWidget.border': '#2A2A33',
+    'editorSuggestWidget.selectedBackground': '#2C313A',
+    'editorBracketMatch.background': '#2C313A',
+    'editorBracketMatch.border': '#4B5563',
+  }
+};
+
+export const vibeLightTheme: editor.IStandaloneThemeData = {
+  base: 'vs',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: 'a0a1a7', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'a626a4' },
+    { token: 'number', foreground: 'd19a66' },
+    { token: 'string', foreground: '50a14f' },
+    { token: 'operator', foreground: '38a169' },
+    { token: 'identifier', foreground: '383a42' },
+    { token: 'type.identifier', foreground: 'c18401' },
+    { token: 'delimiter', foreground: '383a42' },
+    { token: 'tag', foreground: 'e45649' },
+    { token: 'attribute.name', foreground: 'c18401' },
+    { token: 'attribute.value', foreground: '50a14f' },
+    { token: 'string.escape', foreground: '38a169' },
+    { token: 'predefined', foreground: 'c18401' },
+  ],
+  colors: {
+    'editor.background': '#FAFAFA',
+    'editor.foreground': '#383A42',
+    'editor.inactiveSelectionBackground': '#eaeaeb',
+    'editor.selectionBackground': '#d7d7d8',
+    'editorCursor.foreground': '#4F46E5',
+    'editorLineNumber.foreground': '#9ca3af',
+    'editorLineNumber.activeForeground': '#4F46E5',
+    'editorHoverWidget.background': '#F1F5F9',
+    'editorHoverWidget.border': '#E2E8F0',
+    'editorSuggestWidget.background': '#F1F5F9',
+    'editorSuggestWidget.border': '#E2E8F0',
+    'editorSuggestWidget.selectedBackground': '#d7d7d8',
+    'editorBracketMatch.background': '#d7d7d8',
+    'editorBracketMatch.border': '#9ca3af',
+  }
+};
