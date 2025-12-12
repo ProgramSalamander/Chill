@@ -166,6 +166,7 @@ const MenuBar: React.FC = () => {
             <button
                 onClick={toggleTheme}
                 className="p-2 rounded-full text-text-tertiary hover:text-text-primary bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
             >
                 {theme === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}
             </button>

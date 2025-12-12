@@ -4,6 +4,7 @@ import { Commit, File } from '../types';
 import { getFilePath } from '../utils/fileUtils';
 import { useFileStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
+import { notify } from './notificationStore';
 
 interface GitState {
   isInitialized: boolean;
@@ -12,6 +13,7 @@ interface GitState {
   isCloning: boolean;
   isPulling: boolean;
   isFetching: boolean;
+  cloneProgress: { phase: string; loaded: number; total: number } | null;
 
   // Actions
   init: () => Promise<void>;
@@ -34,6 +36,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   isCloning: false,
   isPulling: false,
   isFetching: false,
+  cloneProgress: null,
 
   refresh: async () => {
     if (!get().isInitialized) return;
@@ -97,27 +100,36 @@ export const useGitStore = create<GitState>((set, get) => ({
   commit: async (message) => {
     if (!get().isInitialized) return;
     const sha = await gitService.commit(message);
-    useTerminalStore.getState().addTerminalLine(`Commit ${sha.slice(0, 7)}: ${message}`, 'success');
+    notify(`Committed ${sha.slice(0, 7)}`, 'success');
     get().refresh();
   },
 
   clone: async (url) => {
-    set({ isCloning: true });
     const { addTerminalLine } = useTerminalStore.getState();
+    set({ isCloning: true, cloneProgress: { phase: 'Connecting...', loaded: 0, total: 1 } });
     addTerminalLine(`Cloning from ${url}...`, 'command');
     try {
+      const onProgress = (progress: { phase: string; loaded: number; total: number }) => {
+         set({ cloneProgress: progress });
+         if(progress.total) {
+             addTerminalLine(`git (${progress.phase}): ${Math.round((progress.loaded / progress.total) * 100)}%`, 'info');
+         } else {
+             addTerminalLine(`git: ${progress.phase}...`, 'info');
+         }
+      };
+
       await gitService.clear();
-      await gitService.clone(url);
+      await gitService.clone(url, undefined, onProgress);
       const newFiles = await gitService.loadFilesToMemory();
       useFileStore.getState().setAllFiles(newFiles);
-      set({ isInitialized: true, isCloning: false });
-      addTerminalLine('Repository cloned successfully.', 'success');
+      set({ isInitialized: true, isCloning: false, cloneProgress: null });
+      notify('Repository cloned successfully.', 'success');
       get().refresh();
       return true;
     } catch (e: any) {
       addTerminalLine(`Clone failed: ${e.message}`, 'error');
       console.error(e);
-      set({ isCloning: false });
+      set({ isCloning: false, cloneProgress: null });
       return false;
     }
   },
@@ -131,7 +143,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await gitService.pull();
       const newFiles = await gitService.loadFilesToMemory();
       useFileStore.getState().setAllFiles(newFiles);
-      addTerminalLine('Pulled successfully. Workspace updated.', 'success');
+      notify('Pull successful. Workspace updated.', 'success');
       set({ isPulling: false });
       get().refresh();
     } catch (e: any) {
@@ -148,7 +160,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     addTerminalLine('Fetching from remote...', 'command');
     try {
       await gitService.fetch();
-      addTerminalLine('Fetch complete.', 'success');
+      notify('Fetch complete.', 'info');
       set({ isFetching: false });
       get().refresh();
     } catch (e: any) {

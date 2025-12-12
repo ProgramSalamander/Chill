@@ -1,4 +1,5 @@
 
+
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
@@ -70,13 +71,14 @@ export const gitService = {
     }
   },
 
-  clone: async (url: string, proxy: string = 'https://cors.isomorphic-git.org') => {
+  clone: async (url: string, proxy: string = 'https://cors.isomorphic-git.org', onProgress?: (progress: any) => void) => {
       await git.clone({
           fs,
           http,
           dir: '/',
           url,
           corsProxy: proxy,
+          onProgress,
           singleBranch: true,
           depth: 1
       });

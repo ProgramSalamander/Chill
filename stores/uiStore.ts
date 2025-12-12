@@ -10,6 +10,7 @@ interface UIState {
   isTerminalOpen: boolean;
   activeSidebarView: string | null;
   sidebarViews: SidebarView[];
+  indexingProgress: { loaded: number; total: number } | null;
   isAIOpen: boolean;
   isSettingsOpen: boolean;
   isCommandPaletteOpen: boolean;
@@ -20,6 +21,7 @@ interface UIState {
   toggleTheme: () => void;
   setIsTerminalOpen: (isOpen: boolean) => void;
   setActiveSidebarView: (viewId: string | null) => void;
+  setIndexingProgress: (progress: { loaded: number; total: number } | null) => void;
   updateSidebarViews: (views: SidebarView[]) => void;
   setIsAIOpen: (isOpen: boolean) => void;
   setIsSettingsOpen: (isOpen: boolean) => void;
@@ -80,6 +82,7 @@ export const useUIStore = create<UIState>()(
       theme: 'dark',
       isTerminalOpen: true,
       activeSidebarView: 'explorer',
+      indexingProgress: null,
       sidebarViews: getDefaultSidebarViews(),
       isAIOpen: false,
       isSettingsOpen: false,
@@ -90,6 +93,7 @@ export const useUIStore = create<UIState>()(
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       setIsTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
       setActiveSidebarView: (viewId) => set({ activeSidebarView: viewId }),
+      setIndexingProgress: (progress) => set({ indexingProgress: progress }),
       updateSidebarViews: (views) => set({ sidebarViews: views }),
       setIsAIOpen: (isOpen) => set({ isAIOpen: isOpen }),
       setIsSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),

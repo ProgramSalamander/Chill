@@ -10,6 +10,7 @@ const CloneModal: React.FC = () => {
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
   const isCloning = useGitStore(state => state.isCloning);
   const clone = useGitStore(state => state.clone);
+  const cloneProgress = useGitStore(state => state.cloneProgress);
 
   useEffect(() => {
     if (isCloneModalOpen) {
@@ -45,6 +46,7 @@ const CloneModal: React.FC = () => {
           <button 
             onClick={() => setIsCloneModalOpen(false)} 
             className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-md"
+            aria-label="Close clone dialog"
           >
             <IconClose size={18} />
           </button>
@@ -70,6 +72,15 @@ const CloneModal: React.FC = () => {
           <p className="text-slate-500 text-xs mt-2">
             This will overwrite your current in-memory workspace.
           </p>
+          {cloneProgress && (
+            <div className="mt-4">
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>{cloneProgress.phase}</span>
+                    {cloneProgress.total > 1 && <span>{Math.round((cloneProgress.loaded / cloneProgress.total) * 100)}%</span>}
+                </div>
+                <div className="w-full bg-black/40 h-2 rounded-full overflow-hidden border border-white/10"><div className="bg-vibe-accent h-full" style={{width: `${cloneProgress.total > 1 ? (cloneProgress.loaded / cloneProgress.total) * 100 : 0}%`}}></div></div>
+            </div>
+          )}
         </div>
 
         <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">

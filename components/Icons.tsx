@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { 
   FileCode, 
@@ -55,7 +56,8 @@ import {
   Workflow,
   Sun,
   Moon,
-  ArrowDown
+  ArrowDown,
+  Info
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -114,3 +116,4 @@ export const IconWorkflow = (props: any) => <Workflow {...props} />;
 export const IconSun = (props: any) => <Sun {...props} />;
 export const IconMoon = (props: any) => <Moon {...props} />;
 export const IconArrowDown = (props: any) => <ArrowDown {...props} />;
+export const IconInfo = (props: any) => <Info {...props} />;

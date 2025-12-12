@@ -9,7 +9,10 @@ import CommandPalette from './components/CommandPalette';
 import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
 import CloneModal from './components/CloneModal';
-import MenuBar from './components/MenuBar';
+import MenuBar from './components/MenuBar'; 
+import Toaster from './components/Toaster';
+import StatusBar from './components/StatusBar';
+import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
 
 import { useUIStore } from './stores/uiStore';
@@ -29,7 +32,7 @@ function App() {
   
   const files = useFileStore(state => state.files);
   const activeFile = useFileStore(state => state.activeFile);
-  const updateFileContent = useFileStore(state => state.updateFileContent);
+  const updateFileContent = useFileStore(state => state.updateFileContent); 
   const undo = useFileStore(state => state.undo);
   const redo = useFileStore(state => state.redo);
   const loadInitialProject = useFileStore(state => state.loadInitialProject);
@@ -175,53 +178,65 @@ function App() {
   return (
     <div className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent">
       <MenuBar />
-      <div className="flex-1 flex overflow-hidden p-3 gap-3">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 relative gap-3">
-           <div className="shrink-0">
-               <EditorTabs 
-                  onClearSelection={() => setSelectedCode('')}
-                  onRunCode={handleRunCode}
-               />
-           </div>
-           <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
-               {activeFile ? (
-                   <div className="flex-1 relative overflow-hidden">
-                       <CodeEditor 
-                           key={activeFile.id}
-                           theme={theme}
-                           code={activeFile.content} language={activeFile.language}
-                           onChange={(c) => updateFileContent(c)}
-                           onCursorChange={setCursorPosition}
-                           onSelectionChange={setSelectedCode}
-                           onFetchSuggestion={handleFetchSuggestion}
-                           onUndo={undo} onRedo={redo} showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
-                           onInlineAssist={handleInlineAssist}
-                       />
-                       {selectedCode && (
-                          <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-                              <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+       <div className="flex-1 flex overflow-hidden p-3 gap-3">
+         <ErrorBoundary>
+           <Sidebar />
+         </ErrorBoundary>
+         <div className="flex-1 flex flex-col min-w-0 relative gap-3">
+            <ErrorBoundary>
+              <div className="shrink-0">
+                  <EditorTabs 
+                     onClearSelection={() => setSelectedCode('')}
+                     onRunCode={handleRunCode}
+                  />
+              </div>
+            </ErrorBoundary>
+            <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
+                <ErrorBoundary>
+                  {activeFile ? (
+                      <div className="flex-1 relative overflow-hidden">
+                          <CodeEditor 
+                              key={activeFile.id}
+                              theme={theme}
+                              code={activeFile.content} language={activeFile.language}
+                              onChange={(c) => updateFileContent(c)}
+                              onCursorChange={setCursorPosition}
+                              onSelectionChange={setSelectedCode}
+                              onFetchSuggestion={handleFetchSuggestion}
+                              onUndo={undo} onRedo={redo} showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
+                              onInlineAssist={handleInlineAssist}
+                          />
+                          {selectedCode && (
+                             <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
+                                 <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                             </div>
+                          )}
+                      </div>
+                  ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
+                          <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">
+                             <IconSparkles size={40} className="text-vibe-glow opacity-60" />
                           </div>
-                       )}
-                   </div>
-               ) : (
-                   <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
-                       <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">
-                          <IconSparkles size={40} className="text-vibe-glow opacity-60" />
-                       </div>
-                       <p className="text-sm font-medium tracking-wide">Select a file to start vibing</p>
-                       <p className="text-xs opacity-50">Cmd+P to search files</p>
-                   </div>
-               )}
-           </div>
-           <div className="transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]">
-              <Terminal />
-           </div>
-        </div>
-        <AIPanel 
-          onInsertCode={(c) => updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
-        />
+                          <p className="text-sm font-medium tracking-wide">Select a file to start vibing</p>
+                          <p className="text-xs opacity-50">Cmd+P to search files</p>
+                      </div>
+                  )}
+                </ErrorBoundary>
+            </div>
+            <ErrorBoundary>
+              <div className="transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]">
+                 <Terminal />
+              </div>
+            </ErrorBoundary>
+         </div>
+         <ErrorBoundary>
+           <AIPanel 
+             onInsertCode={(c) => updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
+           />
+         </ErrorBoundary>
       </div>
+      <StatusBar />
+      <Toaster />
       <SettingsModal />
       <DeleteConfirmModal />
       <DeleteProjectConfirmModal />

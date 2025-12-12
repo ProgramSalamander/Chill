@@ -1,5 +1,6 @@
 import { File } from '../types';
 import { getFilePath, generateProjectStructureContext } from '../utils/fileUtils';
+import { useUIStore } from '../stores/uiStore';
 
 const STOP_WORDS = new Set([
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
@@ -84,9 +85,20 @@ class RAGService {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-      const allChunks: Chunk[] = files
-        .filter(f => f.type === 'file' && f.content.length > 0 && f.content.length < 100000) // Skip large files
-        .flatMap(f => this.chunkFile(f, files));
+      const filesToIndex = files
+        .filter(f => f.type === 'file' && f.content.length > 0 && f.content.length < 100000); // Skip large files
+        
+      useUIStore.getState().setIndexingProgress({ loaded: 0, total: filesToIndex.length });
+
+      const allChunks: Chunk[] = [];
+      for(let i=0; i<filesToIndex.length; i++) {
+          const file = filesToIndex[i];
+          allChunks.push(...this.chunkFile(file, files));
+          useUIStore.getState().setIndexingProgress({ loaded: i + 1, total: filesToIndex.length });
+          if (i % 5 === 0) { // Yield to main thread every 5 files
+              await new Promise(resolve => setTimeout(resolve, 10));
+          }
+      }
         
       if (allChunks.length === 0) {
         this.index = null;
@@ -95,6 +107,7 @@ class RAGService {
       
       const docFrequencies = new Map<string, number>();
       const vocabulary = new Set<string>();
+      // FIX: The type was incorrect. It should be a map of chunk IDs to their term frequency maps.
       const chunkTermFrequencies = new Map<string, Map<string, number>>();
 
       for (const chunk of allChunks) {
@@ -149,6 +162,7 @@ class RAGService {
       console.error("Failed to build RAG index:", e);
       this.index = null;
     } finally {
+      useUIStore.getState().setIndexingProgress(null);
       this.isIndexing = false;
     }
   }

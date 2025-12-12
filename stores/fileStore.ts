@@ -6,6 +6,7 @@ import { useTerminalStore } from './terminalStore';
 import { useGitStore } from './gitStore';
 import { projectService } from '../services/projectService';
 import { useChatStore } from './chatStore';
+import { notify } from '../stores/notificationStore';
 
 interface FileState {
   files: File[];
@@ -143,7 +144,7 @@ export const useFileStore = create<FileState>()(
 
       saveFile: async (file) => {
         set(state => ({ files: state.files.map(f => f.id === file.id ? { ...f, isModified: false } : f) }));
-        useTerminalStore.getState().addTerminalLine(`Saved file: ${file.name}`, 'success');
+        notify(`Saved ${file.name}`, 'success');
         useGitStore.getState().syncFile(file);
         return true;
       },
@@ -151,7 +152,7 @@ export const useFileStore = create<FileState>()(
       saveAllFiles: async () => {
         const modified = get().files.filter(f => f.isModified);
         for (const f of modified) await get().saveFile(f);
-        if (modified.length > 0) useTerminalStore.getState().addTerminalLine(`Saved ${modified.length} files.`, 'success');
+        if (modified.length > 0) notify(`Saved ${modified.length} files.`, 'success');
       },
 
       closeFile: (id) => {
