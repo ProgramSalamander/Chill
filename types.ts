@@ -75,7 +75,7 @@ export interface Diagnostic {
 
 export type ThemeMode = 'neon' | 'calm' | 'matrix';
 
-export type AgentStepType = 'user' | 'thought' | 'call' | 'result' | 'response' | 'error' | 'plan';
+export type AgentStepType = 'user' | 'thought' | 'call' | 'result' | 'response' | 'error' | 'plan' | 'summary';
 export type AgentRole = 'planner' | 'coder' | 'tester' | 'debugger' | 'user' | 'system';
 
 export interface AgentStep {
@@ -147,7 +147,7 @@ export type SidebarView = SidebarViewConfig & {
 
 // --- Agent Interactive Types ---
 
-export type AgentStatus = 'idle' | 'planning' | 'plan_review' | 'thinking' | 'action_review' | 'executing' | 'completed' | 'failed';
+export type AgentStatus = 'idle' | 'planning' | 'plan_review' | 'thinking' | 'action_review' | 'executing' | 'completed' | 'failed' | 'summarizing';
 
 export interface AgentPlanItem {
   id: string;

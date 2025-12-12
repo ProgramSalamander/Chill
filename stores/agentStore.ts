@@ -24,6 +24,7 @@ interface AgentState {
   updatePendingActionArgs: (newArgs: any) => void;
   sendFeedback: (feedback: string) => Promise<void>;
   resetAgent: () => void;
+  summarizeTask: () => Promise<void>;
 }
 
 const useAgentStore = create<AgentState>((set, get) => ({
@@ -167,20 +168,49 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       console.error(e);
       handleFailedStep(`Agent failed after feedback: ${e.message}`);
     }
-  }
+  },
+
+  summarizeTask: async () => {
+    const { agentChatSession } = get();
+    if (!agentChatSession) {
+      set(state => ({
+        agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'response', text: "All steps completed successfully.", timestamp: Date.now() }],
+        status: 'completed'
+      }));
+      return;
+    }
+
+    set({ status: 'summarizing' });
+    try {
+      const summaryResponse = await agentChatSession.sendMessage({ message: "Excellent work. All planned steps are complete. Please provide a friendly and concise summary for the user in markdown. Briefly list the key files you created or modified and what was accomplished. Frame it as a successful hand-off. Start with a `### Summary` heading." });
+      
+      set(state => ({
+        agentSteps: [...state.agentSteps, { 
+          id: Date.now().toString(), 
+          type: 'summary', 
+          text: summaryResponse.text || "Task completed. I have updated the necessary files.", 
+          timestamp: Date.now() 
+        }],
+        status: 'completed'
+      }));
+    } catch(e) {
+      console.error("Summary generation failed", e);
+      set(state => ({
+        agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'response', text: "All steps completed successfully.", timestamp: Date.now() }],
+        status: 'completed'
+      }));
+    }
+  },
 }));
 
 // --- Helper functions to be called within the store ---
 
 async function processNextStep() {
-  const { plan, agentChatSession } = useAgentStore.getState();
+  const { plan, agentChatSession, summarizeTask } = useAgentStore.getState();
   const stepIndex = plan.findIndex(p => p.status === 'pending');
 
   if (stepIndex === -1) {
-    useAgentStore.setState({
-      status: 'completed',
-      agentSteps: [...useAgentStore.getState().agentSteps, { id: Date.now().toString(), type: 'response', text: "All steps completed successfully.", timestamp: Date.now() }]
-    });
+    await summarizeTask();
     return;
   }
 

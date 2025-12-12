@@ -1,10 +1,12 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, PreFlightResult } from '../../types';
 import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconArrowRight, IconXCircle, IconWorkflow, IconList } from '../Icons';
 import AgentStepNode from './AgentStepNode';
 import AgentStrategyMap from './AgentStrategyMap';
 import Tooltip from '../Tooltip';
+import AgentSummaryCard from './AgentSummaryCard';
 
 interface AgentHUDProps {
   status: AgentStatus;
@@ -35,6 +37,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
   const [isEditingArgs, setIsEditingArgs] = useState(false);
   const [argsInput, setArgsInput] = useState('');
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const summaryStep = agentSteps.find(s => s.type === 'summary');
 
   useEffect(() => {
       setEditedPlan(plan);
@@ -95,12 +98,17 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
           </div>
       )}
 
-      {/* 1. Status Header */}
-      {status !== 'idle' && (
+      {/* Render summary card on top if it exists */}
+      {summaryStep && (
+        <AgentSummaryCard summaryText={summaryStep.text} />
+      )}
+
+      {/* 1. Status Header (hide if summary is shown) */}
+      {status !== 'idle' && !summaryStep && (
           <div className="flex items-center gap-3 px-2">
                <div className={`
                     w-2 h-2 rounded-full 
-                    ${status === 'thinking' || status === 'executing' ? 'bg-orange-400 animate-ping' : 
+                    ${status === 'thinking' || status === 'executing' || status === 'summarizing' ? 'bg-orange-400 animate-ping' : 
                       status === 'completed' ? 'bg-green-400' : 
                       status === 'failed' ? 'bg-red-400' : 'bg-vibe-glow'}
                `}></div>
@@ -327,11 +335,11 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
             </div>
           )}
 
-          {agentSteps.map((step, idx) => (
+          {agentSteps.filter(s => s.type !== 'summary').map((step, idx) => (
             <AgentStepNode
                 key={step.id}
                 step={step}
-                isLast={idx === agentSteps.length - 1}
+                isLast={idx === agentSteps.filter(s => s.type !== 'summary').length - 1}
             />
           ))}
       </div>
