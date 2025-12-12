@@ -137,9 +137,6 @@ export const useFileStore = create<FileState>()(
             return { ...f, content, isModified: true };
           })
         }));
-        
-        const updatedFile = get().files.find(f => f.id === idToUpdate);
-        if(updatedFile) get().saveFile(updatedFile); // Auto-save for simplicity
       },
 
       saveFile: async (file) => {
