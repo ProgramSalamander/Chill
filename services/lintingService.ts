@@ -74,7 +74,7 @@ export const validateCode = (code: string, language: string): Diagnostic[] => {
     
     // Basic heuristic for JS/TS/JSON to catch obvious unbalanced braces
     // This is not a real parser but adds a layer of "sanity check" for the demo
-    if (['javascript', 'typescript', 'json', 'css'].includes(language)) {
+    if (['javascript', 'typescript', 'json', 'css', 'jsx', 'tsx'].includes(language)) {
         const stack: string[] = [];
         const diagnostics: Diagnostic[] = [];
         const lines = code.split('\n');
