@@ -361,8 +361,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 // Enable CodeLens
                 codeLens: true,
                 // Enable Lightbulb
-// FIX: Changed 'on' to true to fix type error. Other boolean `enabled` properties in this config suggest this is the correct value.
-                lightbulb: { enabled: true }
+                lightbulb: { enabled: 'on' }
             }}
          />
       </div>

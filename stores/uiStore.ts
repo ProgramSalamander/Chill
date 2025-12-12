@@ -4,6 +4,7 @@ import { SidebarView } from '../types';
 import { SIDEBAR_VIEWS } from '../views/sidebarViews';
 
 type Theme = 'light' | 'dark';
+type IndexingStatus = 'idle' | 'indexing' | 'ready';
 
 interface UIState {
   theme: Theme;
@@ -11,6 +12,7 @@ interface UIState {
   activeSidebarView: string | null;
   sidebarViews: SidebarView[];
   indexingProgress: { loaded: number; total: number } | null;
+  indexingStatus: IndexingStatus;
   isAIOpen: boolean;
   isSettingsOpen: boolean;
   isCommandPaletteOpen: boolean;
@@ -28,6 +30,7 @@ interface UIState {
   setIsCommandPaletteOpen: (isOpen: boolean) => void;
   setIsPreviewOpen: (isOpen: boolean) => void;
   setIsCloneModalOpen: (isOpen: boolean) => void;
+  setIndexingStatus: (status: IndexingStatus) => void;
 }
 
 const getDefaultSidebarViews = (): SidebarView[] => {
@@ -89,6 +92,7 @@ export const useUIStore = create<UIState>()(
       isCommandPaletteOpen: false,
       isPreviewOpen: false,
       isCloneModalOpen: false,
+      indexingStatus: 'idle',
 
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       setIsTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -100,6 +104,7 @@ export const useUIStore = create<UIState>()(
       setIsCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       setIsPreviewOpen: (isOpen) => set({ isPreviewOpen: isOpen }),
       setIsCloneModalOpen: (isOpen) => set({ isCloneModalOpen: isOpen }),
+      setIndexingStatus: (status) => set({ indexingStatus: status }),
     }),
     {
       name: 'vibe-ui-layout-storage',

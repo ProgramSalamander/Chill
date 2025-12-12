@@ -45,6 +45,7 @@ function App() {
   const isAIOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
+  const setIndexingStatus = useUIStore(state => state.setIndexingStatus);
 
   const initChat = useChatStore(state => state.initChat);
   const sendMessage = useChatStore(state => state.sendMessage);
@@ -52,7 +53,6 @@ function App() {
   // --- LOCAL COMPONENT STATE & REFS ---
   const [cursorPosition, setCursorPosition] = useState(0);
   const [selectedCode, setSelectedCode] = useState<string>('');
-  const [isIndexing, setIsIndexing] = useState(false);
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSuggestionResolve = useRef<((value: string | null) => void) | null>(null);
@@ -80,15 +80,14 @@ function App() {
     if (debounceIndexRef.current) clearTimeout(debounceIndexRef.current);
     debounceIndexRef.current = setTimeout(() => {
       if (files.length > 0) {
-        setIsIndexing(true);
-        addTerminalLine('Building smart context index...', 'info');
+        setIndexingStatus('indexing');
         ragService.updateIndex(files).then(() => {
-          setIsIndexing(false);
-          addTerminalLine('Smart context ready.', 'success');
+          setIndexingStatus('ready');
+          setTimeout(() => setIndexingStatus('idle'), 3000);
         });
       }
     }, 2000);
-  }, [files, addTerminalLine]);
+  }, [files, setIndexingStatus]);
 
   // Debounced Linting Effect
   useEffect(() => {
@@ -127,7 +126,7 @@ function App() {
             pendingSuggestionResolve.current = null; 
 
             const currentFile = useFileTreeStore.getState().activeFile;
-            if (!currentFile || useChatStore.getState().isGenerating || isIndexing) {
+            if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
                 resolve(null);
                 return;
             }
@@ -140,7 +139,7 @@ function App() {
             }
         }, 400);
     });
-  }, [isIndexing]);
+  }, []);
 
   const handleInlineAssist = async (instruction: string, range: any) => {
       const file = useFileTreeStore.getState().activeFile;
