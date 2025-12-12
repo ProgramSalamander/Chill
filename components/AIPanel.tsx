@@ -5,10 +5,10 @@ import AIPanelInput from './ai/AIPanelInput';
 import Tooltip from './Tooltip';
 import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
 
-import { useChatStore } from '../../stores/chatStore';
-import { useFileStore } from '../../stores/fileStore';
-import { useAgentStore } from '../../stores/agentStore';
-import { useUIStore } from '../../stores/uiStore';
+import { useChatStore } from '../stores/chatStore';
+import { useFileStore } from '../stores/fileStore';
+import { useAgentStore } from '../stores/agentStore';
+import { useUIStore } from '../stores/uiStore';
 
 interface AIPanelProps {
   onInsertCode: (code: string) => void;

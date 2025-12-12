@@ -10,8 +10,8 @@ import {
   IconMoon
 } from './Icons';
 import Tooltip from './Tooltip';
-import { useUIStore } from '../../stores/uiStore';
-import { useFileStore } from '../../stores/fileStore';
+import { useUIStore } from '../stores/uiStore';
+import { useFileStore } from '../stores/fileStore';
 
 const MenuBar: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);

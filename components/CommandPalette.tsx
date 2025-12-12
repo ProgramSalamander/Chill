@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { File } from '../types';
 import { 
   IconSearch, 
   IconFileCode, 
@@ -9,9 +8,9 @@ import {
   IconSettings,
   IconGitBranch
 } from './Icons';
-import { useUIStore } from '../../stores/uiStore';
-import { useFileStore } from '../../stores/fileStore';
-import { useGitStore } from '../../stores/gitStore';
+import { useUIStore } from '../stores/uiStore';
+import { useFileStore } from '../stores/fileStore';
+import { useGitStore } from '../stores/gitStore';
 
 interface CommandAction {
   id: string;

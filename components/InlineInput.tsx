@@ -1,6 +1,5 @@
-
 import React, { useEffect, useRef, useState } from 'react';
-import { IconSparkles, IconZap, IconClose } from './Icons';
+import { IconSparkles, IconZap } from './Icons';
 
 interface InlineInputProps {
   position: { top: number; left: number; lineHeight: number } | null;

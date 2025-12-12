@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { File } from '../types';
 import { 
   IconFileCode, 
   IconFolder, 
@@ -13,8 +12,8 @@ import {
   IconClose,
   IconBrain
 } from './Icons';
-import { useFileStore } from '../../stores/fileStore';
-import { useAgentStore } from '../../stores/agentStore';
+import { useFileStore } from '../stores/fileStore';
+import { useAgentStore } from '../stores/agentStore';
 
 interface FileTreeNodeProps {
   nodeId: string | null;

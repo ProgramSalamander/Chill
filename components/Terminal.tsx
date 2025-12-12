@@ -1,9 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Diagnostic } from '../types';
 import { IconClose } from './Icons';
-import { useTerminalStore } from '../../stores/terminalStore';
-import { useUIStore } from '../../stores/uiStore';
-import { useFileStore } from '../../stores/fileStore';
+import { useTerminalStore } from '../stores/terminalStore';
+import { useUIStore } from '../stores/uiStore';
+import { useFileStore } from '../stores/fileStore';
 
 const Terminal: React.FC = () => {
   const bottomRef = useRef<HTMLDivElement>(null);

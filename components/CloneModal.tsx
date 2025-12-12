@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IconClose, IconGitBranch } from './Icons';
-import { useUIStore } from '../../stores/uiStore';
-import { useGitStore } from '../../stores/gitStore';
+import { useUIStore } from '../stores/uiStore';
+import { useGitStore } from '../stores/gitStore';
 
 const CloneModal: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');

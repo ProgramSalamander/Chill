@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { IconClose, IconSettings, IconZap, IconCpu, IconSparkles, IconTerminal } from './Icons';
+import { IconClose, IconSettings, IconSparkles, IconTerminal } from './Icons';
 import { AIConfig, AIModelConfig } from '../types';
 import { getAIConfig, saveAIConfig } from '../services/configService';
-import { useUIStore } from '../../stores/uiStore';
-import { useChatStore } from '../../stores/chatStore';
+import { useUIStore } from '../stores/uiStore';
+import { useChatStore } from '../stores/chatStore';
 
 const SettingsModal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'completion'>('chat');

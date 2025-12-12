@@ -1,6 +1,6 @@
 import React from 'react';
 import { IconClose, IconTrash } from './Icons';
-import { useFileStore } from '../../stores/fileStore';
+import { useFileStore } from '../stores/fileStore';
 
 const DeleteConfirmModal: React.FC = () => {
   const { fileToDelete, setFileToDelete, confirmDelete } = useFileStore(state => ({

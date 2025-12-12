@@ -4,8 +4,8 @@ import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
 import Tooltip from './Tooltip';
-import { useUIStore } from '../../stores/uiStore';
-import { useGitStore } from '../../stores/gitStore';
+import { useUIStore } from '../stores/uiStore';
+import { useGitStore } from '../stores/gitStore';
 
 const Sidebar: React.FC = () => {
   const { 

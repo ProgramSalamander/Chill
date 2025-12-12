@@ -1,8 +1,8 @@
 import React from 'react';
 import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles } from './Icons';
 import Tooltip from './Tooltip';
-import { useFileStore } from '../../stores/fileStore';
-import { useUIStore } from '../../stores/uiStore';
+import { useFileStore } from '../stores/fileStore';
+import { useUIStore } from '../stores/uiStore';
 
 interface EditorTabsProps {
   onClearSelection: () => void;

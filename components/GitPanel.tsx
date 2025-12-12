@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Commit } from '../types';
 import { generateCommitMessage } from '../services/geminiService';
 import { GitStatus } from '../services/gitService';
 import { 
@@ -13,8 +12,8 @@ import {
   IconRefresh,
   IconArrowDown
 } from './Icons';
-import { useGitStore } from '../../stores/gitStore';
-import { useFileStore } from '../../stores/fileStore';
+import { useGitStore } from '../stores/gitStore';
+import { useFileStore } from '../stores/fileStore';
 
 const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
