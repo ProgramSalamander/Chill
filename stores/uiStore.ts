@@ -29,18 +29,49 @@ interface UIState {
 }
 
 const getDefaultSidebarViews = (): SidebarView[] => {
-  try {
-    const saved = localStorage.getItem('vibe-ui-layout-storage');
-    if (saved) {
-      const parsedState = JSON.parse(saved).state;
-      if (parsedState.sidebarViews) return parsedState.sidebarViews;
-    }
-  } catch (e) { /* ignore */ }
-  return SIDEBAR_VIEWS.map((view, index) => ({
+  const defaultViews = SIDEBAR_VIEWS.map((view, index) => ({
     ...view,
     order: index,
     visible: true,
   }));
+
+  try {
+    const saved = localStorage.getItem('vibe-ui-layout-storage');
+    if (!saved) return defaultViews;
+
+    const parsedState = JSON.parse(saved).state;
+    const savedViewsConfig: Array<{ id: string; order: number; visible: boolean }> = parsedState.sidebarViews || [];
+    
+    if(savedViewsConfig.length === 0) return defaultViews;
+
+    const baseViewsMap = new Map(SIDEBAR_VIEWS.map(v => [v.id, v]));
+
+    // Reconstruct the array by merging saved config with static definitions.
+    const mergedViews = savedViewsConfig
+      .map(savedView => {
+        const baseView = baseViewsMap.get(savedView.id);
+        if (!baseView) return null; // A view was removed from the codebase.
+        return {
+          ...baseView, // This brings back the icon component and title.
+          order: savedView.order,
+          visible: savedView.visible,
+        };
+      })
+      .filter((v): v is SidebarView => v !== null);
+
+    // Add any new views that are in the code but not in storage yet.
+    SIDEBAR_VIEWS.forEach(baseView => {
+      if (!mergedViews.some(v => v.id === baseView.id)) {
+        mergedViews.push({ ...baseView, order: mergedViews.length, visible: true });
+      }
+    });
+    
+    return mergedViews.sort((a, b) => a.order - b.order);
+
+  } catch (e) {
+    // If anything fails, return the safe default.
+    return defaultViews;
+  }
 };
 
 export const useUIStore = create<UIState>()(
@@ -72,7 +103,7 @@ export const useUIStore = create<UIState>()(
         theme: state.theme, 
         isTerminalOpen: state.isTerminalOpen, 
         activeSidebarView: state.activeSidebarView,
-        sidebarViews: state.sidebarViews,
+        sidebarViews: state.sidebarViews.map(({ id, order, visible }) => ({ id, order, visible })),
       }),
     }
   )
