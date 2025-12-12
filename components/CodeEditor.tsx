@@ -15,6 +15,7 @@ interface CodeEditorProps {
   onFetchSuggestion: (code: string, offset: number) => Promise<string | null>;
   onUndo?: () => void;
   onRedo?: () => void;
+  onSave?: () => void;
   // Live Preview Props
   showPreview?: boolean;
   previewContent?: string;
@@ -34,6 +35,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onFetchSuggestion,
   onUndo,
   onRedo,
+  onSave,
   showPreview = false,
   previewContent = '',
   diagnostics = [],
@@ -155,6 +157,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {
         if (onRedo) onRedo();
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        if (onSave) onSave();
     });
 
     // Cmd+K for Inline AI

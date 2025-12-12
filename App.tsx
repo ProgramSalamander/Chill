@@ -36,6 +36,7 @@ function App() {
   const undo = useFileStore(state => state.undo);
   const redo = useFileStore(state => state.redo);
   const loadInitialProject = useFileStore(state => state.loadInitialProject);
+  const saveFile = useFileStore(state => state.saveFile);
 
   const setDiagnostics = useTerminalStore(state => state.setDiagnostics);
   const diagnostics = useTerminalStore(state => state.diagnostics);
@@ -105,6 +106,12 @@ function App() {
   }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);
 
   // --- HANDLERS ---
+  const handleSaveFile = useCallback(() => {
+    if (activeFile) {
+      saveFile(activeFile);
+    }
+  }, [activeFile, saveFile]);
+  
   const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
     if (pendingSuggestionResolve.current) {
         pendingSuggestionResolve.current(null);
@@ -203,7 +210,9 @@ function App() {
                               onCursorChange={setCursorPosition}
                               onSelectionChange={setSelectedCode}
                               onFetchSuggestion={handleFetchSuggestion}
-                              onUndo={undo} onRedo={redo} showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
+                              onUndo={undo} onRedo={redo}
+                              onSave={handleSaveFile}
+                              showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
                               onInlineAssist={handleInlineAssist}
                           />
                           {selectedCode && (
