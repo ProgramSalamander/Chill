@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState, useRef, useLayoutEffect, useCallback } from 'react';
 
 interface TooltipProps {
   content: React.ReactNode;
@@ -14,35 +13,108 @@ const Tooltip: React.FC<TooltipProps> = ({
   children,
   position = 'right'
 }) => {
+  const [visible, setVisible] = useState(false);
+  const [style, setStyle] = useState<React.CSSProperties>({});
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
-  const positionClasses = {
-    right: 'left-full ml-3 top-1/2 -translate-y-1/2 origin-left',
-    left: 'right-full mr-3 top-1/2 -translate-y-1/2 origin-right',
-    top: 'bottom-full mb-2 left-1/2 -translate-x-1/2 origin-bottom',
-    bottom: 'top-full mt-2 left-1/2 -translate-x-1/2 origin-top',
-  };
+  const calculatePosition = useCallback(() => {
+    if (!wrapperRef.current || !tooltipRef.current) return;
+
+    const targetRect = wrapperRef.current.getBoundingClientRect();
+    const tooltipRect = tooltipRef.current.getBoundingClientRect();
+    const newStyle: React.CSSProperties = {};
+    
+    const gap = 8;
+    const screenPadding = 8;
+    
+    let top = 0;
+    let left = 0;
+
+    switch (position) {
+      case 'top':
+        top = targetRect.top - tooltipRect.height - gap;
+        left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+        break;
+      case 'bottom':
+        top = targetRect.bottom + gap;
+        left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+        break;
+      case 'left':
+        top = targetRect.top + targetRect.height / 2 - tooltipRect.height / 2;
+        left = targetRect.left - tooltipRect.width - gap;
+        break;
+      case 'right':
+      default:
+        top = targetRect.top + targetRect.height / 2 - tooltipRect.height / 2;
+        left = targetRect.right + gap;
+        break;
+    }
+    
+    // Viewport clamping
+    if (left < screenPadding) {
+      left = screenPadding;
+    } else if (left + tooltipRect.width > window.innerWidth - screenPadding) {
+      left = window.innerWidth - tooltipRect.width - screenPadding;
+    }
+    
+    if (top < screenPadding) {
+      top = screenPadding;
+    } else if (top + tooltipRect.height > window.innerHeight - screenPadding) {
+      top = window.innerHeight - tooltipRect.height - screenPadding;
+    }
+    
+    newStyle.top = `${top}px`;
+    newStyle.left = `${left}px`;
+    
+    setStyle(newStyle);
+  }, [position, content, shortcut]);
+
+  useLayoutEffect(() => {
+    if (visible) {
+      calculatePosition();
+    }
+  }, [visible, calculatePosition]);
+
+  const show = () => setVisible(true);
+  const hide = () => setVisible(false);
 
   return (
-    <div className="relative group flex items-center">
-      {children}
-      <div 
-        className={`
-          absolute w-max z-50 flex items-center gap-2 px-3 py-1.5 
-          bg-[#0f0f16]/90 backdrop-blur-xl border border-white/10 
-          rounded-lg shadow-2xl text-xs font-medium text-slate-200 
-          opacity-0 group-hover:opacity-100 group-hover:scale-100 scale-95
-          pointer-events-none transition-all duration-200
-          ${positionClasses[position]}
-        `}
+    <>
+      <div
+        className="inline-flex items-center"
+        ref={wrapperRef}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
       >
-        <span>{content}</span>
-        {shortcut && (
-          <kbd className="h-5 items-center gap-1 rounded border border-white/10 bg-black/40 px-1.5 font-mono text-[10px] font-medium text-slate-400">
-            {shortcut}
-          </kbd>
-        )}
+        {children}
       </div>
-    </div>
+      <div
+        ref={tooltipRef}
+        style={{
+          ...style,
+          position: 'fixed',
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'scale(1)' : 'scale(0.95)',
+          transition: 'opacity 0.1s ease-out, transform 0.1s ease-out',
+          pointerEvents: 'none',
+          zIndex: 250,
+        }}
+        className="w-max bg-[#0f0f16]/90 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl"
+        role="tooltip"
+      >
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-200">
+          <span>{content}</span>
+          {shortcut && (
+            <kbd className="h-5 items-center gap-1 rounded border border-white/10 bg-black/40 px-1.5 font-mono text-[10px] font-medium text-slate-400">
+              {shortcut}
+            </kbd>
+          )}
+        </div>
+      </div>
+    </>
   );
 };
 
