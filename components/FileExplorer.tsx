@@ -161,20 +161,26 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
             </div>
         ) : (
             <>
-              <span className={`truncate text-sm flex-1 ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
+              <span className={`truncate text-sm flex-1 ${node.isModified ? 'italic' : ''} ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
                   {node.name}
               </span>
-              
-              {isAware && !isModified && !isAdded && (
-                 <IconBrain size={10} className="text-vibe-glow animate-pulse mr-2 opacity-50" />
-              )}
 
-              {isModified && (
-                 <span className="text-[9px] font-bold text-amber-400 font-mono mr-2 bg-amber-400/10 px-1 rounded" title="Modified">M</span>
-              )}
-              {isAdded && (
-                 <span className="text-[9px] font-bold text-green-400 font-mono mr-2 bg-green-400/10 px-1 rounded" title="Added (Untracked)">U</span>
-              )}
+              <div className="flex items-center gap-x-2 mr-2 shrink-0">
+                  {node.isModified && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse" title="Unsaved changes"></div>
+                  )}
+
+                  {isModified && (
+                      <span className="text-[9px] font-bold text-amber-400 font-mono bg-amber-400/10 px-1 rounded" title="Modified">M</span>
+                  )}
+                  {isAdded && (
+                      <span className="text-[9px] font-bold text-green-400 font-mono bg-green-400/10 px-1 rounded" title="Added (Untracked)">U</span>
+                  )}
+                  
+                  {isAware && !isModified && !isAdded && (
+                      <IconBrain size={10} className="text-vibe-glow animate-pulse opacity-50" />
+                  )}
+              </div>
             </>
         )}
 
