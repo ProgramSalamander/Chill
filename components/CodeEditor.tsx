@@ -103,7 +103,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           console.log('[CodeEditor] Received suggestion:', suggestionText);
           if (suggestionText && !token.isCancellationRequested) {
             return {
-              items: [{ insertText: suggestionText }],
+              items: [{ insertText: { snippet: suggestionText } }],
               enableForwardStability: true,
               suppressSuggestions: true,
             };
