@@ -68,15 +68,41 @@ class AIService {
   }
 
   async getCodeCompletion(
-    prefix: string, 
+    code: string, 
     offset: number, 
     language: string, 
     file: File, 
     allFiles: File[]
   ): Promise<string | null> {
-    const prompt = `You are a code completion engine. Complete the code at the cursor.\nLanguage: ${language}\nFilename: ${file.name}\n\nContext:\n${prefix.slice(-1000)}\n\nReturn ONLY the completion code. No markdown. No explanation.`;
+    const codeBeforeCursor = code.slice(0, offset);
+    const codeAfterCursor = code.slice(offset);
+    const context = codeBeforeCursor.slice(-1000); // 1000 chars before cursor
+
+    const prompt = `You are a code completion engine. Your task is to complete the code at the cursor position.
+Respond with ONLY the code snippet that should be inserted. Do not add explanations or markdown formatting.
+
+Language: ${language}
+File: ${file.name}
+
+Code before cursor:
+---
+${context}
+---
+
+Code after cursor:
+---
+${codeAfterCursor.slice(0, 500)}
+---
+
+Complete the code at the cursor position:`;
+    
+    console.log('[aiService] getCodeCompletion prompt:', { language, filename: file.name, context: `...${context.slice(-100)}[CURSOR]` });
+
     try {
-        const response = await this.generateText('completion', prompt, { temperature: 0.2, maxOutputTokens: 64 });
+        const response = await this.generateText('completion', prompt, { temperature: 0.2, maxOutputTokens: 128 });
+        
+        console.log('[aiService] Raw completion response:', response);
+
         if (!response) {
             return null;
         }
@@ -86,9 +112,11 @@ class AIService {
         if (cleanedResponse.startsWith('```')) {
             cleanedResponse = cleanedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
         }
-
+        
+        console.log('[aiService] Cleaned completion response:', cleanedResponse);
         return cleanedResponse ? cleanedResponse : null;
     } catch (e) {
+        console.error('[aiService] getCodeCompletion error:', e);
         return null;
     }
   }

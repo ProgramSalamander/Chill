@@ -97,6 +97,7 @@ function App() {
   }, [activeFile, saveFile]);
   
   const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
+    console.log(`[App] Fetching suggestion for offset ${offset}`);
     if (pendingSuggestionResolve.current) {
         pendingSuggestionResolve.current(null);
         pendingSuggestionResolve.current = null;
@@ -111,14 +112,17 @@ function App() {
 
             const currentFile = useFileTreeStore.getState().activeFile;
             if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
+                console.log('[App] Suggestion aborted (busy or no file).');
                 resolve(null);
                 return;
             }
             try {
+                console.log('[App] Calling aiService.getCodeCompletion...');
                 const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
+                console.log('[App] Got suggestion from aiService:', sugg);
                 resolve(sugg || null);
             } catch (e) {
-                console.error("Suggestion fetch failed:", e);
+                console.error("[App] Suggestion fetch failed:", e);
                 resolve(null);
             }
         }, 400);

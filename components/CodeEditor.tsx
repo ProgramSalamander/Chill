@@ -88,17 +88,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     // --- 1. Inline Completions Provider (AI) ---
     const inlineProvider = monaco.languages.registerInlineCompletionsProvider(getMonacoLanguage(language), {
       provideInlineCompletions: async (model, position, context, token) => {
+        console.log('[CodeEditor] Inline completion triggered at', position, 'context:', context.triggerKind);
         const code = model.getValue();
         const offset = model.getOffsetAt(position);
         try {
           const suggestionText = await onFetchSuggestion(code, offset);
+          console.log('[CodeEditor] Received suggestion:', suggestionText);
           if (suggestionText) {
             return {
               items: [{ insertText: suggestionText }]
             };
           }
         } catch (e) {
-          console.error("Error fetching inline suggestion:", e);
+          console.error("[CodeEditor] Error fetching inline suggestion:", e);
         }
         return { items: [] };
       },
@@ -361,7 +363,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 // Enable CodeLens
                 codeLens: true,
                 // Enable Lightbulb
-                lightbulb: { enabled: 'on' }
+// FIX: The value 'on' is not a valid for 'lightbulb.enabled' in this version of Monaco Editor. Changed to boolean `true` for compatibility.
+                lightbulb: { enabled: true }
             }}
          />
       </div>
