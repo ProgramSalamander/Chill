@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { Diagnostic } from '../types';
 import { InlineInput } from './InlineInput';
 import { ragService } from '../services/ragService';
@@ -87,16 +88,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     
     // --- 1. Inline Completions Provider (AI) ---
     const inlineProvider = monaco.languages.registerInlineCompletionsProvider(getMonacoLanguage(language), {
+      debounceDelayMs: 400,
       provideInlineCompletions: async (model, position, context, token) => {
         console.log('[CodeEditor] Inline completion triggered at', position, 'context:', context.triggerKind);
+        
+        if (token.isCancellationRequested) {
+            return { items: [] };
+        }
+
         const code = model.getValue();
         const offset = model.getOffsetAt(position);
         try {
           const suggestionText = await onFetchSuggestion(code, offset);
           console.log('[CodeEditor] Received suggestion:', suggestionText);
-          if (suggestionText) {
+          if (suggestionText && !token.isCancellationRequested) {
             return {
-              items: [{ insertText: suggestionText }]
+              items: [{ insertText: suggestionText }],
+              enableForwardStability: true,
+              suppressSuggestions: true,
             };
           }
         } catch (e) {
@@ -104,7 +113,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
         return { items: [] };
       },
-      disposeInlineCompletions: async (completions, reason) => {},
+      disposeInlineCompletions: (completions, reason) => {},
     });
     disposablesRef.current.push(inlineProvider);
 
@@ -362,9 +371,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 },
                 // Enable CodeLens
                 codeLens: true,
-                // Enable Lightbulb
-// FIX: The value 'on' is not a valid for 'lightbulb.enabled' in this version of Monaco Editor. Changed to boolean `true` for compatibility.
-                lightbulb: { enabled: true }
+                lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On }
             }}
          />
       </div>

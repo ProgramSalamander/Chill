@@ -1,5 +1,3 @@
-
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message, MessageRole, File, AISession } from '../types';
 // FIX: Replaced import from empty geminiService.ts with aiService.

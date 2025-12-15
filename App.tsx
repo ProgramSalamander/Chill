@@ -53,8 +53,6 @@ function App() {
   const [cursorPosition, setCursorPosition] = useState(0);
   const [selectedCode, setSelectedCode] = useState<string>('');
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suggestionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSuggestionResolve = useRef<((value: string | null) => void) | null>(null);
   const addTerminalLine = useTerminalStore(state => state.addTerminalLine);
 
   // --- EFFECTS ---
@@ -97,36 +95,21 @@ function App() {
   }, [activeFile, saveFile]);
   
   const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
-    console.log(`[App] Fetching suggestion for offset ${offset}`);
-    if (pendingSuggestionResolve.current) {
-        pendingSuggestionResolve.current(null);
-        pendingSuggestionResolve.current = null;
+    const currentFile = useFileTreeStore.getState().activeFile;
+    if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
+        console.log('[App] Suggestion aborted (busy or no file).');
+        return null;
     }
-    if (suggestionDebounceRef.current) clearTimeout(suggestionDebounceRef.current);
 
-    return new Promise((resolve) => {
-        pendingSuggestionResolve.current = resolve;
-        
-        suggestionDebounceRef.current = setTimeout(async () => {
-            pendingSuggestionResolve.current = null; 
-
-            const currentFile = useFileTreeStore.getState().activeFile;
-            if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
-                console.log('[App] Suggestion aborted (busy or no file).');
-                resolve(null);
-                return;
-            }
-            try {
-                console.log('[App] Calling aiService.getCodeCompletion...');
-                const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
-                console.log('[App] Got suggestion from aiService:', sugg);
-                resolve(sugg || null);
-            } catch (e) {
-                console.error("[App] Suggestion fetch failed:", e);
-                resolve(null);
-            }
-        }, 400);
-    });
+    try {
+        console.log('[App] Calling aiService.getCodeCompletion...');
+        const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
+        console.log('[App] Got suggestion from aiService:', sugg);
+        return sugg || null;
+    } catch (e) {
+        console.error("[App] Suggestion fetch failed:", e);
+        return null;
+    }
   }, []);
 
   const handleInlineAssist = async (instruction: string, range: any) => {
