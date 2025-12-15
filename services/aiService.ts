@@ -77,7 +77,17 @@ class AIService {
     const prompt = `You are a code completion engine. Complete the code at the cursor.\nLanguage: ${language}\nFilename: ${file.name}\n\nContext:\n${prefix.slice(-1000)}\n\nReturn ONLY the completion code. No markdown. No explanation.`;
     try {
         const response = await this.generateText('completion', prompt, { temperature: 0.2, maxOutputTokens: 64 });
-        return response || null;
+        if (!response) {
+            return null;
+        }
+
+        let cleanedResponse = response.trim();
+        // Strip markdown fences if the model includes them by mistake
+        if (cleanedResponse.startsWith('```')) {
+            cleanedResponse = cleanedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
+        }
+
+        return cleanedResponse ? cleanedResponse : null;
     } catch (e) {
         return null;
     }
@@ -94,11 +104,17 @@ class AIService {
     const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-500)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 500)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
     
     try {
-        let text = await this.generateText('completion', prompt);
-        if (text.startsWith('```')) {
-            text = text.replace(/```\w*\n?/, '').replace(/```$/, '');
+        const text = await this.generateText('completion', prompt);
+        if (!text) {
+          return null;
         }
-        return text.trim();
+
+        let cleanedText = text.trim();
+        if (cleanedText.startsWith('```')) {
+            cleanedText = cleanedText.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
+        }
+        
+        return cleanedText ? cleanedText : null;
     } catch (e) {
         console.error(e);
         return null;
