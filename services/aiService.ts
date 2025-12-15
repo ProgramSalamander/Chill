@@ -121,6 +121,29 @@ Complete the code at the cursor position.`;
         if (trimmedResponse.startsWith('```') && trimmedResponse.endsWith('```')) {
             cleanedResponse = trimmedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
         }
+
+        // Trim exact overlaps between the suggestion and surrounding context
+        if (cleanedResponse) {
+            // Trim leading overlap that duplicates the start of codeAfterCursor
+            const maxLead = Math.min(cleanedResponse.length, codeBeforeCursor.length);
+            for (let i = maxLead; i > 0; i--) {
+                if (cleanedResponse.startsWith(codeAfterCursor.slice(0, i))) {
+                    cleanedResponse = cleanedResponse.slice(i);
+                    break;
+                }
+            }
+
+            // Trim trailing overlap that duplicates the end of codeBeforeCursor
+            const maxTrail = Math.min(cleanedResponse.length, codeBeforeCursor.length);
+            for (let i = maxTrail; i > 0; i--) {
+                if (cleanedResponse.endsWith(codeBeforeCursor.slice(codeBeforeCursor.length - i))) {
+                    cleanedResponse = cleanedResponse.slice(0, cleanedResponse.length - i);
+                    break;
+                }
+            }
+
+            if (cleanedResponse.trim().length === 0) cleanedResponse = null;
+        }
         
         console.log('[aiService] Cleaned completion response:', cleanedResponse);
         return cleanedResponse ? cleanedResponse : null;
