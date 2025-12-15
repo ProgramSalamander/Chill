@@ -12,18 +12,18 @@
     <style>
       /* --- THEME CSS VARIABLES --- */
       :root {
-        --bg-primary: 248 250 252; /* slate-50 */
-        --bg-secondary: 241 245 249; /* slate-100 */
-        --bg-tertiary: 226 232 240; /* slate-200 */
-        --text-primary: 15 23 42; /* slate-900 */
-        --text-secondary: 51 65 85; /* slate-600 */
-        --text-tertiary: 71 85 105; /* slate-600 for better contrast */
-        --vibe-accent: 79 70 229; /* indigo-600 */
-        --vibe-glow: 99 102 241; /* indigo-500 */
-        --vibe-glass-rgb: 241, 245, 249; /* slate-100 */
-        --vibe-glass-alpha: 0.6;
+        --bg-primary: 247 247 248; /* A custom very light gray */
+        --bg-secondary: 252 252 253; /* Lighter for panels */
+        --bg-tertiary: 241 241 242; /* For borders/hovers */
+        --text-primary: 28 33 48; /* A dark slate, not pure black */
+        --text-secondary: 82 90 115; /* A softer slate */
+        --text-tertiary: 142 149 169; /* Even softer for tertiary info */
+        --vibe-accent: 29 78 216; /* blue-700, stronger for accessibility on light bg */
+        --vibe-glow: 59 130 246; /* blue-500 */
+        --vibe-glass-rgb: 255, 255, 255; /* Pure white for the glass effect */
+        --vibe-glass-alpha: 0.7;
         --vibe-border-rgb: 0, 0, 0;
-        --vibe-border-alpha: 0.06;
+        --vibe-border-alpha: 0.07;
       }
       .dark {
         --bg-primary: 5 5 8;
@@ -77,7 +77,7 @@
           radial-gradient(at 10% 90%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
           radial-gradient(at 90% 90%, rgba(236, 72, 153, 0.08) 0px, transparent 50%);
         filter: blur(40px);
-        opacity: 0;
+        opacity: 0.3; /* Default opacity for light mode */
       }
       .dark .aurora-bg {
         opacity: 0.8;
