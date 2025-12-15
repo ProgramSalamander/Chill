@@ -125,9 +125,9 @@ Complete the code at the cursor position.`;
         // Trim exact overlaps between the suggestion and surrounding context
         if (cleanedResponse) {
             // Trim leading overlap that duplicates the start of codeAfterCursor
-            const maxLead = Math.min(cleanedResponse.length, codeBeforeCursor.length);
+            const maxLead = Math.min(cleanedResponse.length, codeAfterCursor.length);
             for (let i = maxLead; i > 0; i--) {
-                if (cleanedResponse.startsWith(codeAfterCursor.slice(0, i))) {
+                if (cleanedResponse.endsWith(codeAfterCursor.slice(0, i))) {
                     cleanedResponse = cleanedResponse.slice(i);
                     break;
                 }
@@ -136,7 +136,7 @@ Complete the code at the cursor position.`;
             // Trim trailing overlap that duplicates the end of codeBeforeCursor
             const maxTrail = Math.min(cleanedResponse.length, codeBeforeCursor.length);
             for (let i = maxTrail; i > 0; i--) {
-                if (cleanedResponse.endsWith(codeBeforeCursor.slice(codeBeforeCursor.length - i))) {
+                if (cleanedResponse.startsWith(codeBeforeCursor.slice(codeBeforeCursor.length - i))) {
                     cleanedResponse = cleanedResponse.slice(0, cleanedResponse.length - i);
                     break;
                 }
