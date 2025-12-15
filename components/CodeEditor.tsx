@@ -101,13 +101,32 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         try {
           const suggestionText = await onFetchSuggestion(code, offset);
           console.log('[CodeEditor] Received suggestion:', suggestionText);
-          if (suggestionText && !token.isCancellationRequested) {
-            return {
-              items: [{ insertText: { snippet: suggestionText } }],
-              enableForwardStability: true,
-              suppressSuggestions: true,
-            };
-          }
+            if (suggestionText && !token.isCancellationRequested) {
+                const startLineNumber = position.lineNumber;
+                const startColumn = position.column;
+                const eol = model.getEOL();
+                console.log('[CodeEditor] Model EOL character:', eol);
+                const lineBreaks = (suggestionText.match(new RegExp(eol, 'g')) || []).length;
+                console.log('[CodeEditor] Suggestion line breaks:', lineBreaks);
+                // If the text contains a line break, the range must end at the end of a line.
+                const endLineNumber = startLineNumber;
+                const endColumn = lineBreaks ? model.getLineMaxColumn(endLineNumber): startColumn + suggestionText.length;
+                console.log('[CodeEditor] Suggestion range:', { startLineNumber, startColumn, endLineNumber, endColumn });
+                return {
+                    items: [{
+                        insertText: suggestionText,
+                        range: {
+                            startLineNumber: startLineNumber,
+                            startColumn: startColumn,
+                            endLineNumber: endLineNumber,
+                            endColumn: endColumn,
+                        },
+                        completeBracketPairs: true,
+                    }],
+                    enableForwardStability: true,
+                    suppressSuggestions: true,
+                };
+            }
         } catch (e) {
           console.error("[CodeEditor] Error fetching inline suggestion:", e);
         }

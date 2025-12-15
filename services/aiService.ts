@@ -85,7 +85,7 @@ class AIService {
 
     const prompt = `You are a code completion engine. Your task is to complete the code at the cursor position.
 Respond with ONLY the code snippet that should be inserted. Do not add explanations or markdown formatting.
-Pay close attention to formatting and indentation. If the completion should start on a new line, it MUST begin with a newline character ('\\n').
+Pay close attention to formatting and indentation.
 
 Language: ${language}
 File: ${file.name}
@@ -102,7 +102,7 @@ Code after cursor (including current line):
 ${codeAfterCursor.slice(0, 500)}
 ---
 
-Complete the code at the cursor position. Remember to start with '\\n' and proper indentation if the completion belongs on a new line.`;
+Complete the code at the cursor position.`;
     
     console.log('[aiService] getCodeCompletion prompt:', { language, filename: file.name, context: `...${context.slice(-100)}[CURSOR]` });
 
