@@ -45,7 +45,7 @@ const CommandPalette: React.FC = () => {
   }, [isCommandPaletteOpen]);
 
   const actions: CommandAction[] = [
-      { id: 'new_file', label: 'New File', icon: <IconFilePlus size={16} />, run: () => createNode('file', null, `file_${Date.now()}.ts`) },
+      { id: 'new_file', label: 'New File', icon: <IconFilePlus size={16} />, run: () => createNode('file', null, 'untitled.ts') },
       { id: 'toggle_term', label: 'Toggle Terminal', icon: <IconTerminal size={16} />, run: () => setIsTerminalOpen(!useUIStore.getState().isTerminalOpen) },
       { id: 'settings', label: 'Settings', icon: <IconSettings size={16} />, run: () => setIsSettingsOpen(true) },
       { id: 'git', label: 'Git Status', icon: <IconGitBranch size={16} />, run: () => { 

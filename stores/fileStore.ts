@@ -55,17 +55,32 @@ export const useFileTreeStore = create<FileTreeState>()(
       createNode: async (type, parentId, name, initialContent) => {
         const { files } = get();
         const { addTerminalLine } = useTerminalStore.getState();
-        const existing = files.some(f => f.parentId === parentId && f.name === name);
-        if (existing) {
-          addTerminalLine(`Error: ${type} "${name}" already exists.`, 'error');
-          return null;
+        
+        let finalName = name.trim();
+        if (!finalName) {
+            finalName = type === 'file' ? 'untitled.ts' : 'new-folder';
         }
+
+        let counter = 1;
+        const existingNames = new Set(files.filter(f => f.parentId === parentId).map(f => f.name));
+
+        const nameParts = finalName.match(/(.+?)(\.[^.]+)?$/);
+        const baseName = nameParts ? nameParts[1] : finalName;
+        const extension = nameParts ? nameParts[2] || '' : '';
+
+        let tempName = finalName;
+        while (existingNames.has(tempName)) {
+            tempName = `${baseName} (${counter})${extension}`;
+            counter++;
+        }
+        finalName = tempName;
 
         const newFile: File = {
           id: Math.random().toString(36).slice(2, 11),
-          name, type, parentId,
+          name: finalName, 
+          type, parentId,
           isOpen: type === 'folder' ? true : undefined,
-          language: type === 'file' ? getLanguage(name) : '',
+          language: type === 'file' ? getLanguage(finalName) : '',
           content: initialContent || (type === 'file' ? '' : ''),
           isModified: !!initialContent,
           history: type === 'file' ? { past: [], future: [], lastSaved: 0 } : undefined,

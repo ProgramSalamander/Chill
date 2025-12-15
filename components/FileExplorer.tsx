@@ -285,26 +285,70 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 const FileExplorer: React.FC = () => {
     const files = useFileTreeStore(state => state.files);
     const createNode = useFileTreeStore(state => state.createNode);
+    
+    const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
+    const [newNodeName, setNewNodeName] = useState('');
+
+    const handleStartCreate = (type: 'file' | 'folder') => {
+        setIsCreating(type);
+        setNewNodeName('');
+    };
+
+    const handleSaveCreate = () => {
+        if (newNodeName.trim() && isCreating) {
+            createNode(isCreating, null, newNodeName.trim());
+        }
+        setIsCreating(null);
+        setNewNodeName('');
+    };
+
     return (
         <div className="flex flex-col h-full">
             <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between items-center tracking-wider border-b border-white/5 shrink-0">
                 <span>Explorer</span>
                 <div className="flex items-center gap-2 text-slate-400">
-                    <button onClick={() => createNode('file', null, `untitled.ts`)} className="hover:text-white transition-colors" title="New File">
+                    <button onClick={() => handleStartCreate('file')} className="hover:text-white transition-colors" title="New File">
                         <IconFilePlus size={14} />
                     </button>
-                    <button onClick={() => createNode('folder', null, `new-folder`)} className="hover:text-white transition-colors" title="New Folder">
+                    <button onClick={() => handleStartCreate('folder')} className="hover:text-white transition-colors" title="New Folder">
                         <IconFolderPlus size={14} />
                     </button>
                 </div>
             </div>
-            {files.length === 0 ? (
+            {files.length === 0 && !isCreating ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
                     <IconFolderOpen size={32} />
                     <p className="text-xs">No files yet</p>
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
+                    {isCreating && (
+                        <div 
+                            className="flex items-center gap-2 py-1 px-3 animate-in fade-in slide-in-from-top-1 my-1 mx-1"
+                            style={{ paddingLeft: `12px` }}
+                        >
+                            <span className="text-slate-500">
+                                {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
+                            </span>
+                            <div className="flex items-center flex-1 gap-1">
+                                <input 
+                                    autoFocus
+                                    type="text"
+                                    value={newNodeName}
+                                    onChange={e => setNewNodeName(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') handleSaveCreate();
+                                        if (e.key === 'Escape') { setIsCreating(null); setNewNodeName(''); }
+                                    }}
+                                    onBlur={handleSaveCreate}
+                                    placeholder={`Name your ${isCreating}...`}
+                                    className="bg-black/60 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-white w-full outline-none shadow-lg"
+                                />
+                                <button onClick={handleSaveCreate} className="text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
+                                <button onClick={() => setIsCreating(null)} className="text-red-400 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
+                            </div>
+                        </div>
+                    )}
                     <FileTreeNode nodeId={null} depth={-1} />
                 </div>
             )}
