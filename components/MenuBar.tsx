@@ -55,9 +55,9 @@ const MenuBar: React.FC = () => {
       {/* Brand */}
       <div className="flex items-center gap-2 mr-6 opacity-90 hover:opacity-100 transition-opacity cursor-default">
         <div className="w-5 h-5 rounded bg-gradient-to-br from-vibe-accent to-purple-600 flex items-center justify-center shadow-[0_0_10px_rgba(var(--vibe-accent),0.3)]">
-            <span className="text-[10px] font-bold text-white">V</span>
+            <span className="text-[10px] font-bold text-white">C</span>
         </div>
-        <span className="font-bold text-sm text-slate-200 dark:text-slate-200 text-slate-800 tracking-tight font-sans">VibeCode</span>
+        <span className="font-bold text-sm text-slate-200 dark:text-slate-200 text-slate-800 tracking-tight font-sans">Chill</span>
       </div>
 
       {/* Menus */}

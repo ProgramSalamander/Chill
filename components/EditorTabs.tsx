@@ -82,7 +82,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
             >
                 <IconSparkles size={14} />
-                <span className="hidden sm:inline">AI Vibe</span>
+                <span className="hidden sm:inline">AI</span>
             </button>
           </Tooltip>
       </div>

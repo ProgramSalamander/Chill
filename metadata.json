@@ -1,5 +1,5 @@
 {
-  "name": "VibeCode AI",
-  "description": "An AI-first, futuristic coding IDE designed for the modern 'vibe coder'. Features a glassmorphism UI, integrated Gemini 2.5 Flash assistance, full project context awareness, and seamless code generation workflows.",
+  "name": "Chill AI",
+  "description": "An AI-first, futuristic coding IDE designed for the modern 'vibe coder'. Features a glassmorphism UI, integrated LLM assistance, full project context awareness, and seamless code generation workflows.",
   "requestFramePermissions": []
 }

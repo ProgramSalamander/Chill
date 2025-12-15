@@ -43,7 +43,7 @@ const StatusBar: React.FC = () => {
             <div className="flex items-center gap-4">
                  <span className="font-mono text-[10px] text-slate-500">UTF-8</span>
                  <span className="font-mono text-[10px] text-slate-500">LF</span>
-                 <span className="font-mono text-[10px] text-slate-500">VibeCode AI</span>
+                 <span className="font-mono text-[10px] text-slate-500">Chill</span>
             </div>
         </div>
     );
