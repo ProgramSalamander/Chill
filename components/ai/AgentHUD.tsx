@@ -56,17 +56,14 @@ const ChangesReviewNode: React.FC = () => {
     );
 };
 
-// FIX: Define AgentHUDProps interface
 interface AgentHUDProps {
   status: AgentStatus;
   agentSteps: AgentStep[];
-  plan: AgentPlanItem[];
 }
 
 const AgentHUD: React.FC<AgentHUDProps> = ({
   status,
   agentSteps,
-  plan,
 }) => {
   const goalStep = agentSteps.find(s => s.type === 'user');
   const summaryStep = agentSteps.find(s => s.type === 'summary');
@@ -94,8 +91,6 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
         <>
             {goalStep && <GoalNode step={goalStep} />}
             
-            {(plan.length > 0 || status === 'planning') && <PlanNode plan={plan} status={status} />}
-
             {executionSteps.map((step, idx, arr) => (
                 <AgentStepNode key={step.id} step={step} isLast={idx === arr.length - 1 && !summaryStep && status !== 'awaiting_changes_review'} />
             ))}
