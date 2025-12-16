@@ -178,6 +178,7 @@ export interface AgentPlanItem {
   description?: string;
   status: 'pending' | 'active' | 'completed' | 'skipped' | 'failed';
   assignedAgent?: AgentRole; // Which agent should handle this step
+  dependencies?: string[];
 }
 
 export interface AgentPendingAction {

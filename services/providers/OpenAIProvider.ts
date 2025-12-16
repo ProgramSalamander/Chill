@@ -188,6 +188,7 @@ You MUST return a valid JSON object where the "plan" key contains an array where
 - description: A detailed explanation of what needs to be done.
 - status: The initial status, which MUST be "pending".
 - assignedAgent: The agent responsible. Must be one of: 'coder', 'tester', 'debugger', or 'user'.
+- dependencies: An array of IDs of other steps that must be completed before this step can start. Use this to enforce order.
 
 Example Output:
 {
@@ -197,7 +198,16 @@ Example Output:
       "title": "Set up project structure",
       "description": "Create the initial project folders and files based on best practices.",
       "status": "pending",
-      "assignedAgent": "coder"
+      "assignedAgent": "coder",
+      "dependencies": []
+    },
+    {
+      "id": "step-2",
+      "title": "Implement core logic",
+      "description": "Write the main application logic.",
+      "status": "pending",
+      "assignedAgent": "coder",
+      "dependencies": ["step-1"]
     }
   ]
 }

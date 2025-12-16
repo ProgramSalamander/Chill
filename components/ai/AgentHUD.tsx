@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, PreFlightResult } from '../../types';
-import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconXCircle, IconClock } from '../Icons';
+import { IconCpu, IconCheck, IconPlay, IconX, IconEdit, IconCheckCircle, IconZap, IconShield, IconActivity, IconAlert, IconXCircle, IconClock, IconNetwork } from '../Icons';
 import AgentStepNode from './AgentStepNode';
 import AgentSummaryCard from './AgentSummaryCard';
 
@@ -69,49 +69,79 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
   };
 
   const PlanProgressTracker: React.FC<{ plan: AgentPlanItem[] }> = ({ plan }) => (
-    <div className="relative pl-6">
+    <div className="flex flex-col gap-2">
       {plan.map((step, idx) => {
-        const isLast = idx === plan.length - 1;
         const isActive = step.status === 'active';
         const isCompleted = step.status === 'completed';
         const isSkipped = step.status === 'skipped';
         const isFailed = step.status === 'failed';
+        const isBlocked = step.dependencies && step.dependencies.length > 0 && !step.dependencies.every(dId => {
+             const dep = plan.find(p => p.id === dId);
+             return dep?.status === 'completed' || dep?.status === 'skipped';
+        });
 
         let icon;
-        let iconClass = '';
+        let ringClass = '';
+        let bgClass = '';
+        
         if (isActive) {
-          icon = <IconActivity size={10} className="animate-spin" />;
-          iconClass = 'bg-orange-500 border-orange-400 text-white shadow-[0_0_10px_rgba(249,115,22,0.5)]';
+          icon = <IconActivity size={12} className="animate-spin text-white" />;
+          ringClass = 'ring-2 ring-orange-500 ring-offset-2 ring-offset-[#0f0f16]';
+          bgClass = 'bg-orange-500';
         } else if (isCompleted) {
-          icon = <IconCheck size={10} />;
-          iconClass = 'bg-green-500 border-green-400 text-white';
+          icon = <IconCheck size={12} className="text-white" />;
+          bgClass = 'bg-green-500';
         } else if (isSkipped) {
-          icon = <IconX size={8} />;
-          iconClass = 'bg-slate-700 border-slate-600 text-slate-400';
+          icon = <IconX size={10} className="text-slate-400" />;
+          bgClass = 'bg-slate-700';
         } else if (isFailed) {
-            icon = <IconX size={8} />;
-            iconClass = 'bg-red-500 border-red-400 text-white shadow-[0_0_10px_rgba(239,68,68,0.5)]';
+            icon = <IconX size={10} className="text-white" />;
+            bgClass = 'bg-red-500';
+        } else if (isBlocked) {
+            icon = <IconClock size={10} className="text-slate-500" />;
+            bgClass = 'bg-slate-800 border border-slate-700';
         } else {
-          icon = <IconClock size={8} />;
-          iconClass = 'bg-slate-800 border-slate-600 text-slate-400';
+          icon = <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>;
+          bgClass = 'bg-slate-800 border border-slate-700';
         }
 
         return (
-          <div key={step.id} className="relative pb-5 last:pb-0">
-            {!isLast && <div className="absolute left-[7px] top-5 h-full w-px bg-white/10"></div>}
-            <div className="flex items-center gap-3">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all ${iconClass}`}>
-                {icon}
-              </div>
-              <div className="flex flex-col">
-                <span className={`text-xs font-medium transition-colors ${isActive ? 'text-white' : 'text-slate-400'} ${isSkipped ? 'line-through' : ''}`}>
-                  {step.title}
-                </span>
-                {isActive && step.description && (
-                  <span className="text-[10px] text-slate-500">{step.description}</span>
-                )}
-              </div>
-            </div>
+          <div key={step.id} className={`relative flex items-start gap-3 p-3 rounded-xl transition-all ${isActive ? 'bg-[#181824] border border-orange-500/20' : 'bg-white/5 border border-transparent'}`}>
+             {idx !== plan.length - 1 && (
+                 <div className="absolute left-[19px] top-10 bottom-[-10px] w-0.5 bg-white/5 z-0"></div>
+             )}
+             
+             <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${bgClass} ${ringClass}`}>
+                 {icon}
+             </div>
+             
+             <div className="flex flex-col flex-1 min-w-0">
+                 <div className="flex justify-between items-start">
+                     <span className={`text-xs font-bold leading-tight ${isActive ? 'text-white' : isCompleted ? 'text-green-200 line-through opacity-70' : isSkipped ? 'text-slate-500 line-through' : 'text-slate-300'}`}>
+                         {step.title}
+                     </span>
+                     {step.assignedAgent && (
+                         <span className="text-[9px] uppercase tracking-wider font-mono text-slate-600 bg-black/20 px-1.5 rounded ml-2 shrink-0">
+                             {step.assignedAgent}
+                         </span>
+                     )}
+                 </div>
+                 
+                 {step.description && !isCompleted && !isSkipped && (
+                     <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                         {step.description}
+                     </p>
+                 )}
+                 
+                 {step.dependencies && step.dependencies.length > 0 && !isCompleted && !isSkipped && (
+                     <div className="flex items-center gap-1 mt-1.5">
+                         <IconNetwork size={10} className="text-slate-600" />
+                         <span className="text-[9px] text-slate-600 font-mono">
+                             Waiting for: {step.dependencies.join(', ')}
+                         </span>
+                     </div>
+                 )}
+             </div>
           </div>
         );
       })}
@@ -144,15 +174,20 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
             <IconZap size={16} className="text-orange-400" />
             Proposed Plan
           </h3>
-          <div className="space-y-2 mb-6">
+          <div className="space-y-2 mb-6 max-h-[400px] overflow-y-auto custom-scrollbar">
             {editedPlan.map((item, idx) => (
-              <div key={item.id} className="flex items-start gap-3 p-2 rounded hover:bg-white/5 transition-colors group">
+              <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 transition-colors group">
                 <button onClick={() => toggleStepStatus(idx)} className={`mt-0.5 ${item.status === 'skipped' ? 'text-slate-600' : 'text-vibe-glow'}`}>
                   {item.status === 'skipped' ? <IconXCircle size={14} /> : <IconCheckCircle size={14} />}
                 </button>
-                <div className={item.status === 'skipped' ? 'opacity-50 line-through' : ''}>
-                  <div className="text-xs font-bold text-slate-200">{item.title}</div>
-                  <div className="text-[10px] text-slate-400">{item.description}</div>
+                <div className={`flex-1 ${item.status === 'skipped' ? 'opacity-50' : ''}`}>
+                  <div className="flex items-center justify-between">
+                     <div className={`text-xs font-bold ${item.status === 'skipped' ? 'line-through text-slate-500' : 'text-slate-200'}`}>{item.title}</div>
+                     {item.dependencies && item.dependencies.length > 0 && (
+                         <div className="text-[9px] text-slate-500 font-mono bg-white/5 px-1.5 rounded">dep: {item.dependencies.length}</div>
+                     )}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{item.description}</div>
                 </div>
               </div>
             ))}
@@ -169,7 +204,10 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
       {status !== 'idle' && status !== 'plan_review' && !summaryStep && (
         <div className="space-y-6">
           <div>
-            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 mb-3">Progress</h3>
+            <div className="flex items-center justify-between px-2 mb-3">
+                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Task Breakdown</h3>
+                 <span className="text-[9px] text-slate-600 font-mono bg-white/5 px-1.5 rounded">{plan.filter(p => p.status === 'completed').length} / {plan.length}</span>
+            </div>
             <PlanProgressTracker plan={plan} />
           </div>
 

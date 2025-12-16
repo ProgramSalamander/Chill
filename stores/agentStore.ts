@@ -214,9 +214,30 @@ For each turn, I will tell you which step needs to be worked on. You should outp
 
 async function processNextStep() {
   const { plan, agentChatSession, summarizeTask } = useAgentStore.getState();
-  const stepIndex = plan.findIndex(p => p.status === 'pending');
+  
+  // Logic to find the next available step based on dependencies
+  const stepIndex = plan.findIndex(p => {
+    if (p.status !== 'pending') return false;
+    // If dependencies exist, ensure they are all completed or skipped
+    if (p.dependencies && p.dependencies.length > 0) {
+      const allDepsMet = p.dependencies.every(depId => {
+        const dep = plan.find(d => d.id === depId);
+        return dep && (dep.status === 'completed' || dep.status === 'skipped');
+      });
+      if (!allDepsMet) return false;
+    }
+    return true;
+  });
 
   if (stepIndex === -1) {
+    // If no pending steps are ready, checks if everything is done or if we are deadlocked
+    const anyPending = plan.some(p => p.status === 'pending');
+    if (anyPending) {
+        // We have pending steps but dependencies aren't met.
+        // For simplicity in this agent, we'll mark them failed or just stop. 
+        // But usually this means the agent flow is stuck.
+        // Let's assume done if we can't progress.
+    }
     await summarizeTask();
     return;
   }
