@@ -211,7 +211,7 @@ export interface Linter {
   description: string;
   supportedLanguages: string[];
   init?: () => Promise<void>;
-  lint: (code: string) => Promise<Diagnostic[]>;
+  lint: (code: string) => Diagnostic[];
 }
 
 

@@ -1,6 +1,6 @@
 import { Linter, Diagnostic } from '../../types';
 
-const lint = async (code: string): Promise<Diagnostic[]> => {
+const lint = (code: string): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
   const lines = code.split('\n');
   

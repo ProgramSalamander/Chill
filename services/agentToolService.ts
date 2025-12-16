@@ -135,7 +135,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
         
         const originalContent = fileToFix.content;
         // FIX: Changed validateCode to runLinting.
-        const diagnostics = await runLinting(originalContent, fileToFix.language);
+        const diagnostics = runLinting(originalContent, fileToFix.language);
 
         if (diagnostics.length === 0) {
             return `Success: No errors found in ${path}.`;
