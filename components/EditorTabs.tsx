@@ -7,11 +7,13 @@ import { useUIStore } from '../stores/uiStore';
 interface EditorTabsProps {
   onClearSelection: () => void;
   onRunCode: () => void;
+  hasActiveFile: boolean;
 }
 
 const EditorTabs: React.FC<EditorTabsProps> = ({
   onClearSelection,
-  onRunCode
+  onRunCode,
+  hasActiveFile
 }) => {
   const openFileIds = useFileTreeStore(state => state.openFileIds);
   const activeFileId = useFileTreeStore(state => state.activeFileId);
@@ -70,7 +72,8 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
           <Tooltip content="Run Code" position="bottom">
             <button 
                 onClick={onRunCode}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)]"
+                disabled={!hasActiveFile}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
             >
                 <IconPlay size={14} />
                 <span className="hidden sm:inline">Run</span>

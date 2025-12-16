@@ -192,6 +192,7 @@ function App() {
                   <EditorTabs 
                      onClearSelection={() => setSelectedCode('')}
                      onRunCode={handleRunCode}
+                     hasActiveFile={!!activeFile}
                   />
               </div>
             </ErrorBoundary>
