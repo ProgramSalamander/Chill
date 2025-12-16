@@ -1,3 +1,4 @@
+
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -20,8 +21,25 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
       const structure = generateProjectStructureContext(files);
       return `Success:\n${structure}`;
 
-    case 'fs_readFile':
-      const fileToRead = resolveFileByPath(args.path, files);
+    case 'fs_readFile': {
+      const { stagedChanges } = useAgentStore.getState();
+      const path = args.path;
+
+      // Check staged changes first. They represent the agent's current "virtual" filesystem state.
+      const stagedChange = [...stagedChanges].reverse().find(c => c.path === path);
+
+      if (stagedChange) {
+        if (stagedChange.type === 'delete') {
+          return `Error: File not found at path ${path} (staged for deletion).`;
+        }
+        if (stagedChange.newContent !== undefined) {
+          const lang = getLanguage(path); // Infer language from path as the file might not exist yet
+          return `Success:\n\`\`\`${lang}\n${stagedChange.newContent}\n\`\`\``;
+        }
+      }
+
+      // If no relevant staged change, fall back to the committed filesystem state.
+      const fileToRead = resolveFileByPath(path, files);
       if (fileToRead && fileToRead.type === 'file') {
         return `Success:\n\`\`\`${fileToRead.language}\n${fileToRead.content}\n\`\`\``;
       }
@@ -29,6 +47,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
           return `Error: Path '${args.path}' is a directory, not a file.`
       }
       return `Error: File not found at path ${args.path}`;
+    }
 
     case 'fs_writeFile': {
       const path = args.path;
