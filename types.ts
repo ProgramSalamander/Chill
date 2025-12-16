@@ -34,7 +34,7 @@ export interface Message {
 }
 
 export interface TerminalLine {
-  id: string;
+  id:string;
   text: string;
   type: 'info' | 'error' | 'success' | 'command' | 'warning';
   timestamp: number;
@@ -170,7 +170,7 @@ export type SidebarView = SidebarViewConfig & {
 
 // --- Agent Interactive Types ---
 
-export type AgentStatus = 'idle' | 'planning' | 'plan_review' | 'thinking' | 'action_review' | 'executing' | 'completed' | 'failed' | 'summarizing';
+export type AgentStatus = 'idle' | 'planning' | 'thinking' | 'executing' | 'completed' | 'failed' | 'summarizing' | 'awaiting_changes_review';
 
 export interface AgentPlanItem {
   id: string;
@@ -187,6 +187,15 @@ export interface AgentPendingAction {
   toolName: string;
   args: any;
   agentRole: AgentRole;
+}
+
+export interface StagedChange {
+  id: string;
+  type: 'create' | 'update' | 'delete';
+  path: string;
+  fileId?: string; // for updates and deletes
+  oldContent?: string; // for updates and deletes
+  newContent?: string; // for creates and updates
 }
 
 // --- Pre-Flight Check Types ---

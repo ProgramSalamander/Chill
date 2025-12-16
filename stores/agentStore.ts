@@ -1,39 +1,36 @@
 import { create } from 'zustand';
-import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult } from '../types';
+import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange } from '../types';
 import { aiService } from '../services/aiService';
-import { runLinting } from '../services/lintingService';
-import { getLanguage, resolveFileByPath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
-import { useTerminalStore } from './terminalStore';
+import { useUIStore } from './uiStore';
 import { handleAgentAction } from '../services/agentToolService';
 
 interface AgentState {
   status: AgentStatus;
   agentSteps: AgentStep[];
   plan: AgentPlanItem[];
-  pendingAction: AgentPendingAction | null;
-  preFlightResult: PreFlightResult | null;
+  stagedChanges: StagedChange[];
   agentAwareness: Set<string>;
   agentChatSession: AISession | null;
 
   // Actions
   startAgent: (goal: string) => Promise<void>;
-  approveAction: () => Promise<void>;
-  rejectAction: () => void;
-  updatePendingActionArgs: (newArgs: any) => void;
-  sendFeedback: (feedback: string) => Promise<void>;
   resetAgent: () => void;
   summarizeTask: () => Promise<void>;
+  
+  // Staged Changes Actions
+  addStagedChange: (change: Omit<StagedChange, 'id'>) => void;
+  applyChange: (id: string) => Promise<void>;
+  rejectChange: (id: string) => void;
+  applyAllChanges: () => Promise<void>;
+  rejectAllChanges: () => void;
 }
-
-const DANGEROUS_TOOLS = new Set(['writeFile', 'runCommand']);
 
 const useAgentStore = create<AgentState>((set, get) => ({
   status: 'idle',
   agentSteps: [],
   plan: [],
-  pendingAction: null,
-  preFlightResult: null,
+  stagedChanges: [],
   agentAwareness: new Set(),
   agentChatSession: null,
 
@@ -42,8 +39,7 @@ const useAgentStore = create<AgentState>((set, get) => ({
       status: 'idle',
       agentSteps: [],
       plan: [],
-      pendingAction: null,
-      preFlightResult: null,
+      stagedChanges: [],
       agentChatSession: null,
       agentAwareness: new Set(),
     });
@@ -62,11 +58,11 @@ const useAgentStore = create<AgentState>((set, get) => ({
 
       const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant executing a plan.
 ENVIRONMENT: You are in a browser-based environment. You CANNOT use commands like \`npx create-react-app\`, \`vite\`, \`next\`, or other complex build tools.
-WORKFLOW: To create a project boilerplate, you MUST create each file individually using the 'writeFile' tool. For example, to create a React app, first call \`writeFile\` for \`package.json\`, then \`index.html\`, then \`src/App.js\`, etc.
+WORKFLOW: To create a project boilerplate, you MUST create each file individually using the 'writeFile' tool. For example, to create a React app, first call \`writeFile\` for \`package.json\`, then \`index.html\`, then \`src/App.js\`, etc. Your file system operations will be staged for user review.
 
 Current Plan:
 ${JSON.stringify(generatedPlan, null, 2)}
-For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action. If the action is dangerous (writeFile, runCommand) I will ask the user for approval. Otherwise, I will execute it automatically.`;
+For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action.`;
       
       const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true });
       set({ agentChatSession: session });
@@ -78,61 +74,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
         agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'error', text: `Planning failed: ${e.message}`, timestamp: Date.now() }],
         status: 'failed',
       }));
-    }
-  },
-
-  approveAction: async () => {
-    const { pendingAction } = get();
-    if (!pendingAction) return;
-
-    set({ preFlightResult: null });
-    await _executeAndContinue(pendingAction);
-  },
-
-  rejectAction: () => {
-    set({
-      pendingAction: null,
-      preFlightResult: null,
-      status: 'idle',
-      agentSteps: [...get().agentSteps, { id: Date.now().toString(), type: 'error', text: "Action rejected by user.", timestamp: Date.now() }]
-    });
-  },
-
-  updatePendingActionArgs: (newArgs) => {
-    set(state => ({
-      pendingAction: state.pendingAction ? { ...state.pendingAction, args: newArgs } : null
-    }));
-    runPreFlightChecks(get().pendingAction?.args.path, get().pendingAction?.args.content);
-  },
-
-  sendFeedback: async (feedback) => {
-    const { pendingAction, agentChatSession } = get();
-    if (!pendingAction || !agentChatSession) return;
-
-    const { toolName, args } = pendingAction;
-    set(state => ({
-      agentSteps: [
-        ...state.agentSteps,
-        { id: Date.now().toString(), type: 'call', text: `Pre-Flight Check: ${toolName}...`, toolName: toolName, toolArgs: args, timestamp: Date.now() },
-        { id: (Date.now() + 1).toString(), type: 'error', text: `Pre-Flight Failed: ${feedback}`, timestamp: Date.now() }
-      ],
-      pendingAction: null,
-      preFlightResult: null,
-      status: 'thinking',
-    }));
-
-    const toolResponse = [{
-      id: pendingAction.id,
-      name: toolName,
-      result: `[PRE-FLIGHT CHECK FAILED]\nThe system prevented this file write because of the following errors:\n${feedback}\n\nPlease fix the code and try again.`
-    }];
-
-    try {
-      const response = await agentChatSession.sendMessage({ message: "", toolResponses: toolResponse });
-      handleAgentResponse(response);
-    } catch (e: any) {
-      console.error(e);
-      handleFailedStep(`Agent failed after feedback: ${e.message}`);
     }
   },
 
@@ -156,9 +97,16 @@ For each turn, I will tell you which step needs to be worked on. You should outp
           type: 'summary', 
           text: summaryResponse.text || "Task completed. I have updated the necessary files.", 
           timestamp: Date.now() 
-        }],
-        status: 'completed'
+        }]
       }));
+
+      if (get().stagedChanges.length > 0) {
+        set({ status: 'awaiting_changes_review' });
+        useUIStore.getState().setActiveSidebarView('changes');
+      } else {
+        set({ status: 'completed' });
+      }
+
     } catch(e) {
       console.error("Summary generation failed", e);
       set(state => ({
@@ -167,6 +115,83 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       }));
     }
   },
+  
+  // --- Staged Changes Actions ---
+  addStagedChange: (change) => {
+    set(state => ({
+      stagedChanges: [...state.stagedChanges, { ...change, id: Date.now().toString() }]
+    }));
+  },
+
+  applyChange: async (id) => {
+    const change = get().stagedChanges.find(c => c.id === id);
+    if (!change) return;
+
+    const { createNode, updateFileContent, deleteNode } = useFileTreeStore.getState();
+
+    switch (change.type) {
+      case 'create':
+        if (change.newContent !== undefined) {
+           const pathSegments = change.path.split('/').filter(p => p);
+           const name = pathSegments.pop() || 'untitled';
+           
+           let currentParentId: string | null = null;
+           for(const segment of pathSegments) {
+               const currentFiles = useFileTreeStore.getState().files;
+               const existingFolder = currentFiles.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
+               if(existingFolder) {
+                   currentParentId = existingFolder.id;
+               } else {
+                   const newFolder = await createNode('folder', currentParentId, segment);
+                   if(!newFolder) throw new Error(`Failed to create parent folder ${segment}`);
+                   currentParentId = newFolder.id;
+               }
+           }
+           await createNode('file', currentParentId, name, change.newContent);
+        }
+        break;
+      case 'update':
+        if (change.fileId && change.newContent !== undefined) {
+          updateFileContent(change.newContent, true, change.fileId);
+        }
+        break;
+      case 'delete':
+        const fileToDelete = useFileTreeStore.getState().files.find(f => f.id === change.fileId);
+        if (fileToDelete) {
+          await deleteNode(fileToDelete);
+        }
+        break;
+    }
+    
+    set(state => ({
+        stagedChanges: state.stagedChanges.filter(c => c.id !== id)
+    }));
+    
+    if (get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+        set({ status: 'completed' });
+    }
+  },
+
+  rejectChange: (id) => {
+    set(state => ({
+      stagedChanges: state.stagedChanges.filter(c => c.id !== id)
+    }));
+
+    if (get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+        set({ status: 'completed' });
+    }
+  },
+
+  applyAllChanges: async () => {
+    const changes = [...get().stagedChanges];
+    for (const change of changes) {
+        await get().applyChange(change.id);
+    }
+  },
+
+  rejectAllChanges: () => {
+    set({ stagedChanges: [], status: 'completed' });
+  }
 }));
 
 // --- Helper functions to be called within the store ---
@@ -186,9 +211,9 @@ async function _executeAndContinue(action: AgentPendingAction) {
     let result = "Error";
     try {
       result = await handleAgentAction(toolName, args);
-      // If the action was readFile or writeFile, update awareness
-      if (toolName === 'readFile' || toolName === 'writeFile') {
-          const file = resolveFileByPath(args.path, useFileTreeStore.getState().files);
+      // If the action was readFile, update awareness
+      if (toolName === 'readFile') {
+          const file = useFileTreeStore.getState().files.find(f => f.name === args.path); // Simplified find
           if (file) {
               useAgentStore.setState(state => ({ agentAwareness: new Set(state.agentAwareness).add(file.id) }));
           }
@@ -205,7 +230,6 @@ async function _executeAndContinue(action: AgentPendingAction) {
         text: result.length > 300 ? result.slice(0, 300) + '...' : result,
         timestamp: Date.now()
       }],
-      pendingAction: null,
     }));
     
     const { agentChatSession } = useAgentStore.getState();
@@ -276,31 +300,24 @@ async function handleAgentResponse(response: any) {
 
   if (response.toolCalls && response.toolCalls.length > 0) {
     const call = response.toolCalls[0];
-    const toolName = call.name;
 
     const actionToPerform: AgentPendingAction = {
-        id: call.id, type: 'tool_call', toolName: toolName, args: call.args,
+        id: call.id, type: 'tool_call', toolName: call.name, args: call.args,
         agentRole: useAgentStore.getState().plan.find(p => p.status === 'active')?.assignedAgent || 'coder'
     };
-
-    if (DANGEROUS_TOOLS.has(toolName)) {
-        // DANGEROUS: pause for user approval
-        useAgentStore.setState({
-            pendingAction: actionToPerform,
-            status: 'action_review'
-        });
-        if (toolName === 'writeFile') {
-            runPreFlightChecks(call.args.path, call.args.content);
-        }
-    } else {
-        // SAFE: execute immediately
-        await _executeAndContinue(actionToPerform);
-    }
+    
+    // All tool calls are executed now, file ops will be staged by the tool service
+    await _executeAndContinue(actionToPerform);
+    
   } else {
+    // No tool calls, assume step is complete
     const activeIndex = useAgentStore.getState().plan.findIndex(p => p.status === 'active');
     if (activeIndex !== -1) {
       const newPlan = useAgentStore.getState().plan.map((p, idx) => idx === activeIndex ? { ...p, status: 'completed' as const } : p);
       useAgentStore.setState({ plan: newPlan });
+      processNextStep();
+    } else {
+      // If no active step, might be the end of the plan
       processNextStep();
     }
   }
@@ -316,55 +333,7 @@ function handleFailedStep(errorMessage: string) {
     useAgentStore.setState(state => ({
         status: 'failed',
         agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'error', text: errorMessage, timestamp: Date.now() }],
-        pendingAction: null
     }));
 }
-
-async function runPreFlightChecks(path: string, content: string) {
-      if(!path || !content) return;
-      const language = getLanguage(path);
-      
-      useAgentStore.setState({ preFlightResult: {
-          checks: [
-              { id: 'syntax', name: 'Syntax Analysis', status: 'running' },
-              { id: 'build', name: 'Virtual Build', status: 'pending' },
-              { id: 'security', name: 'Security Scan', status: 'pending' }
-          ], hasErrors: false, diagnostics: []
-      }});
-
-      await new Promise(r => setTimeout(r, 600)); 
-      const diagnostics = runLinting(content, language);
-      const hasErrors = diagnostics.some(d => d.severity === 'error');
-
-      useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? {
-          ...prev.preFlightResult, hasErrors: hasErrors, diagnostics: diagnostics,
-          checks: prev.preFlightResult.checks.map(c => c.id === 'syntax' ? { ...c, status: hasErrors ? 'failure' : 'success' } : c)
-      } : null }));
-
-      if (hasErrors) {
-           useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? ({ ...prev.preFlightResult, checks: prev.preFlightResult.checks.map(c => c.id !== 'syntax' ? { ...c, status: 'pending', message: 'Skipped' } : c) }) : null }));
-           return;
-      }
-
-      useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? ({ ...prev.preFlightResult, checks: prev.preFlightResult.checks.map(c => c.id === 'build' ? { ...c, status: 'running' } : c) }) : null }));
-      await new Promise(r => setTimeout(r, 800));
-      
-      const buildFail = content.includes('<<<') || content.includes('>>>'); 
-      useAgentStore.setState(prev => prev.preFlightResult ? ({ preFlightResult: { 
-          ...prev.preFlightResult, 
-          checks: prev.preFlightResult.checks.map(c => c.id === 'build' ? { ...c, status: buildFail ? 'failure' : 'success', message: buildFail ? 'Merge conflicts' : 'Build successful' } : c),
-          hasErrors: prev.preFlightResult.hasErrors || buildFail
-      }}) : null);
-
-      if (buildFail) return;
-
-      useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? ({ ...prev.preFlightResult, checks: prev.preFlightResult.checks.map(c => c.id === 'security' ? { ...c, status: 'running' } : c) }) : null }));
-      await new Promise(r => setTimeout(r, 500));
-      useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? ({ 
-          ...prev.preFlightResult, 
-          checks: prev.preFlightResult.checks.map(c => c.id === 'security' ? { ...c, status: 'success', message: 'No secrets found' } : c) 
-      }) : null}));
-};
-
 
 export { useAgentStore };

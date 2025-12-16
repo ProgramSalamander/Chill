@@ -86,6 +86,17 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
         }
       },
       {
+        name: "fs_deleteFile",
+        description: "Delete a file.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            path: { type: Type.STRING, description: "The path of the file to delete." }
+          },
+          required: ["path"]
+        }
+      },
+      {
         name: "git_getStatus",
         description: "Get the status of the git repository, showing staged and unstaged changes.",
         parameters: { type: Type.OBJECT, properties: {} }

@@ -4,9 +4,11 @@ import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
 import ExtensionsPanel from './ExtensionsPanel';
+import ChangesReviewPanel from './ChangesReviewPanel';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
+import { useAgentStore } from '../stores/agentStore';
 
 const Sidebar: React.FC = () => {
   const activeSidebarView = useUIStore(state => state.activeSidebarView);
@@ -17,6 +19,7 @@ const Sidebar: React.FC = () => {
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
 
   const gitStatus = useGitStore(state => state.status);
+  const stagedChangesCount = useAgentStore(state => state.stagedChanges.length);
 
   const visibleSortedViews = useMemo(() => 
     sidebarViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
@@ -123,6 +126,7 @@ const Sidebar: React.FC = () => {
               {visibleSortedViews.map((view, index) => {
                 const isActive = activeSidebarView === view.id;
                 const hasGitBadge = view.id === 'git' && gitStatus.filter(s => s.status !== 'unmodified').length > 0;
+                const hasChangesBadge = view.id === 'changes' && stagedChangesCount > 0;
                 const isDragged = draggedId === view.id;
                 const isDragOver = dragOverId === view.id;
 
@@ -148,6 +152,11 @@ const Sidebar: React.FC = () => {
                         <view.icon size={20} strokeWidth={1.5} />
                         {hasGitBadge && (
                           <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm animate-pulse"></div>
+                        )}
+                        {hasChangesBadge && (
+                          <div className="absolute top-0 right-0 w-4 h-4 bg-blue-500 rounded-full border-2 border-vibe-900 text-[9px] flex items-center justify-center text-white font-bold shadow-md">
+                            {stagedChangesCount}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -229,6 +238,7 @@ const Sidebar: React.FC = () => {
                {activeSidebarView === 'explorer' && <FileExplorer />}
                {activeSidebarView === 'git' && <GitPanel />}
                {activeSidebarView === 'extensions' && <ExtensionsPanel />}
+               {activeSidebarView === 'changes' && <ChangesReviewPanel />}
             </div>
         )}
     </div>

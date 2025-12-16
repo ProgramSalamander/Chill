@@ -1,5 +1,6 @@
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
+import { useAgentStore } from '../stores/agentStore';
 import { ragService } from './ragService';
 import { generateProjectStructureContext, extractSymbols, resolveFileByPath, getFilePath, getLanguage } from '../utils/fileUtils';
 import { notify } from '../stores/notificationStore';
@@ -9,47 +10,10 @@ import { aiService } from './aiService';
 import { runLinting } from './lintingService';
 import { gitService } from './gitService';
 
-// Helper function to find or create parent directories
-async function findOrCreateParent(path: string): Promise<string | null> {
-    const { createNode } = useFileTreeStore.getState();
-    const pathSegments = path.split('/').filter(p => p);
-    if (pathSegments.length === 0) return null;
-
-    let currentParentId: string | null = null;
-
-    for (const segment of pathSegments) {
-        // We need to get the most up-to-date file list in each iteration
-        const currentFiles = useFileTreeStore.getState().files;
-
-        const existingFolder = currentFiles.find(
-            f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId
-        );
-
-        if (existingFolder) {
-            currentParentId = existingFolder.id;
-        } else {
-            // Check if a file exists with this name, which is an error
-            const conflictingFile = currentFiles.find(
-                f => f.type === 'file' && f.name === segment && f.parentId === currentParentId
-            );
-            if (conflictingFile) {
-                throw new Error(`Cannot create directory '${segment}': a file with the same name already exists.`);
-            }
-
-            const newFolder = await createNode('folder', currentParentId, segment);
-            if (!newFolder) {
-                // Creation failed
-                throw new Error(`Failed to create directory: ${segment}`);
-            }
-            currentParentId = newFolder.id;
-        }
-    }
-    return currentParentId;
-}
-
 export const handleAgentAction = async (toolName: string, args: any): Promise<string> => {
   const { addTerminalLine } = useTerminalStore.getState();
-  const { files, createNode, updateFileContent } = useFileTreeStore.getState();
+  const { files } = useFileTreeStore.getState();
+  const { addStagedChange } = useAgentStore.getState();
 
   switch (toolName) {
     case 'fs_listFiles':
@@ -66,32 +30,57 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
       }
       return `Error: File not found at path ${args.path}`;
 
-    case 'fs_writeFile':
-      let fileToWrite = resolveFileByPath(args.path, files);
-      if (fileToWrite && fileToWrite.type === 'folder') {
-          return `Error: Cannot write file. A folder already exists at path ${args.path}`;
+    case 'fs_writeFile': {
+      const path = args.path;
+      const content = args.content;
+      if (typeof path !== 'string' || typeof content !== 'string') {
+        return "Error: 'path' and 'content' must be strings.";
+      }
+      const existingFile = resolveFileByPath(path, files);
+
+      if (existingFile && existingFile.type === 'folder') {
+        return `Error: Cannot write file. A folder already exists at path ${path}`;
       }
 
-      if (fileToWrite) { // It's a file, so update it
-        updateFileContent(args.content, true, fileToWrite.id);
-      } else { // File doesn't exist, create it
-        const parts = args.path.split('/');
-        const name = parts.pop() || 'untitled';
-        const parentPath = parts.join('/');
-        
-        try {
-            const parentId = parentPath ? await findOrCreateParent(parentPath) : null;
-            fileToWrite = await createNode('file', parentId, name, args.content);
-        } catch (e: any) {
-             return `Error: Could not create directory structure for ${args.path}: ${e.message}`;
+      if (existingFile) { // Update existing file
+        addStagedChange({
+          type: 'update',
+          path,
+          fileId: existingFile.id,
+          oldContent: existingFile.content,
+          newContent: content,
+        });
+        return `Success: Staged file update for ${path}`;
+      } else { // Create new file
+        addStagedChange({
+          type: 'create',
+          path,
+          newContent: content,
+        });
+        return `Success: Staged new file creation for ${path}`;
+      }
+    }
+    
+    case 'fs_deleteFile': {
+        const path = args.path;
+        if (typeof path !== 'string') {
+            return "Error: 'path' must be a string.";
         }
-      }
-
-      if(fileToWrite) {
-        notify(`Agent wrote to ${args.path}`, 'info');
-        return `Success: Wrote content to ${args.path}`;
-      }
-      return `Error: Could not write file at path ${args.path}`;
+        const fileToDelete = resolveFileByPath(path, files);
+        if (!fileToDelete) {
+            return `Error: File not found at path ${path}`;
+        }
+        if (fileToDelete.type === 'folder') {
+            return `Error: Cannot delete a folder. Use a different tool if you need to remove directories.`;
+        }
+        addStagedChange({
+            type: 'delete',
+            path,
+            fileId: fileToDelete.id,
+            oldContent: fileToDelete.content,
+        });
+        return `Success: Staged file deletion for ${path}`;
+    }
 
     case 'git_getStatus': {
       const status = await gitService.status();
@@ -318,9 +307,15 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
             const fixedCode = await aiService.editCode('', originalContent, '', instruction, fileToFix, files);
             
             if (fixedCode && fixedCode.trim() !== originalContent.trim()) {
-                updateFileContent(fixedCode, true, fileToFix.id);
-                notify(`Auto-fixed ${diagnostics.length} errors in ${path}`, 'success');
-                return `Success: Automatically fixed ${diagnostics.length} errors in ${path}.`;
+                addStagedChange({
+                    type: 'update',
+                    path,
+                    fileId: fileToFix.id,
+                    oldContent: originalContent,
+                    newContent: fixedCode
+                });
+                notify(`Staged auto-fix for ${path}`, 'success');
+                return `Success: Staged an automatic fix for ${diagnostics.length} errors in ${path}.`;
             } else if (fixedCode) {
                 return `Success: Analysis complete, but no changes were necessary.`;
             } else {

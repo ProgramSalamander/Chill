@@ -5,10 +5,10 @@ import AIPanelInput from './ai/AIPanelInput';
 import Tooltip from './Tooltip';
 import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
 
-import { useChatStore } from '../stores/chatStore';
-import { useFileTreeStore } from '../stores/fileStore';
-import { useAgentStore } from '../stores/agentStore';
-import { useUIStore } from '../stores/uiStore';
+import { useChatStore } from '../../stores/chatStore';
+import { useFileTreeStore } from '../../stores/fileStore';
+import { useAgentStore } from '../../stores/agentStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface AIPanelProps {
   onInsertCode: (code: string) => void;
@@ -29,14 +29,8 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const status = useAgentStore(state => state.status);
   const agentSteps = useAgentStore(state => state.agentSteps);
   const plan = useAgentStore(state => state.plan);
-  const pendingAction = useAgentStore(state => state.pendingAction);
-  const preFlightResult = useAgentStore(state => state.preFlightResult);
   const resetAgent = useAgentStore(state => state.resetAgent);
   const startAgent = useAgentStore(state => state.startAgent);
-  const approveAction = useAgentStore(state => state.approveAction);
-  const rejectAction = useAgentStore(state => state.rejectAction);
-  const updatePendingActionArgs = useAgentStore(state => state.updatePendingActionArgs);
-  const sendFeedback = useAgentStore(state => state.sendFeedback);
 
   const isAgentRunning = status === 'thinking' || status === 'executing' || status === 'planning';
   const lastStep = agentSteps[agentSteps.length - 1];
@@ -139,12 +133,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
             status={status}
             agentSteps={agentSteps}
             plan={plan}
-            pendingAction={pendingAction}
-            preFlightResult={preFlightResult}
-            onApproveAction={approveAction}
-            onRejectAction={rejectAction}
-            onUpdateActionArgs={updatePendingActionArgs}
-            onSendFeedback={sendFeedback}
           />
         )}
         <div ref={messagesEndRef} />
