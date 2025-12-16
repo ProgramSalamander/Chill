@@ -11,6 +11,8 @@ import {
 import { useUIStore } from '../stores/uiStore';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useGitStore } from '../stores/gitStore';
+import { fuzzySearch } from '../utils/fuzzySearch';
+import { File } from '../types';
 
 interface CommandAction {
   id: string;
@@ -54,20 +56,40 @@ const CommandPalette: React.FC = () => {
       } },
   ];
 
-  const filteredFiles = useMemo(() => {
-    if (!query) return files.filter(f => f.type === 'file');
-    return files.filter(f => f.type === 'file' && f.name.toLowerCase().includes(query.toLowerCase()));
-  }, [files, query]);
+  const flatItems = useMemo(() => {
+    if (!query) {
+      const fileItems = files
+        .filter(f => f.type === 'file')
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(f => ({ type: 'file' as const, data: f }));
+      const actionItems = actions.map(a => ({ type: 'action' as const, data: a }));
+      return [...fileItems, ...actionItems];
+    }
 
-  const filteredActions = useMemo(() => {
-    if (!query) return actions;
-    return actions.filter(a => a.label.toLowerCase().includes(query.toLowerCase()));
-  }, [actions, query]);
+    const scoredFiles = files
+      .filter(f => f.type === 'file')
+      .map(f => ({
+        type: 'file' as const,
+        data: f,
+        score: fuzzySearch(query, f.name)
+      }))
+      .filter(item => item.score > 0.05); // Adjust threshold as needed
 
-  const flatItems = useMemo(() => [
-    ...filteredFiles.map(f => ({ type: 'file' as const, data: f })),
-    ...filteredActions.map(a => ({ type: 'action' as const, data: a }))
-  ], [filteredFiles, filteredActions]);
+    const scoredActions = actions
+      .map(a => ({
+        type: 'action' as const,
+        data: a,
+        score: fuzzySearch(query, a.label)
+      }))
+      .filter(item => item.score > 0.1); // Higher threshold for actions
+
+    const allItems = [...scoredFiles, ...scoredActions];
+    allItems.sort((a, b) => b.score - a.score);
+    
+    // FIX: Correctly map to create a discriminated union by omitting the `score` property.
+    // This ensures TypeScript can correlate `item.type` with the type of `item.data`.
+    return allItems.map(({ score, ...rest }) => rest);
+  }, [files, actions, query]);
 
   useEffect(() => {
     setSelectedIndex(0);
