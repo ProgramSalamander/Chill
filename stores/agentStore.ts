@@ -60,7 +60,10 @@ const useAgentStore = create<AgentState>((set, get) => ({
       
       set({ plan: generatedPlan, status: 'thinking' });
 
-      const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant. You have agreed on a plan with the user. Your task is to execute this plan step-by-step.
+      const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant executing a plan.
+ENVIRONMENT: You are in a browser-based environment. You CANNOT use commands like \`npx create-react-app\`, \`vite\`, \`next\`, or other complex build tools.
+WORKFLOW: To create a project boilerplate, you MUST create each file individually using the 'writeFile' tool. For example, to create a React app, first call \`writeFile\` for \`package.json\`, then \`index.html\`, then \`src/App.js\`, etc.
+
 Current Plan:
 ${JSON.stringify(generatedPlan, null, 2)}
 For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action. If the action is dangerous (writeFile, runCommand) I will ask the user for approval. Otherwise, I will execute it automatically.`;

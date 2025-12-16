@@ -162,6 +162,18 @@ export const gitService = {
     }
   },
 
+  readBlob: async (filepath: string, ref: string = 'HEAD'): Promise<string | null> => {
+    try {
+      const oid = await git.resolveRef({ fs, dir: '/', ref });
+      const { blob } = await git.readBlob({ fs, dir: '/', oid, filepath });
+      return new TextDecoder().decode(blob);
+    } catch (e) {
+      // Could be file not in commit, or ref not found etc.
+      console.warn(`Could not read blob for ${filepath}@${ref}:`, e);
+      return null;
+    }
+  },
+
   pull: async (name: string = 'Vibe Coder', email: string = 'coder@vibecode.ai') => {
     // Attempt to pull from 'main', fallback to 'master'
     try {

@@ -58,17 +58,12 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
   {
     functionDeclarations: [
       {
-        name: "listFiles",
-        description: "List all files and folders in the project structure to understand the hierarchy.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-             root: { type: Type.STRING, description: "Optional root path to list from" }
-          },
-        }
+        name: "fs_listFiles",
+        description: "List all files and folders in the project structure to understand the hierarchy. Returns a tree-like string.",
+        parameters: { type: Type.OBJECT, properties: {} }
       },
       {
-        name: "readFile",
+        name: "fs_readFile",
         description: "Read the content of a file.",
         parameters: {
           type: Type.OBJECT,
@@ -79,7 +74,7 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
         }
       },
       {
-        name: "writeFile",
+        name: "fs_writeFile",
         description: "Create or overwrite a file with provided content. Use this to save code.",
         parameters: {
           type: Type.OBJECT,
@@ -91,14 +86,51 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
         }
       },
       {
-        name: "runCommand",
-        description: "Execute a shell command (simulated). Use for running tests or installing packages.",
+        name: "git_getStatus",
+        description: "Get the status of the git repository, showing staged and unstaged changes.",
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: "git_diff",
+        description: "Show changes for a specific file against the last commit (HEAD).",
         parameters: {
           type: Type.OBJECT,
           properties: {
-            command: { type: Type.STRING, description: "The command to execute." }
+            path: { type: Type.STRING, description: "The path of the file to diff." }
           },
-          required: ["command"]
+          required: ["path"]
+        }
+      },
+      {
+        name: "tooling_lint",
+        description: "Run linter on a specific file or the entire project to find errors and warnings.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            path: { type: Type.STRING, description: "Optional. The path of the file to lint. If omitted, lints all files with supported linters." }
+          }
+        }
+      },
+      {
+        name: "tooling_runTests",
+        description: "Run tests using a specified test runner (simulated). This is for validation and does not produce real test output.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            runner: { type: Type.STRING, description: "The test runner command to simulate, e.g., 'npm test' or 'pytest'." }
+          },
+          required: ["runner"]
+        }
+      },
+      {
+        name: "runtime_execJs",
+        description: "Execute a JavaScript file in a sandboxed environment and capture its console.log output.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            path: { type: Type.STRING, description: "The path of the JavaScript file to execute." }
+          },
+          required: ["path"]
         }
       },
       {

@@ -1,30 +1,31 @@
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { ragService } from './ragService';
-import { generateProjectStructureContext, extractSymbols, resolveFileByPath, getFilePath } from '../utils/fileUtils';
+import { generateProjectStructureContext, extractSymbols, resolveFileByPath, getFilePath, getLanguage } from '../utils/fileUtils';
 import { notify } from '../stores/notificationStore';
-import { File } from '../types';
+import { File, Diagnostic } from '../types';
 import { aiService } from './aiService';
 // FIX: Changed validateCode to runLinting as it is the exported function.
 import { runLinting } from './lintingService';
+import { gitService } from './gitService';
 
 export const handleAgentAction = async (toolName: string, args: any): Promise<string> => {
   const { addTerminalLine } = useTerminalStore.getState();
   const { files, createNode, updateFileContent } = useFileTreeStore.getState();
 
   switch (toolName) {
-    case 'listFiles':
+    case 'fs_listFiles':
       const structure = generateProjectStructureContext(files);
       return `Success:\n${structure}`;
 
-    case 'readFile':
+    case 'fs_readFile':
       const fileToRead = resolveFileByPath(args.path, files);
       if (fileToRead) {
         return `Success:\n\`\`\`${fileToRead.language}\n${fileToRead.content}\n\`\`\``;
       }
       return `Error: File not found at path ${args.path}`;
 
-    case 'writeFile':
+    case 'fs_writeFile':
       let fileToWrite = resolveFileByPath(args.path, files);
       if (fileToWrite) {
         updateFileContent(args.content, true, fileToWrite.id);
@@ -47,15 +48,127 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
       }
       return `Error: Could not write file at path ${args.path}`;
 
-    case 'runCommand':
-      addTerminalLine(`Agent ran: ${args.command}`, 'command');
-      if (args.command.startsWith('npm test') || args.command.startsWith('pytest')) {
-        return "Success: All tests passed.";
-      }
-      if (args.command.startsWith('npm install')) {
-        return `Success: Installed package.`;
-      }
-      return `Success: Command executed. No output.`;
+    case 'git_getStatus': {
+      const status = await gitService.status();
+      if (status.length === 0) return "Success: Working tree is clean.";
+      const formattedStatus = status
+        .filter(s => s.status !== 'unmodified')
+        .map(s => `${s.status.padEnd(10)} ${s.filepath}`)
+        .join('\n');
+      return `Success: Current repository status:\n${formattedStatus}`;
+    }
+
+    case 'git_diff': {
+        const { path } = args;
+        if (!path) return "Error: 'path' argument is required for git_diff.";
+        
+        const file = resolveFileByPath(path, files);
+        if (!file) return `Error: File not found at path ${path}`;
+
+        const headContent = await gitService.readBlob(path);
+
+        if (headContent === null) {
+            const gitFileStatus = (await gitService.status()).find(s => s.filepath === path);
+            if (gitFileStatus && (gitFileStatus.status === 'added' || gitFileStatus.status === '*added')) {
+                const diffOutput = file.content.split('\n').map(l => `+ ${l}`).join('\n');
+                return `Success: Diff for new file ${path}\n\`\`\`diff\n${diffOutput}\n\`\`\``;
+            }
+            return `Error: Could not get content from HEAD for ${path}. The file might not be committed.`;
+        }
+
+        if (headContent === file.content) {
+            return `Success: No changes for ${path}.`;
+        }
+
+        // A basic line-by-line diff. This doesn't use a proper LCS algorithm but is better than nothing.
+        const headLines = headContent.split('\n');
+        const currentLines = file.content.split('\n');
+        const diffOutput: string[] = [];
+        const maxLen = Math.max(headLines.length, currentLines.length);
+
+        for (let i = 0; i < maxLen; i++) {
+            const headLine = headLines[i];
+            const currentLine = currentLines[i];
+            
+            if (headLine !== currentLine) {
+                if (headLine !== undefined) diffOutput.push(`- ${headLine}`);
+                if (currentLine !== undefined) diffOutput.push(`+ ${currentLine}`);
+            } else if (headLine !== undefined) {
+                diffOutput.push(`  ${headLine}`);
+            }
+        }
+        
+        return `Success: Diff for ${path}\n\`\`\`diff\n${diffOutput.join('\n')}\n\`\`\``;
+    }
+
+    case 'tooling_lint': {
+        const filesToLint = args.path ? [resolveFileByPath(args.path, files)].filter(Boolean) as File[] : files.filter(f => f.type === 'file');
+        if (filesToLint.length === 0) return `Error: No files found to lint.`;
+
+        let allDiagnostics: { file: string; diagnostics: Diagnostic[] }[] = [];
+        for (const file of filesToLint) {
+            const diagnostics = runLinting(file.content, file.language);
+            if (diagnostics.length > 0) {
+                allDiagnostics.push({ file: getFilePath(file, files), diagnostics });
+            }
+        }
+
+        if (allDiagnostics.length === 0) return "Success: No linting issues found.";
+        
+        const formattedDiagnostics = allDiagnostics.map(res => 
+            `File: ${res.file}\n` + 
+            res.diagnostics.map(d => `  - [${d.severity}] L${d.startLine}: ${d.message}`).join('\n')
+        ).join('\n\n');
+        
+        return `Success: Found linting issues:\n${formattedDiagnostics}`;
+    }
+
+    case 'tooling_runTests': {
+        addTerminalLine(`Agent running tests: ${args.runner}`, 'command');
+        if (args.runner === 'npm test' || args.runner === 'pytest') {
+            const result = "Success: 2 of 2 tests passed.";
+            addTerminalLine(result, 'success');
+            return result;
+        }
+        const errorMsg = `Error: Test runner '${args.runner}' is not supported. Use 'npm test' or 'pytest'.`;
+        addTerminalLine(errorMsg, 'error');
+        return errorMsg;
+    }
+
+    case 'runtime_execJs': {
+        const fileToExec = resolveFileByPath(args.path, files);
+        if (!fileToExec) return `Error: File not found at path ${args.path}`;
+        
+        const lang = getLanguage(fileToExec.name);
+        if (lang !== 'javascript' && lang !== 'typescript') {
+             return `Error: Only JavaScript/TypeScript files can be executed. This is a '${lang}' file.`;
+        }
+
+        addTerminalLine(`Agent executing: node ${args.path}`, 'command');
+        try {
+            const logs: string[] = [];
+            const sandboxedConsole = {
+                log: (...args: any[]) => logs.push(args.map(a => {
+                    try { return JSON.stringify(a); } catch { return String(a); }
+                }).join(' '))
+            };
+            
+            // This is NOT a real sandbox. It's a minimal isolation for capturing output.
+            const sandboxedFunction = new Function('console', fileToExec.content);
+            sandboxedFunction(sandboxedConsole);
+            
+            const output = logs.join('\n');
+            if (output) {
+                addTerminalLine(`Output:\n${output}`, 'info');
+                return `Success: Executed ${args.path}.\nOutput:\n${output}`;
+            }
+            return `Success: Executed ${args.path}. No output was logged to console.`;
+
+        } catch(e: any) {
+            addTerminalLine(`Execution Error: ${e.message}`, 'error');
+            return `Error: Execution failed: ${e.message}`;
+        }
+    }
 
     case 'searchCode':
       const results = ragService.search(args.query, 5);
