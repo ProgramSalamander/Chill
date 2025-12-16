@@ -161,7 +161,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
             </div>
         ) : (
             <>
-              <span className={`truncate text-sm flex-1 ${node.isModified ? 'italic' : ''} ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
+              <span className={`truncate text-sm flex-1 min-w-0 ${node.isModified ? 'italic' : ''} ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
                   {node.name}
               </span>
 

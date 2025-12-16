@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen, IconZap } from './Icons';
 import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
@@ -15,6 +15,8 @@ const Sidebar: React.FC = () => {
   const setActiveSidebarView = useUIStore(state => state.setActiveSidebarView);
   const sidebarViews = useUIStore(state => state.sidebarViews);
   const updateSidebarViews = useUIStore(state => state.updateSidebarViews);
+  const sidebarWidth = useUIStore(state => state.sidebarWidth);
+  const setSidebarWidth = useUIStore(state => state.setSidebarWidth);
   const setIsCommandPaletteOpen = useUIStore(state => state.setIsCommandPaletteOpen);
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
 
@@ -111,10 +113,49 @@ const Sidebar: React.FC = () => {
 
   const hiddenViews = sidebarViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
 
+  // --- Resizing Logic ---
+  const isResizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const deltaX = e.clientX - startXRef.current;
+      const newWidth = startWidthRef.current + deltaX;
+      const clampedWidth = Math.max(200, Math.min(newWidth, 500));
+      setSidebarWidth(clampedWidth);
+  }, [setSidebarWidth]);
+
+  const handleMouseUp = useCallback(() => {
+      isResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+  }, [handleMouseMove]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
+      isResizingRef.current = true;
+      startXRef.current = e.clientX;
+      startWidthRef.current = sidebarWidth;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+  }, [sidebarWidth, handleMouseMove, handleMouseUp]);
+
+  useEffect(() => {
+      return () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+      };
+  }, [handleMouseMove, handleMouseUp]);
+
   return (
-    <div className="flex gap-3 h-full">
+    <div className="flex gap-0 h-full">
         {/* Activity Bar */}
-        <div className="w-14 flex flex-col items-center py-4 gap-4 z-40 rounded-2xl glass-panel shadow-lg shrink-0 h-full">
+        <div className="w-14 flex flex-col items-center py-4 gap-4 z-40 rounded-2xl glass-panel shadow-lg shrink-0 h-full mr-3">
             <div 
               className="w-full flex flex-col items-center gap-4 relative" 
               onDragLeave={() => setDragOverId(null)}
@@ -234,11 +275,23 @@ const Sidebar: React.FC = () => {
         
         {/* Content Panel */}
         {activeSidebarView && (
-            <div className="w-64 glass-panel rounded-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 h-full overflow-hidden shadow-2xl">
-               {activeSidebarView === 'explorer' && <FileExplorer />}
-               {activeSidebarView === 'git' && <GitPanel />}
-               {activeSidebarView === 'extensions' && <ExtensionsPanel />}
-               {activeSidebarView === 'changes' && <ChangesReviewPanel />}
+            <div className="flex animate-in slide-in-from-left-4 duration-300">
+                <div 
+                  style={{ width: `${sidebarWidth}px` }}
+                  className="glass-panel rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl shrink-0"
+                >
+                   {activeSidebarView === 'explorer' && <FileExplorer />}
+                   {activeSidebarView === 'git' && <GitPanel />}
+                   {activeSidebarView === 'extensions' && <ExtensionsPanel />}
+                   {activeSidebarView === 'changes' && <ChangesReviewPanel />}
+                </div>
+                <div
+                    onMouseDown={handleMouseDown}
+                    className="w-1.5 h-full cursor-col-resize group flex items-center justify-center"
+                    title="Resize Sidebar"
+                >
+                    <div className="w-0.5 h-10 bg-vibe-border rounded-full group-hover:bg-vibe-accent transition-colors duration-200"></div>
+                </div>
             </div>
         )}
     </div>

@@ -11,6 +11,7 @@ interface UIState {
   isTerminalOpen: boolean;
   activeSidebarView: string | null;
   sidebarViews: SidebarView[];
+  sidebarWidth: number;
   indexingProgress: { loaded: number; total: number } | null;
   indexingStatus: IndexingStatus;
   isAIOpen: boolean;
@@ -23,6 +24,7 @@ interface UIState {
   toggleTheme: () => void;
   setIsTerminalOpen: (isOpen: boolean) => void;
   setActiveSidebarView: (viewId: string | null) => void;
+  setSidebarWidth: (width: number) => void;
   setIndexingProgress: (progress: { loaded: number; total: number } | null) => void;
   updateSidebarViews: (views: SidebarView[]) => void;
   setIsAIOpen: (isOpen: boolean) => void;
@@ -85,6 +87,7 @@ export const useUIStore = create<UIState>()(
       theme: 'dark',
       isTerminalOpen: true,
       activeSidebarView: 'explorer',
+      sidebarWidth: 256,
       indexingProgress: null,
       sidebarViews: getDefaultSidebarViews(),
       isAIOpen: false,
@@ -97,6 +100,7 @@ export const useUIStore = create<UIState>()(
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       setIsTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
       setActiveSidebarView: (viewId) => set({ activeSidebarView: viewId }),
+      setSidebarWidth: (width) => set({ sidebarWidth: width }),
       setIndexingProgress: (progress) => set({ indexingProgress: progress }),
       updateSidebarViews: (views) => set({ sidebarViews: views }),
       setIsAIOpen: (isOpen) => set({ isAIOpen: isOpen }),
@@ -112,6 +116,7 @@ export const useUIStore = create<UIState>()(
         theme: state.theme, 
         isTerminalOpen: state.isTerminalOpen, 
         activeSidebarView: state.activeSidebarView,
+        sidebarWidth: state.sidebarWidth,
         sidebarViews: state.sidebarViews.map(({ id, order, visible }) => ({ id, order, visible })),
       }),
       onRehydrateStorage: () => (state) => {
