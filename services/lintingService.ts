@@ -11,7 +11,7 @@ export const initLinters = async () => {
   console.log('All available linters initialized.');
 };
 
-export const runLinting = (code: string, language: string): Diagnostic[] => {
+export const runLinting = async (code: string, language: string): Promise<Diagnostic[]> => {
   const { installedLinters } = useLinterStore.getState();
 
   // Find the first installed linter that supports this language.
@@ -22,7 +22,7 @@ export const runLinting = (code: string, language: string): Diagnostic[] => {
 
   if (linter) {
     try {
-      return linter.lint(code);
+      return await linter.lint(code);
     } catch (e) {
       console.error(`Error running linter '${linter.name}':`, e);
       return [];

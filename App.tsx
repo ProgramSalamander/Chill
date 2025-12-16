@@ -78,8 +78,8 @@ function App() {
         if (diagnostics.length > 0) setDiagnostics([]);
         return;
     }
-    lintTimerRef.current = setTimeout(() => {
-      const newDiagnostics = runLinting(activeFile.content, activeFile.language);
+    lintTimerRef.current = setTimeout(async () => {
+      const newDiagnostics = await runLinting(activeFile.content, activeFile.language);
       if (JSON.stringify(newDiagnostics) !== JSON.stringify(diagnostics)) {
         setDiagnostics(newDiagnostics);
       }

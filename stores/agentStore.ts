@@ -330,7 +330,7 @@ async function runPreFlightChecks(path: string, content: string) {
       }});
 
       await new Promise(r => setTimeout(r, 600)); 
-      const diagnostics = runLinting(content, language);
+      const diagnostics = await runLinting(content, language);
       const hasErrors = diagnostics.some(d => d.severity === 'error');
 
       useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? {

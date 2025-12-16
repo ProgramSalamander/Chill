@@ -1,28 +1,35 @@
 import init, { Workspace, type Diagnostic as RuffDiagnostic, PositionEncoding } from "@astral-sh/ruff-wasm-web";
 import { Linter, Diagnostic } from '../../types';
 
-let isReady = false;
+let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
-const initialize = async () => {
-  if (isReady) return;
+const initialize = () => {
+  if (isInitialized) return Promise.resolve();
   if (initPromise) return initPromise;
 
-  initPromise = (async () => {
-    try {
-      await init();
-      isReady = true;
+  initPromise = init()
+    .then(() => {
+      isInitialized = true;
       console.log("Ruff WASM initialized successfully");
-    } catch (e) {
+      initPromise = null;
+    })
+    .catch((e) => {
       console.error("Failed to initialize Ruff WASM:", e);
-    }
-  })();
+      initPromise = null;
+      throw e;
+    });
 
   return initPromise;
 };
 
-const lint = (code: string): Diagnostic[] => {
-  if (!isReady) return [];
+const lint = async (code: string): Promise<Diagnostic[]> => {
+  try {
+    await initialize();
+  } catch (e) {
+    console.error("Cannot lint, Ruff initialization failed.", e);
+    return [];
+  }
 
   const workspace = new Workspace({
     'line-length': 88,
