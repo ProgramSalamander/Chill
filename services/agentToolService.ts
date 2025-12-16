@@ -9,6 +9,44 @@ import { aiService } from './aiService';
 import { runLinting } from './lintingService';
 import { gitService } from './gitService';
 
+// Helper function to find or create parent directories
+async function findOrCreateParent(path: string): Promise<string | null> {
+    const { createNode } = useFileTreeStore.getState();
+    const pathSegments = path.split('/').filter(p => p);
+    if (pathSegments.length === 0) return null;
+
+    let currentParentId: string | null = null;
+
+    for (const segment of pathSegments) {
+        // We need to get the most up-to-date file list in each iteration
+        const currentFiles = useFileTreeStore.getState().files;
+
+        const existingFolder = currentFiles.find(
+            f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId
+        );
+
+        if (existingFolder) {
+            currentParentId = existingFolder.id;
+        } else {
+            // Check if a file exists with this name, which is an error
+            const conflictingFile = currentFiles.find(
+                f => f.type === 'file' && f.name === segment && f.parentId === currentParentId
+            );
+            if (conflictingFile) {
+                throw new Error(`Cannot create directory '${segment}': a file with the same name already exists.`);
+            }
+
+            const newFolder = await createNode('folder', currentParentId, segment);
+            if (!newFolder) {
+                // Creation failed
+                throw new Error(`Failed to create directory: ${segment}`);
+            }
+            currentParentId = newFolder.id;
+        }
+    }
+    return currentParentId;
+}
+
 export const handleAgentAction = async (toolName: string, args: any): Promise<string> => {
   const { addTerminalLine } = useTerminalStore.getState();
   const { files, createNode, updateFileContent } = useFileTreeStore.getState();
@@ -20,26 +58,33 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
 
     case 'fs_readFile':
       const fileToRead = resolveFileByPath(args.path, files);
-      if (fileToRead) {
+      if (fileToRead && fileToRead.type === 'file') {
         return `Success:\n\`\`\`${fileToRead.language}\n${fileToRead.content}\n\`\`\``;
+      }
+      if (fileToRead && fileToRead.type === 'folder') {
+          return `Error: Path '${args.path}' is a directory, not a file.`
       }
       return `Error: File not found at path ${args.path}`;
 
     case 'fs_writeFile':
       let fileToWrite = resolveFileByPath(args.path, files);
-      if (fileToWrite) {
+      if (fileToWrite && fileToWrite.type === 'folder') {
+          return `Error: Cannot write file. A folder already exists at path ${args.path}`;
+      }
+
+      if (fileToWrite) { // It's a file, so update it
         updateFileContent(args.content, true, fileToWrite.id);
-      } else {
+      } else { // File doesn't exist, create it
         const parts = args.path.split('/');
         const name = parts.pop() || 'untitled';
         const parentPath = parts.join('/');
         
-        let parent = null;
-        if (parentPath) {
-            parent = files.find(f => f.type === 'folder' && f.name === parts[parts.length -1]);
+        try {
+            const parentId = parentPath ? await findOrCreateParent(parentPath) : null;
+            fileToWrite = await createNode('file', parentId, name, args.content);
+        } catch (e: any) {
+             return `Error: Could not create directory structure for ${args.path}: ${e.message}`;
         }
-        
-        fileToWrite = await createNode('file', parent?.id || null, name, args.content);
       }
 
       if(fileToWrite) {
@@ -64,6 +109,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
         
         const file = resolveFileByPath(path, files);
         if (!file) return `Error: File not found at path ${path}`;
+        if (file.type === 'folder') return `Error: Cannot diff a folder: ${path}`;
 
         const headContent = await gitService.readBlob(path);
 
@@ -102,7 +148,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
     }
 
     case 'tooling_lint': {
-        const filesToLint = args.path ? [resolveFileByPath(args.path, files)].filter(Boolean) as File[] : files.filter(f => f.type === 'file');
+        const filesToLint = args.path ? [resolveFileByPath(args.path, files)].filter((f): f is File => !!f && f.type === 'file') : files.filter(f => f.type === 'file');
         if (filesToLint.length === 0) return `Error: No files found to lint.`;
 
         let allDiagnostics: { file: string; diagnostics: Diagnostic[] }[] = [];
@@ -138,6 +184,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
     case 'runtime_execJs': {
         const fileToExec = resolveFileByPath(args.path, files);
         if (!fileToExec) return `Error: File not found at path ${args.path}`;
+        if (fileToExec.type === 'folder') return `Error: Cannot execute a folder: ${args.path}`;
         
         const lang = getLanguage(fileToExec.name);
         if (lang !== 'javascript' && lang !== 'typescript') {
@@ -177,8 +224,11 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
       
     case 'getFileStructure':
       const fileForStructure = resolveFileByPath(args.path, files);
-      if (fileForStructure) {
+      if (fileForStructure && fileForStructure.type === 'file') {
         return extractSymbols(fileForStructure);
+      }
+      if (fileForStructure && fileForStructure.type === 'folder') {
+          return `Error: Path '${args.path}' is a directory. Please provide a file path.`;
       }
       return `Error: File not found at path ${args.path}`;
       
@@ -244,6 +294,9 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
         const fileToFix = resolveFileByPath(path, files);
         if (!fileToFix) {
             return `Error: File not found at path ${path}`;
+        }
+        if (fileToFix.type === 'folder') {
+            return `Error: Cannot fix errors in a folder: ${path}`;
         }
         
         const originalContent = fileToFix.content;

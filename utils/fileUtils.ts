@@ -16,10 +16,26 @@ export const getLanguage = (filename: string) => {
 };
 
 // Resolve file by path string
-export const resolveFileByPath = (path: string, currentFiles: File[]) => {
-  const exact = currentFiles.find(f => f.name === path || f.name === path.split('/').pop());
-  if (exact) return exact;
-  return null;
+export const resolveFileByPath = (path: string, allFiles: File[]): File | null => {
+    // Trim leading/trailing slashes and split
+    const pathSegments = path.replace(/^\/|\/$/g, '').split('/').filter(p => p);
+    if (pathSegments.length === 0) return null;
+
+    let currentParentId: string | null = null;
+    let foundNode: File | null = null;
+
+    for (const segment of pathSegments) {
+        const node = allFiles.find(f => f.name === segment && f.parentId === currentParentId);
+
+        if (!node) {
+            return null; // Path segment not found
+        }
+        
+        foundNode = node;
+        currentParentId = node.id;
+    }
+    
+    return foundNode;
 };
 
 // Construct full file path from ID
