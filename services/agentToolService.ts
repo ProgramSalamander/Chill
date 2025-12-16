@@ -1,8 +1,9 @@
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { ragService } from './ragService';
-import { generateProjectStructureContext, extractSymbols, resolveFileByPath } from '../utils/fileUtils';
+import { generateProjectStructureContext, extractSymbols, resolveFileByPath, getFilePath } from '../utils/fileUtils';
 import { notify } from '../stores/notificationStore';
+import { File } from '../types';
 
 export const handleAgentAction = async (toolName: string, args: any): Promise<string> => {
   const { addTerminalLine } = useTerminalStore.getState();
@@ -64,6 +65,59 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
         return extractSymbols(fileForStructure);
       }
       return `Error: File not found at path ${args.path}`;
+      
+    case 'grep': {
+        const { pattern, path: grepPath } = args;
+        if (!pattern) {
+            return "Error: 'pattern' argument is required for grep.";
+        }
+
+        const filesToSearch = grepPath 
+            ? [resolveFileByPath(grepPath, files)].filter((f): f is File => f !== null && f.type === 'file') 
+            : files.filter(f => f.type === 'file');
+        
+        let allResults: string[] = [];
+        let totalMatches = 0;
+
+        try {
+            const regex = new RegExp(pattern, 'i'); // Case-insensitive, no 'g' flag needed for line-by-line test
+
+            for (const file of filesToSearch) {
+                if (!file.content) continue;
+
+                const fileResults: string[] = [];
+                const lines = file.content.split('\n');
+
+                lines.forEach((line, index) => {
+                    if (regex.test(line)) {
+                        fileResults.push(`  L${index + 1}: ${line.trim()}`);
+                        totalMatches++;
+                    }
+                });
+
+                if (fileResults.length > 0) {
+                    allResults.push(`File: ${getFilePath(file, files)}\n${fileResults.join('\n')}`);
+                }
+            }
+        } catch (e: any) {
+            if (e instanceof SyntaxError) {
+                return `Error: Invalid regex pattern provided: '${pattern}'`;
+            }
+            return `Error: An unexpected error occurred during grep: ${e.message}`;
+        }
+
+
+        if (allResults.length === 0) {
+            return "Success: No matches found.";
+        }
+        
+        const fullResultString = allResults.join('\n---\n');
+        if (fullResultString.length > 4000) {
+             return `Success: Found ${totalMatches} matches in ${allResults.length} files. (Results truncated)\n---\n${fullResultString.slice(0, 4000)}...`;
+        }
+
+        return `Success: Found ${totalMatches} matches in ${allResults.length} files:\n---\n${fullResultString}`;
+    }
 
     default:
       return `Error: Unknown tool ${toolName}`;

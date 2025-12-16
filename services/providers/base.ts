@@ -122,6 +122,18 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
           },
           required: ["path"]
         }
+      },
+      {
+        name: "grep",
+        description: "Searches for exact keywords or regex patterns within files. Useful for finding specific variable names, function calls, or configuration values.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            pattern: { type: Type.STRING, description: "The keyword or regex pattern to search for." },
+            path: { type: Type.STRING, description: "Optional. The specific file path to search in. If omitted, searches the entire project." }
+          },
+          required: ["pattern"]
+        }
       }
     ]
   }
