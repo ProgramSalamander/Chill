@@ -134,6 +134,17 @@ export const AGENT_TOOLS_GEMINI: Tool[] = [
           },
           required: ["pattern"]
         }
+      },
+      {
+        name: "autoFixErrors",
+        description: "Analyzes a file for linter errors and warnings, then automatically applies fixes to the code. Best used after writing a new file or making significant changes.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            path: { type: Type.STRING, description: "The path of the file to analyze and fix." }
+          },
+          required: ["path"]
+        }
       }
     ]
   }

@@ -4,6 +4,8 @@ import { ragService } from './ragService';
 import { generateProjectStructureContext, extractSymbols, resolveFileByPath, getFilePath } from '../utils/fileUtils';
 import { notify } from '../stores/notificationStore';
 import { File } from '../types';
+import { aiService } from './aiService';
+import { validateCode } from './lintingService';
 
 export const handleAgentAction = async (toolName: string, args: any): Promise<string> => {
   const { addTerminalLine } = useTerminalStore.getState();
@@ -117,6 +119,49 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
         }
 
         return `Success: Found ${totalMatches} matches in ${allResults.length} files:\n---\n${fullResultString}`;
+    }
+
+    case 'autoFixErrors': {
+        const { path } = args;
+        if (!path) {
+            return "Error: 'path' argument is required for autoFixErrors.";
+        }
+
+        const fileToFix = resolveFileByPath(path, files);
+        if (!fileToFix) {
+            return `Error: File not found at path ${path}`;
+        }
+        
+        const originalContent = fileToFix.content;
+        const diagnostics = validateCode(originalContent, fileToFix.language);
+
+        if (diagnostics.length === 0) {
+            return `Success: No errors found in ${path}.`;
+        }
+        
+        const errorsString = diagnostics
+            .map(d => `- ${d.message} (Line ${d.startLine}, Col ${d.startColumn})`)
+            .join('\n');
+            
+        const instruction = `Please fix the following ${diagnostics.length} errors in the provided code snippet:\n${errorsString}\n\nReturn ONLY the complete, corrected code for the entire file. Do not add any explanations, comments, or markdown formatting.`;
+
+        try {
+            // Use editCode to get the fix, treating the whole file as the selection.
+            const fixedCode = await aiService.editCode('', originalContent, '', instruction, fileToFix, files);
+            
+            if (fixedCode && fixedCode.trim() !== originalContent.trim()) {
+                updateFileContent(fixedCode, true, fileToFix.id);
+                notify(`Auto-fixed ${diagnostics.length} errors in ${path}`, 'success');
+                return `Success: Automatically fixed ${diagnostics.length} errors in ${path}.`;
+            } else if (fixedCode) {
+                return `Success: Analysis complete, but no changes were necessary.`;
+            } else {
+                 return `Error: AI failed to generate a fix for the errors in ${path}.`;
+            }
+        } catch (e: any) {
+            console.error("Auto-fix failed:", e);
+            return `Error: An exception occurred while trying to fix errors in ${path}: ${e.message}`;
+        }
     }
 
     default:
