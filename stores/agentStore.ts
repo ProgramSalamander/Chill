@@ -18,7 +18,6 @@ interface AgentState {
 
   // Actions
   startAgent: (goal: string) => Promise<void>;
-  approvePlan: (modifiedPlan?: AgentPlanItem[]) => Promise<void>;
   approveAction: () => Promise<void>;
   rejectAction: () => void;
   updatePendingActionArgs: (newArgs: any) => void;
@@ -26,6 +25,8 @@ interface AgentState {
   resetAgent: () => void;
   summarizeTask: () => Promise<void>;
 }
+
+const DANGEROUS_TOOLS = new Set(['writeFile', 'runCommand']);
 
 const useAgentStore = create<AgentState>((set, get) => ({
   status: 'idle',
@@ -56,7 +57,18 @@ const useAgentStore = create<AgentState>((set, get) => ({
       const files = useFileTreeStore.getState().files;
       const context = `Project contains ${files.length} files.`;
       const generatedPlan = await aiService.generateAgentPlan({ goal, context });
-      set({ plan: generatedPlan, status: 'plan_review' });
+      
+      set({ plan: generatedPlan, status: 'thinking' });
+
+      const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant. You have agreed on a plan with the user. Your task is to execute this plan step-by-step.
+Current Plan:
+${JSON.stringify(generatedPlan, null, 2)}
+For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action. If the action is dangerous (writeFile, runCommand) I will ask the user for approval. Otherwise, I will execute it automatically.`;
+      
+      const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true });
+      set({ agentChatSession: session });
+      await processNextStep();
+
     } catch (e: any) {
       console.error(e);
       set(state => ({
@@ -66,68 +78,12 @@ const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  approvePlan: async (modifiedPlan) => {
-    const plan = modifiedPlan || get().plan;
-    set({ plan, status: 'thinking' });
-
-    const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant. You have agreed on a plan with the user. Your task is to execute this plan step-by-step.
-Current Plan:
-${JSON.stringify(plan, null, 2)}
-For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action. Wait for the user to confirm the action, then I will give you the result.`;
-    
-    const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true });
-    set({ agentChatSession: session });
-    await processNextStep();
-  },
-
   approveAction: async () => {
-    const { pendingAction, agentChatSession } = get();
-    if (!pendingAction || !agentChatSession) return;
+    const { pendingAction } = get();
+    if (!pendingAction) return;
 
-    set({ status: 'executing', preFlightResult: null });
-    const { toolName, args } = pendingAction;
-
-    set(state => ({
-      agentSteps: [...state.agentSteps, {
-        id: Date.now().toString(), type: 'call', text: `Running ${toolName}...`,
-        toolName: toolName, toolArgs: args, timestamp: Date.now()
-      }]
-    }));
-
-    let result = "Error";
-    try {
-      result = await handleAgentAction(toolName, args);
-      // If the action was readFile or writeFile, update awareness
-      if (toolName === 'readFile' || toolName === 'writeFile') {
-          const file = resolveFileByPath(args.path, useFileTreeStore.getState().files);
-          if (file) {
-              set(state => ({ agentAwareness: new Set(state.agentAwareness).add(file.id) }));
-          }
-      }
-    } catch (e: any) {
-      result = `Error executing ${toolName}: ${e.message}`;
-      handleFailedStep(result);
-      return;
-    }
-
-    set(state => ({
-      agentSteps: [...state.agentSteps, {
-        id: Date.now().toString(), type: 'result',
-        text: result.length > 300 ? result.slice(0, 300) + '...' : result,
-        timestamp: Date.now()
-      }],
-      pendingAction: null,
-    }));
-
-    const toolResponse = [{ id: pendingAction.id, name: toolName, result: result }];
-    
-    try {
-      const response = await agentChatSession.sendMessage({ message: "", toolResponses: toolResponse });
-      handleAgentResponse(response);
-    } catch (e: any) {
-      console.error(e);
-      handleFailedStep(`Agent failed after action: ${e.message}`);
-    }
+    set({ preFlightResult: null });
+    await _executeAndContinue(pendingAction);
   },
 
   rejectAction: () => {
@@ -212,6 +168,58 @@ For each turn, I will tell you which step needs to be worked on. You should outp
 
 // --- Helper functions to be called within the store ---
 
+async function _executeAndContinue(action: AgentPendingAction) {
+    const { toolName, args } = action;
+
+    useAgentStore.setState({ status: 'executing' });
+
+    useAgentStore.setState(state => ({
+      agentSteps: [...state.agentSteps, {
+        id: Date.now().toString(), type: 'call', text: `Running ${toolName}...`,
+        toolName: toolName, toolArgs: args, timestamp: Date.now()
+      }],
+    }));
+
+    let result = "Error";
+    try {
+      result = await handleAgentAction(toolName, args);
+      // If the action was readFile or writeFile, update awareness
+      if (toolName === 'readFile' || toolName === 'writeFile') {
+          const file = resolveFileByPath(args.path, useFileTreeStore.getState().files);
+          if (file) {
+              useAgentStore.setState(state => ({ agentAwareness: new Set(state.agentAwareness).add(file.id) }));
+          }
+      }
+    } catch (e: any) {
+      result = `Error executing ${toolName}: ${e.message}`;
+      handleFailedStep(result);
+      return;
+    }
+
+    useAgentStore.setState(state => ({
+      agentSteps: [...state.agentSteps, {
+        id: Date.now().toString(), type: 'result',
+        text: result.length > 300 ? result.slice(0, 300) + '...' : result,
+        timestamp: Date.now()
+      }],
+      pendingAction: null,
+    }));
+    
+    const { agentChatSession } = useAgentStore.getState();
+    if (!agentChatSession) return;
+
+    const toolResponse = [{ id: action.id, name: toolName, result: result }];
+    
+    try {
+      const response = await agentChatSession.sendMessage({ message: "", toolResponses: toolResponse });
+      handleAgentResponse(response);
+    } catch (e: any) {
+      console.error(e);
+      handleFailedStep(`Agent failed after action: ${e.message}`);
+    }
+}
+
+
 async function processNextStep() {
   const { plan, agentChatSession, summarizeTask } = useAgentStore.getState();
   
@@ -230,15 +238,12 @@ async function processNextStep() {
   });
 
   if (stepIndex === -1) {
-    // If no pending steps are ready, checks if everything is done or if we are deadlocked
     const anyPending = plan.some(p => p.status === 'pending');
-    if (anyPending) {
-        // We have pending steps but dependencies aren't met.
-        // For simplicity in this agent, we'll mark them failed or just stop. 
-        // But usually this means the agent flow is stuck.
-        // Let's assume done if we can't progress.
+    if (!anyPending) {
+        await summarizeTask();
+    } else {
+        handleFailedStep("Agent deadlocked. Could not execute pending steps due to unmet dependencies.");
     }
-    await summarizeTask();
     return;
   }
 
@@ -259,7 +264,7 @@ async function processNextStep() {
   }
 }
 
-function handleAgentResponse(response: any) {
+async function handleAgentResponse(response: any) {
   if (response.text) {
     useAgentStore.setState(state => ({
       agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'thought', text: response.text, timestamp: Date.now() }]
@@ -268,16 +273,25 @@ function handleAgentResponse(response: any) {
 
   if (response.toolCalls && response.toolCalls.length > 0) {
     const call = response.toolCalls[0];
-    const activeStep = useAgentStore.getState().plan.find(p => p.status === 'active');
-    useAgentStore.setState({
-      pendingAction: {
-        id: call.id, type: 'tool_call', toolName: call.name, args: call.args,
-        agentRole: activeStep?.assignedAgent || 'coder'
-      },
-      status: 'action_review'
-    });
-    if (call.name === 'writeFile') {
-        runPreFlightChecks(call.args.path, call.args.content);
+    const toolName = call.name;
+
+    const actionToPerform: AgentPendingAction = {
+        id: call.id, type: 'tool_call', toolName: toolName, args: call.args,
+        agentRole: useAgentStore.getState().plan.find(p => p.status === 'active')?.assignedAgent || 'coder'
+    };
+
+    if (DANGEROUS_TOOLS.has(toolName)) {
+        // DANGEROUS: pause for user approval
+        useAgentStore.setState({
+            pendingAction: actionToPerform,
+            status: 'action_review'
+        });
+        if (toolName === 'writeFile') {
+            runPreFlightChecks(call.args.path, call.args.content);
+        }
+    } else {
+        // SAFE: execute immediately
+        await _executeAndContinue(actionToPerform);
     }
   } else {
     const activeIndex = useAgentStore.getState().plan.findIndex(p => p.status === 'active');

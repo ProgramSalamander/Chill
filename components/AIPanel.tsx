@@ -33,7 +33,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const preFlightResult = useAgentStore(state => state.preFlightResult);
   const resetAgent = useAgentStore(state => state.resetAgent);
   const startAgent = useAgentStore(state => state.startAgent);
-  const approvePlan = useAgentStore(state => state.approvePlan);
   const approveAction = useAgentStore(state => state.approveAction);
   const rejectAction = useAgentStore(state => state.rejectAction);
   const updatePendingActionArgs = useAgentStore(state => state.updatePendingActionArgs);
@@ -142,7 +141,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
             plan={plan}
             pendingAction={pendingAction}
             preFlightResult={preFlightResult}
-            onApprovePlan={approvePlan}
             onApproveAction={approveAction}
             onRejectAction={rejectAction}
             onUpdateActionArgs={updatePendingActionArgs}

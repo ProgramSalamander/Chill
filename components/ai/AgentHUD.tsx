@@ -10,7 +10,6 @@ interface AgentHUDProps {
   plan: AgentPlanItem[];
   pendingAction: AgentPendingAction | null;
   preFlightResult?: PreFlightResult | null;
-  onApprovePlan: (plan: AgentPlanItem[]) => void;
   onApproveAction: () => void;
   onRejectAction: () => void;
   onUpdateActionArgs: (args: any) => void;
@@ -23,7 +22,6 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
   plan,
   pendingAction,
   preFlightResult,
-  onApprovePlan,
   onApproveAction,
   onRejectAction,
   onUpdateActionArgs,
@@ -44,13 +42,6 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
       setIsEditingArgs(false);
     }
   }, [pendingAction]);
-
-  const toggleStepStatus = (index: number) => {
-    const newPlan = [...editedPlan];
-    if (newPlan[index].status === 'pending') newPlan[index].status = 'skipped';
-    else if (newPlan[index].status === 'skipped') newPlan[index].status = 'pending';
-    setEditedPlan(newPlan);
-  };
 
   const handleArgsSave = () => {
     try {
@@ -165,39 +156,6 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
           <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-500">
             {status.replace('_', ' ')}
           </span>
-        </div>
-      )}
-
-      {status === 'plan_review' && (
-        <div className="bg-[#181824] border border-white/10 rounded-xl p-4 animate-in slide-in-from-bottom-5 z-10">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-4">
-            <IconZap size={16} className="text-orange-400" />
-            Proposed Plan
-          </h3>
-          <div className="space-y-2 mb-6 max-h-[400px] overflow-y-auto custom-scrollbar">
-            {editedPlan.map((item, idx) => (
-              <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 transition-colors group">
-                <button onClick={() => toggleStepStatus(idx)} className={`mt-0.5 ${item.status === 'skipped' ? 'text-slate-600' : 'text-vibe-glow'}`}>
-                  {item.status === 'skipped' ? <IconXCircle size={14} /> : <IconCheckCircle size={14} />}
-                </button>
-                <div className={`flex-1 ${item.status === 'skipped' ? 'opacity-50' : ''}`}>
-                  <div className="flex items-center justify-between">
-                     <div className={`text-xs font-bold ${item.status === 'skipped' ? 'line-through text-slate-500' : 'text-slate-200'}`}>{item.title}</div>
-                     {item.dependencies && item.dependencies.length > 0 && (
-                         <div className="text-[9px] text-slate-500 font-mono bg-white/5 px-1.5 rounded">dep: {item.dependencies.length}</div>
-                     )}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">{item.description}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-end gap-3">
-            <button onClick={() => onApprovePlan(editedPlan)} className="bg-vibe-accent hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2">
-              <IconPlay size={14} />
-              Approve & Execute
-            </button>
-          </div>
         </div>
       )}
 
