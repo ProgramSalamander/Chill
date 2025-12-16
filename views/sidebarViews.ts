@@ -1,7 +1,7 @@
 
 
 import React from 'react';
-import { IconFileCode, IconGitBranch } from '../components/Icons';
+import { IconFileCode, IconGitBranch, IconZap } from '../components/Icons';
 import { SidebarViewConfig } from '../types';
 
 export const SIDEBAR_VIEWS: SidebarViewConfig[] = [
@@ -14,5 +14,10 @@ export const SIDEBAR_VIEWS: SidebarViewConfig[] = [
     id: 'git',
     title: 'Source Control',
     icon: IconGitBranch,
+  },
+  {
+    id: 'extensions',
+    title: 'Extensions',
+    icon: IconZap,
   },
 ];

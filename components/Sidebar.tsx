@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen } from './Icons';
+import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen, IconZap } from './Icons';
 import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
+import ExtensionsPanel from './ExtensionsPanel';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
@@ -227,6 +228,7 @@ const Sidebar: React.FC = () => {
             <div className="w-64 glass-panel rounded-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 h-full overflow-hidden shadow-2xl">
                {activeSidebarView === 'explorer' && <FileExplorer />}
                {activeSidebarView === 'git' && <GitPanel />}
+               {activeSidebarView === 'extensions' && <ExtensionsPanel />}
             </div>
         )}
     </div>

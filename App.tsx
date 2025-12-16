@@ -22,7 +22,7 @@ import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
 
 import { aiService } from './services/aiService';
-import { initRuff, runPythonLint } from './services/lintingService';
+import { initLinters, runLinting } from './services/lintingService';
 import { ragService } from './services/ragService';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { IconSparkles } from './components/Icons';
@@ -66,7 +66,7 @@ function App() {
 
   // Initialize services and load project on startup
   useEffect(() => {
-    initRuff().then(() => console.log('Ruff Linter initialized'));
+    initLinters().then(() => console.log('Linting services initialized'));
     initChat();
     loadInitialProject();
   }, [initChat, loadInitialProject]);
@@ -79,10 +79,9 @@ function App() {
         return;
     }
     lintTimerRef.current = setTimeout(() => {
-      if (activeFile?.language === 'python') {
-        setDiagnostics(runPythonLint(activeFile.content));
-      } else if (diagnostics.length > 0) {
-        setDiagnostics([]);
+      const newDiagnostics = runLinting(activeFile.content, activeFile.language);
+      if (JSON.stringify(newDiagnostics) !== JSON.stringify(diagnostics)) {
+        setDiagnostics(newDiagnostics);
       }
     }, 750);
   }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);

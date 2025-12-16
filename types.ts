@@ -204,6 +204,17 @@ export interface PreFlightResult {
   diagnostics: Diagnostic[];
 }
 
+// --- Linter Types ---
+export interface Linter {
+  id: string;
+  name: string;
+  description: string;
+  supportedLanguages: string[];
+  init?: () => Promise<void>;
+  lint: (code: string) => Diagnostic[];
+}
+
+
 declare global {
   interface Window {
     aistudio?: AIStudio;

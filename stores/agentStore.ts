@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult } from '../types';
 import { aiService } from '../services/aiService';
-import { validateCode } from '../services/lintingService';
+import { runLinting } from '../services/lintingService';
 import { getLanguage, resolveFileByPath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
@@ -330,7 +330,7 @@ async function runPreFlightChecks(path: string, content: string) {
       }});
 
       await new Promise(r => setTimeout(r, 600)); 
-      const diagnostics = validateCode(content, language);
+      const diagnostics = runLinting(content, language);
       const hasErrors = diagnostics.some(d => d.severity === 'error');
 
       useAgentStore.setState(prev => ({ preFlightResult: prev.preFlightResult ? {

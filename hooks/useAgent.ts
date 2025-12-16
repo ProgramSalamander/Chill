@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, PreFlightResult, PreFlightCheck } from '../types';
 // FIX: Replaced import from empty geminiService.ts with aiService.
 import { aiService } from '../services/aiService';
-import { validateCode } from '../services/lintingService';
+// FIX: Changed validateCode to runLinting as it is the exported function.
+import { runLinting } from '../services/lintingService';
 import { getLanguage } from '../utils/fileUtils';
 
 export const useAgent = (
@@ -53,7 +54,8 @@ export const useAgent = (
 
       // 1. Syntax Check (Real)
       await new Promise(r => setTimeout(r, 600)); // Animation delay
-      const diagnostics = validateCode(content, language);
+      // FIX: Changed validateCode to runLinting.
+      const diagnostics = runLinting(content, language);
       const hasErrors = diagnostics.some(d => d.severity === 'error');
 
       setPreFlightResult(prev => {

@@ -5,7 +5,8 @@ import { generateProjectStructureContext, extractSymbols, resolveFileByPath, get
 import { notify } from '../stores/notificationStore';
 import { File } from '../types';
 import { aiService } from './aiService';
-import { validateCode } from './lintingService';
+// FIX: Changed validateCode to runLinting as it is the exported function.
+import { runLinting } from './lintingService';
 
 export const handleAgentAction = async (toolName: string, args: any): Promise<string> => {
   const { addTerminalLine } = useTerminalStore.getState();
@@ -133,7 +134,8 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
         }
         
         const originalContent = fileToFix.content;
-        const diagnostics = validateCode(originalContent, fileToFix.language);
+        // FIX: Changed validateCode to runLinting.
+        const diagnostics = runLinting(originalContent, fileToFix.language);
 
         if (diagnostics.length === 0) {
             return `Success: No errors found in ${path}.`;
