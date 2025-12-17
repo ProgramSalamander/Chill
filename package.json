@@ -22,7 +22,8 @@
     "monaco-editor": "^0.55.1",
     "@astral-sh/ruff-wasm-web": "^0.14.9",
     "@isomorphic-git/lightning-fs": "^4.6.2",
-    "buffer": "^6.0.3"
+    "buffer": "^6.0.3",
+    "showdown": "^2.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
