@@ -3,16 +3,62 @@ import AgentHUD from './ai/AgentHUD';
 import ChatView from './ai/ChatView';
 import AIPanelInput from './ai/AIPanelInput';
 import Tooltip from './Tooltip';
-import { IconSparkles, IconCpu, IconClose, IconTrash } from './Icons';
+import { IconSparkles, IconCpu, IconClose, IconTrash, IconChevronDown } from './Icons';
 
 import { useChatStore } from '../../stores/chatStore';
 import { useFileTreeStore } from '../../stores/fileStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { useUIStore } from '../../stores/uiStore';
 import PlanNode from './ai/PlanNode';
+import { getAIConfig } from '../../services/configService';
 
 interface AIPanelProps {
   onInsertCode: (code: string) => void;
+}
+
+const ModelSwitcher: React.FC = () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const { profiles, activeChatProfileId: globalActiveId } = getAIConfig();
+    const activeId = useChatStore(state => state.activeChatProfileId);
+    const setActiveProfile = useChatStore(state => state.setActiveChatProfile);
+
+    const activeProfile = profiles.find(p => p.id === activeId) || profiles.find(p => p.id === globalActiveId) || profiles[0];
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    if (!activeProfile) return <div className="text-[10px] text-red-400 font-mono mt-0.5">No Model</div>;
+
+    return (
+        <div className="relative" ref={wrapperRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className="text-[10px] text-slate-500 font-mono mt-0.5 hover:text-white transition-colors flex items-center gap-1">
+                <span className="truncate max-w-[120px]" title={activeProfile.name}>{activeProfile.name}</span>
+                <IconChevronDown size={12} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isOpen && (
+                <div className="absolute top-full mt-2 left-0 w-48 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50 z-30">
+                    {profiles.map(p => (
+                        <button 
+                            key={p.id}
+                            onClick={() => { setActiveProfile(p.id); setIsOpen(false); }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors mx-1 ${activeProfile.id === p.id ? 'bg-vibe-accent/20 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                        >
+                            <p className="font-semibold truncate">{p.name}</p>
+                            <p className="text-slate-500 font-mono text-[10px] truncate">{p.modelId}</p>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
 }
 
 const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
@@ -74,6 +120,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
                       {mode === 'chat' ? 'Vibe Chat' : 'Neural Agent'}
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono">v3.1</span>
                   </h3>
+                  <ModelSwitcher />
               </div>
             </div>
             <div className="flex items-center gap-1">

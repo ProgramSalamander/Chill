@@ -1,10 +1,10 @@
-import { getAIConfig } from "./configService";
+import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./configService";
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
-import { AIModelConfig, Message, AgentPlanItem, AISession, AIProviderAdapter, File } from "../types";
+import { AIModelProfile, Message, AgentPlanItem, AISession, AIProviderAdapter, File } from "../types";
 
 class AIService {
-  private getProvider(config: AIModelConfig): AIProviderAdapter {
+  private getProvider(config: AIModelProfile): AIProviderAdapter {
     if (config.provider === 'openai') {
       return new OpenAIProvider();
     }
@@ -15,11 +15,11 @@ class AIService {
   createChatSession(props: {
     systemInstruction: string,
     history?: Message[],
-    isAgent?: boolean
+    isAgent?: boolean,
+    config: AIModelProfile
   }): AISession {
-    const config = getAIConfig().chat;
-    const provider = this.getProvider(config);
-    return provider.createChatSession({ ...props, config });
+    const provider = this.getProvider(props.config);
+    return provider.createChatSession(props);
   }
 
   sendMessageStream(session: AISession, message: string) {
@@ -31,8 +31,12 @@ class AIService {
     goal: string,
     context: string
   }): Promise<AgentPlanItem[]> {
+    const config = getActiveChatConfig();
+    if (!config) {
+        console.error("No active chat model configured for agent planning.");
+        return [];
+    }
     try {
-        const config = getAIConfig().chat;
         const provider = this.getProvider(config);
         return await provider.generateAgentPlan({ ...props, config });
     } catch (e) {
@@ -41,16 +45,15 @@ class AIService {
     }
   }
   
-  // --- GENERIC TEXT GENERATION ---
-  generateText(
-    configType: 'chat' | 'completion',
+  // --- GENERIC TEXT GENERATION (used internally now) ---
+  private generateText(
+    config: AIModelProfile,
     prompt: string,
     options: {
       temperature?: number;
       maxOutputTokens?: number;
     } = {}
   ): Promise<string> {
-    const config = getAIConfig()[configType];
     const provider = this.getProvider(config);
     return provider.generateText({ prompt, config, options });
   }
@@ -58,9 +61,12 @@ class AIService {
   // --- SPECIFIC AI TASKS ---
 
   async generateCommitMessage(diff: string): Promise<string> {
+    const config = getActiveCompletionConfig();
+    if (!config) return "Update files";
+
     const prompt = `Generate a concise, conventional commit message (max 50 chars) for these changes:\n${diff.slice(0, 2000)}`;
     try {
-        const response = await this.generateText('completion', prompt);
+        const response = await this.generateText(config, prompt);
         return response.trim() || "Update files";
     } catch (e) {
         return "Update files";
@@ -74,6 +80,9 @@ class AIService {
     file: File, 
     allFiles: File[]
   ): Promise<string | null> {
+    const config = getActiveCompletionConfig();
+    if (!config) return null;
+
     const codeBeforeCursor = code.slice(0, offset);
     const codeAfterCursor = code.slice(offset);
     
@@ -107,7 +116,7 @@ Complete the code at the cursor position.`;
     console.log('[aiService] getCodeCompletion prompt:', { language, filename: file.name, context: `...${context.slice(-100)}[CURSOR]` });
 
     try {
-        const response = await this.generateText('completion', prompt, { temperature: 0.2, maxOutputTokens: 128 });
+        const response = await this.generateText(config, prompt, { temperature: 0.2, maxOutputTokens: 128 });
         
         console.log('[aiService] Raw completion response:', response);
 
@@ -161,10 +170,13 @@ Complete the code at the cursor position.`;
     file: File, 
     allFiles: File[]
   ): Promise<string | null> {
+    const config = getActiveCompletionConfig();
+    if (!config) return null;
+
     const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-500)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 500)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
     
     try {
-        const text = await this.generateText('completion', prompt);
+        const text = await this.generateText(config, prompt);
         if (!text) {
           return null;
         }

@@ -6,12 +6,14 @@ import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
+import { getActiveChatConfig, getAIConfig } from '../services/configService';
 
 interface ChatState {
   messages: Message[];
   isGenerating: boolean;
   contextScope: 'project' | 'file';
   chatSession: AISession | null;
+  activeChatProfileId: string | null;
   
   // Actions
   initChat: () => void;
@@ -19,6 +21,7 @@ interface ChatState {
   setMessages: (messages: Message[]) => void;
   clearChat: () => void;
   setContextScope: (scope: 'project' | 'file') => void;
+  setActiveChatProfile: (profileId: string) => void;
 }
 
 const SYSTEM_INSTRUCTION = `You are VibeCode AI, an expert coding assistant integrated into a futuristic IDE. 
@@ -35,23 +38,66 @@ export const useChatStore = create<ChatState>()(
       isGenerating: false,
       contextScope: 'project',
       chatSession: null,
+      activeChatProfileId: null,
 
       initChat: () => {
-        const history = get().messages.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
-        const session = aiService.createChatSession({ systemInstruction: SYSTEM_INSTRUCTION, history });
-        set({ chatSession: session });
-        useTerminalStore.getState().addTerminalLine('System initialized. VibeCode AI connected.', 'info');
+        let { activeChatProfileId } = get();
+        const { messages } = get();
+    
+        if (!activeChatProfileId) {
+          const activeConfig = getActiveChatConfig();
+          activeChatProfileId = activeConfig?.id || null;
+        }
+    
+        const profile = getAIConfig().profiles.find(p => p.id === activeChatProfileId);
+    
+        if (!profile) {
+          useTerminalStore.getState().addTerminalLine('No active AI model configured.', 'error');
+          set({ chatSession: null, activeChatProfileId: null });
+          return;
+        }
+    
+        const history = messages.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
+        const session = aiService.createChatSession({
+          systemInstruction: SYSTEM_INSTRUCTION,
+          history,
+          config: profile
+        });
+        set({ chatSession: session, activeChatProfileId: profile.id });
+
+        // Only log on first-time init or model switch
+        if (messages.length === 0) {
+            useTerminalStore.getState().addTerminalLine(`AI connected [${profile.name}]`, 'info');
+        }
+      },
+
+      setActiveChatProfile: (profileId: string) => {
+        const { activeChatProfileId } = get();
+        if (profileId === activeChatProfileId) return;
+      
+        // Reset chat history and set new profile, then re-initialize
+        set({ messages: [], activeChatProfileId: profileId, chatSession: null });
+        get().initChat();
       },
 
       sendMessage: async (text, contextFileIds) => {
-        const { chatSession, contextScope } = get();
-        if (!chatSession) return;
+        let { chatSession } = get();
+        if (!chatSession) {
+          get().initChat();
+          chatSession = get().chatSession;
+          if (!chatSession) {
+            useTerminalStore.getState().addTerminalLine('AI is not configured. Please check settings.', 'error');
+            set({ isGenerating: false });
+            return;
+          }
+        }
         
         const userMsg: Message = { id: Date.now().toString(), role: MessageRole.USER, text, timestamp: Date.now() };
         set(state => ({ messages: [...state.messages, userMsg], isGenerating: true }));
 
         try {
           const { files, activeFile } = useFileTreeStore.getState();
+          const { contextScope } = get();
           let prompt = text;
           
           if (contextFileIds && contextFileIds.length > 0) {
@@ -68,7 +114,7 @@ export const useChatStore = create<ChatState>()(
               prompt = `[FILE: ${activeFile.name}]\n${activeFile.content}\n\n[QUERY]\n${text}`;
           }
 
-          const stream = await aiService.sendMessageStream(chatSession, prompt);
+          const stream = await chatSession.sendMessageStream({ message: prompt });
           const responseId = (Date.now() + 1).toString();
           set(state => ({ messages: [...state.messages, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }] }));
           
@@ -85,7 +131,7 @@ export const useChatStore = create<ChatState>()(
             messages: state.messages.map(m => m.id === responseId ? { ...m, isStreaming: false } : m)
           }));
         } catch (error: any) { 
-            useTerminalStore.getState().addTerminalLine('AI Error', 'error'); 
+            useTerminalStore.getState().addTerminalLine(`AI Error: ${error.message}`, 'error'); 
             console.error(error);
         } finally { 
           set({ isGenerating: false });
@@ -101,7 +147,11 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'vibe-chat-storage',
-      partialize: (state) => ({ messages: state.messages, contextScope: state.contextScope }),
+      partialize: (state) => ({ 
+        messages: state.messages, 
+        contextScope: state.contextScope,
+        activeChatProfileId: state.activeChatProfileId
+      }),
     }
   )
 );

@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Part, Type } from "@google/genai";
-import { AIProviderAdapter, AIModelConfig, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
+import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
 import { AGENT_TOOLS_GEMINI, getApiKey } from "./base";
 
 // --- Gemini Session Implementation ---
@@ -7,7 +7,7 @@ import { AGENT_TOOLS_GEMINI, getApiKey } from "./base";
 class GeminiSession implements AISession {
   private chat: any;
 
-  constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false, config: AIModelConfig) {
+  constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false, config: AIModelProfile) {
     const apiKey = getApiKey(config);
     const ai = new GoogleGenAI({ apiKey });
     
@@ -83,11 +83,11 @@ class GeminiSession implements AISession {
 
 
 export class GeminiProvider implements AIProviderAdapter {
-  createChatSession(props: { systemInstruction: string; history?: Message[]; isAgent?: boolean; config: AIModelConfig; }): AISession {
+  createChatSession(props: { systemInstruction: string; history?: Message[]; isAgent?: boolean; config: AIModelProfile; }): AISession {
     return new GeminiSession(props.systemInstruction, props.history, props.isAgent, props.config);
   }
 
-  async generateText(props: { prompt: string; config: AIModelConfig; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<string> {
+  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<string> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for Gemini.");
     
@@ -103,7 +103,7 @@ export class GeminiProvider implements AIProviderAdapter {
     return response.text || '';
   }
 
-  async generateAgentPlan(props: { goal: string; context: string; config: AIModelConfig; }): Promise<AgentPlanItem[]> {
+  async generateAgentPlan(props: { goal: string; context: string; config: AIModelProfile; }): Promise<AgentPlanItem[]> {
     const geminiSchema = {
         type: Type.ARRAY,
         items: {

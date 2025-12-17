@@ -97,6 +97,7 @@ export interface ProjectMeta {
 
 export type AIProvider = 'gemini' | 'openai';
 
+// This represents the core configuration for making an API call
 export interface AIModelConfig {
   provider: AIProvider;
   modelId: string;
@@ -104,9 +105,17 @@ export interface AIModelConfig {
   apiKey: string;
 }
 
+// This is a user-configured profile that has a name and ID
+export interface AIModelProfile extends AIModelConfig {
+  id: string;
+  name: string;
+}
+
+// The top-level configuration stores all profiles and the active ones
 export interface AIConfig {
-  chat: AIModelConfig;
-  completion: AIModelConfig;
+  profiles: AIModelProfile[];
+  activeChatProfileId: string | null;
+  activeCompletionProfileId: string | null;
 }
 
 // Unified Session Interfaces
@@ -138,12 +147,12 @@ export interface AIProviderAdapter {
     systemInstruction: string;
     history?: Message[];
     isAgent?: boolean;
-    config: AIModelConfig;
+    config: AIModelProfile;
   }): AISession;
 
   generateText(props: {
     prompt: string;
-    config: AIModelConfig;
+    config: AIModelProfile;
     options?: {
       temperature?: number;
       maxOutputTokens?: number;
@@ -153,7 +162,7 @@ export interface AIProviderAdapter {
   generateAgentPlan(props: {
     goal: string;
     context: string;
-    config: AIModelConfig;
+    config: AIModelProfile;
   }): Promise<AgentPlanItem[]>;
 }
 

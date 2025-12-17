@@ -4,6 +4,7 @@ import { aiService } from '../services/aiService';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
 import { handleAgentAction } from '../services/agentToolService';
+import { getActiveChatConfig } from '../services/configService';
 
 interface AgentState {
   status: AgentStatus;
@@ -64,7 +65,12 @@ Current Plan:
 ${JSON.stringify(generatedPlan, null, 2)}
 For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action.`;
       
-      const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true });
+      // FIX: The agent needs an AI model configuration to create a chat session.
+      const config = getActiveChatConfig();
+      if (!config) {
+        throw new Error("No active AI model configured for the agent.");
+      }
+      const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true, config });
       set({ agentChatSession: session });
       await processNextStep();
 

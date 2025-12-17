@@ -1,4 +1,4 @@
-import { AIProviderAdapter, AIModelConfig, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
+import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
 import { AGENT_TOOLS_OPENAI, getApiKey } from "./base";
 
 const toOpenAIMessages = (messages: Message[]) => {
@@ -9,12 +9,12 @@ const toOpenAIMessages = (messages: Message[]) => {
 };
 
 class OpenAISession implements AISession {
-    private modelConfig: AIModelConfig;
+    private modelConfig: AIModelProfile;
     private systemInstruction: string;
     private history: Message[];
     private isAgent: boolean;
 
-    constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false, config: AIModelConfig) {
+    constructor(systemInstruction: string, history: Message[] = [], isAgent: boolean = false, config: AIModelProfile) {
         this.modelConfig = config;
         this.systemInstruction = systemInstruction;
         this.history = history;
@@ -125,11 +125,11 @@ class OpenAISession implements AISession {
 }
 
 export class OpenAIProvider implements AIProviderAdapter {
-  createChatSession(props: { systemInstruction: string; history?: Message[]; isAgent?: boolean; config: AIModelConfig; }): AISession {
+  createChatSession(props: { systemInstruction: string; history?: Message[]; isAgent?: boolean; config: AIModelProfile; }): AISession {
     return new OpenAISession(props.systemInstruction, props.history, props.isAgent, props.config);
   }
 
-  async generateText(props: { prompt: string; config: AIModelConfig; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<string> {
+  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<string> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for OpenAI provider.");
 
@@ -151,7 +151,7 @@ export class OpenAIProvider implements AIProviderAdapter {
     return data.choices[0].message.content || '';
   }
 
-  async generateAgentPlan(props: { goal: string; context: string; config: AIModelConfig; }): Promise<AgentPlanItem[]> {
+  async generateAgentPlan(props: { goal: string; context: string; config: AIModelProfile; }): Promise<AgentPlanItem[]> {
     const prompt = this.getPlanPrompt(props.goal, props.context);
     const apiKey = getApiKey(props.config);
     const endpoint = `${(props.config.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')}/chat/completions`;

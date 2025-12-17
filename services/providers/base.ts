@@ -1,8 +1,8 @@
 import { Tool, Type } from "@google/genai";
-import { AIModelConfig } from "../../types";
+import { AIModelProfile } from "../../types";
 
 // --- API Key Management ---
-export const getApiKey = (config: AIModelConfig): string => {
+export const getApiKey = (config: AIModelProfile): string => {
     if (config.apiKey) return config.apiKey;
     if (config.provider === 'gemini') return process.env.API_KEY || '';
     return '';
