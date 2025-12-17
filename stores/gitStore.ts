@@ -1,4 +1,5 @@
 
+
 import { create } from 'zustand';
 import { gitService, GitStatus } from '../services/gitService';
 import { Commit, File } from '../types';
@@ -6,6 +7,7 @@ import { getFilePath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
 import { notify } from './notificationStore';
+import { useProjectStore } from './projectStore';
 
 interface GitState {
   isInitialized: boolean;
@@ -119,31 +121,45 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   clone: async (url) => {
     const { addTerminalLine } = useTerminalStore.getState();
-    set({ isCloning: true, cloneProgress: { phase: 'Connecting...', loaded: 0, total: 1 } });
-    addTerminalLine(`Cloning from ${url}...`, 'command');
-    try {
-      const onProgress = (progress: { phase: string; loaded: number; total: number }) => {
-         set({ cloneProgress: progress });
-         if(progress.total) {
-             addTerminalLine(`git (${progress.phase}): ${Math.round((progress.loaded / progress.total) * 100)}%`, 'info');
-         } else {
-             addTerminalLine(`git: ${progress.phase}...`, 'info');
-         }
-      };
+    set({ isCloning: true, cloneProgress: { phase: 'Preparing...', loaded: 0, total: 1 } });
 
-      await gitService.clear();
-      await gitService.clone(url, undefined, onProgress);
-      const newFiles = await gitService.loadFilesToMemory();
-      useFileTreeStore.getState().setAllFiles(newFiles);
-      set({ isInitialized: true, isCloning: false, cloneProgress: null });
-      notify('Repository cloned successfully.', 'success');
-      get().refresh();
-      return true;
+    try {
+        const repoName = url.split('/').pop()?.replace('.git', '') || 'cloned-project';
+        const newProject = await useProjectStore.getState().handleNewProject(repoName);
+        if (!newProject) {
+            throw new Error("Project creation was cancelled or failed.");
+        }
+
+        addTerminalLine(`Cloning into project '${repoName}'...`, 'command');
+
+        const onProgress = (progress: { phase: string; loaded: number; total: number }) => {
+            set({ cloneProgress: progress });
+            if (progress.total) {
+                addTerminalLine(`git (${progress.phase}): ${Math.round((progress.loaded / progress.total) * 100)}%`, 'info');
+            } else {
+                addTerminalLine(`git: ${progress.phase}...`, 'info');
+            }
+        };
+
+        // No need to clear, handleNewProject switched to a new FS context
+        await gitService.clone(url, undefined, onProgress);
+
+        const newFiles = await gitService.loadFilesToMemory();
+        useFileTreeStore.getState().setAllFiles(newFiles);
+
+        set({ isInitialized: true, isCloning: false, cloneProgress: null });
+        notify('Repository cloned successfully.', 'success');
+        get().refresh();
+
+        // Save the newly cloned files into the project's local storage
+        useProjectStore.getState().saveCurrentProject();
+
+        return true;
     } catch (e: any) {
-      addTerminalLine(`Clone failed: ${e.message}`, 'error');
-      console.error(e);
-      set({ isCloning: false, cloneProgress: null });
-      return false;
+        addTerminalLine(`Clone failed: ${e.message}`, 'error');
+        console.error(e);
+        set({ isCloning: false, cloneProgress: null });
+        return false;
     }
   },
 

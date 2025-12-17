@@ -1,4 +1,5 @@
 
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ProjectMeta } from '../types';
@@ -17,7 +18,7 @@ interface ProjectState {
   setProjectToDelete: (project: ProjectMeta | null) => void;
   confirmDeleteProject: () => Promise<void>;
   loadInitialProject: () => Promise<void>;
-  handleNewProject: () => Promise<void>;
+  handleNewProject: (name?: string) => Promise<ProjectMeta | void>;
   handleLoadProject: (project: ProjectMeta) => Promise<void>;
   saveCurrentProject: () => void;
 }
@@ -73,13 +74,16 @@ export const useProjectStore = create<ProjectState>()(
         }
       },
 
-      handleNewProject: async () => {
-        const name = window.prompt("Enter project name:", "Untitled Project");
-        if (!name) return;
+      handleNewProject: async (name?: string): Promise<ProjectMeta | void> => {
+        let projectName = name;
+        if (!projectName) {
+          projectName = window.prompt("Enter project name:", "Untitled Project");
+          if (!projectName) return;
+        }
 
         get().saveCurrentProject();
 
-        const newMeta = projectService.createProject(name);
+        const newMeta = projectService.createProject(projectName);
         projectService.saveProject([], newMeta);
         
         set({ 
@@ -93,7 +97,8 @@ export const useProjectStore = create<ProjectState>()(
         useFileTreeStore.getState().resetFiles();
         useChatStore.getState().clearChat();
         useTerminalStore.getState().clearTerminal();
-        useTerminalStore.getState().addTerminalLine(`New project created: ${name}`, 'success');
+        useTerminalStore.getState().addTerminalLine(`New project created: ${projectName}`, 'success');
+        return newMeta;
       },
 
       handleLoadProject: async (project) => {
