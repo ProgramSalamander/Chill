@@ -2,6 +2,7 @@ import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./c
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AIModelProfile, Message, AgentPlanItem, AISession, AIProviderAdapter, File } from "../types";
+import { useTerminalStore } from "../stores/terminalStore";
 
 class AIService {
   private getProvider(config: AIModelProfile): AIProviderAdapter {
@@ -39,8 +40,9 @@ class AIService {
     try {
         const provider = this.getProvider(config);
         return await provider.generateAgentPlan({ ...props, config });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Failed to generate or parse plan", e);
+        useTerminalStore.getState().addTerminalLine(`Failed to generate agent plan: ${e.message}`, 'error');
         return [];
     }
   }
@@ -68,7 +70,9 @@ class AIService {
     try {
         const response = await this.generateText(config, prompt);
         return response.trim() || "Update files";
-    } catch (e) {
+    } catch (e: any) {
+        console.error("AI Error generating commit message:", e);
+        useTerminalStore.getState().addTerminalLine(`AI commit message generation failed.`, 'warning');
         return "Update files";
     }
   }
@@ -156,7 +160,7 @@ Complete the code at the cursor position.`;
         
         console.log('[aiService] Cleaned completion response:', cleanedResponse);
         return cleanedResponse ? cleanedResponse : null;
-    } catch (e) {
+    } catch (e: any) {
         console.error('[aiService] getCodeCompletion error:', e);
         return null;
     }
@@ -187,8 +191,9 @@ Complete the code at the cursor position.`;
         }
         
         return cleanedText ? cleanedText : null;
-    } catch (e) {
-        console.error(e);
+    } catch (e: any) {
+        console.error("Failed to edit code with AI:", e);
+        useTerminalStore.getState().addTerminalLine(`AI code edit failed: ${e.message}`, 'error');
         return null;
     }
   }

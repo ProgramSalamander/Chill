@@ -29,8 +29,10 @@ export const projectService = {
 
       localStorage.setItem(RECENT_KEY, JSON.stringify(newRecents));
       localStorage.setItem(ACTIVE_ID_KEY, meta.id);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save project", e);
+      // The store will notify the user
+      throw e;
     }
   },
 
@@ -73,8 +75,10 @@ export const projectService = {
       if (projectService.getActiveProjectId() === id) {
         projectService.clearActiveProject();
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to delete project", e);
+      // The store will notify the user
+      throw e;
     }
   },
 };

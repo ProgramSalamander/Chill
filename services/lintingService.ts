@@ -1,5 +1,6 @@
 import { Diagnostic } from '../types';
 import { useLinterStore, availableLinters } from '../stores/linterStore';
+import { useTerminalStore } from '../stores/terminalStore';
 
 // Initialize all available linters that have an init function
 export const initLinters = async () => {
@@ -23,8 +24,9 @@ export const runLinting = (code: string, language: string): Diagnostic[] => {
   if (linter) {
     try {
       return linter.lint(code);
-    } catch (e) {
+    } catch (e: any) {
       console.error(`Error running linter '${linter.name}':`, e);
+      useTerminalStore.getState().addTerminalLine(`Linter '${linter.name}' failed: ${e.message}`, 'error');
       return [];
     }
   }

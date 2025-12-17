@@ -7,6 +7,7 @@ import { useGitStore } from './gitStore';
 import { useChatStore } from './chatStore';
 import { useTerminalStore } from './terminalStore';
 import { gitService } from '../services/gitService';
+import { notify } from '../stores/notificationStore';
 
 interface ProjectState {
   projectToDelete: ProjectMeta | null;

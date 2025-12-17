@@ -1,4 +1,5 @@
 
+
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -185,7 +186,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<st
             return result;
         }
         const errorMsg = `Error: Test runner '${args.runner}' is not supported. Use 'npm test' or 'pytest'.`;
-        addTerminalLine(errorMsg, 'error');
         return errorMsg;
     }
 

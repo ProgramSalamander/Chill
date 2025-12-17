@@ -1,6 +1,7 @@
 import { File } from '../types';
 import { getFilePath, generateProjectStructureContext } from '../utils/fileUtils';
 import { useUIStore } from '../stores/uiStore';
+import { useTerminalStore } from '../stores/terminalStore';
 
 const STOP_WORDS = new Set([
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
@@ -158,8 +159,9 @@ class RAGService {
         chunkVectors,
       };
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to build RAG index:", e);
+      useTerminalStore.getState().addTerminalLine(`Failed to build smart context index: ${e.message}`, 'error');
       this.index = null;
     } finally {
       useUIStore.getState().setIndexingProgress(null);

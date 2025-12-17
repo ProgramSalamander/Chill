@@ -1,9 +1,11 @@
 
+
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { File } from '../types';
 import { getLanguage } from '../utils/fileUtils';
+import { useTerminalStore } from '../stores/terminalStore';
 
 let fs: LightningFS;
 let pfs: any;
@@ -28,7 +30,7 @@ async function directoryExists(dirPath: string) {
   try {
     const stats = await pfs.stat(dirPath);
     return stats.type === 'dir';
-  } catch (err) {
+  } catch (err: any) {
     if (err.code === 'ENOENT') {
       return false;
     }
@@ -96,8 +98,9 @@ export const gitService = {
   init: async () => {
     try {
         await git.init({ fs, dir: '/' });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Git Init Error", e);
+        useTerminalStore.getState().addTerminalLine(`Git init failed: ${e.message}`, 'error');
     }
   },
 
@@ -106,6 +109,7 @@ export const gitService = {
       const stats = await pfs.stat('/.git');
       return stats.type === 'dir';
     } catch (e) {
+      console.error("Failed to check for git repo:", e);
       return false;
     }
   },
@@ -137,8 +141,9 @@ export const gitService = {
           }
         }
         await pfs.writeFile(`/${filepath}`, content, 'utf8');
-    } catch (e) {
+    } catch (e: any) {
         console.error("Git Write Error", e);
+        useTerminalStore.getState().addTerminalLine(`Failed to write file to git FS for ${filepath}: ${e.message}`, 'error');
     }
   },
 
@@ -183,8 +188,9 @@ export const gitService = {
                 status
             };
         });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Git Status Error", e);
+        useTerminalStore.getState().addTerminalLine(`Failed to get git status: ${e.message}`, 'error');
         return [];
     }
   },
@@ -214,7 +220,9 @@ export const gitService = {
   log: async () => {
     try {
         return await git.log({ fs, dir: '/' });
-    } catch (e) {
+    } catch (e: any) {
+        console.error("Failed to get git log:", e);
+        useTerminalStore.getState().addTerminalLine(`Failed to get git log: ${e.message}`, 'error');
         return [];
     }
   },
