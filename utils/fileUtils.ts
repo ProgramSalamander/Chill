@@ -4,7 +4,9 @@ import { File } from '../types';
 import ignore from 'ignore';
 
 // Infer language from extension
-export const getLanguage = (filename: string) => {
+export const getLanguage = (filenameOrPath: string) => {
+  const filename = filenameOrPath.split('/').pop() || '';
+
   if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return 'typescript';
   if (filename.endsWith('.js') || filename.endsWith('.jsx')) return 'javascript';
   if (filename.endsWith('.css')) return 'css';
@@ -12,7 +14,13 @@ export const getLanguage = (filename: string) => {
   if (filename.endsWith('.json')) return 'json';
   if (filename.endsWith('.py')) return 'python';
   if (filename.endsWith('.md')) return 'markdown';
-  return 'typescript'; // Default
+
+  // Treat dotfiles (e.g., .gitignore) or files with no extension as plaintext.
+  if (filename.startsWith('.') || !filename.includes('.')) {
+    return 'plaintext';
+  }
+
+  return 'plaintext'; // Default to plaintext for any other unknown extension.
 };
 
 // Resolve file by path string
