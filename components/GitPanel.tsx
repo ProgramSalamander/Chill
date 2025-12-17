@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
@@ -18,6 +17,8 @@ import {
 } from './Icons';
 import { useGitStore } from '../stores/gitStore';
 import { useFileTreeStore } from '../stores/fileStore';
+import { useProjectStore } from '../stores/projectStore';
+import { notify } from '../stores/notificationStore';
 
 const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -76,6 +77,18 @@ const GitPanel: React.FC = () => {
     if (repoUrl.trim()) {
       clone(repoUrl.trim());
     }
+  };
+
+  const handleInitRepo = async () => {
+    let activeProject = useProjectStore.getState().activeProject;
+    if (!activeProject) {
+        const newProject = await useProjectStore.getState().handleNewProject("Untitled Project");
+        if (!newProject) {
+            notify("Project creation failed before git init.", "error");
+            return;
+        }
+    }
+    await init();
   };
 
   const handleGenerateMessage = async () => {
@@ -145,7 +158,7 @@ const GitPanel: React.FC = () => {
               
               <div className="space-y-3">
                   <button 
-                    onClick={init}
+                    onClick={handleInitRepo}
                     className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:bg-white/10 transition-colors flex items-center justify-center gap-2 text-slate-300 hover:text-white"
                   >
                       <IconSparkles size={14} />

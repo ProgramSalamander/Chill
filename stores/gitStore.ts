@@ -5,7 +5,6 @@ import { getFilePath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
 import { notify } from './notificationStore';
-import { useProjectStore } from './projectStore';
 
 interface GitState {
   isInitialized: boolean;
@@ -74,19 +73,6 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   init: async () => {
-    // Check for active project.
-    let activeProject = useProjectStore.getState().activeProject;
-    if (!activeProject) {
-        // If no active project, create one automatically.
-        const newProject = await useProjectStore.getState().handleNewProject("Untitled Project");
-        if (!newProject) {
-            // This should not happen if we provide a name, but as a safeguard.
-            notify("Project creation failed.", "error");
-            return;
-        }
-        // `handleNewProject` has already set up the new project context.
-    }
-    
     const { addTerminalLine } = useTerminalStore.getState();
     const { files } = useFileTreeStore.getState();
 
@@ -189,19 +175,12 @@ export const useGitStore = create<GitState>((set, get) => ({
     set({ isCloning: true, cloneProgress: { phase: 'Preparing...', loaded: 0, total: 1 } });
 
     try {
-        const repoName = url.split('/').pop()?.replace('.git', '') || 'cloned-project';
-        const newProject = await useProjectStore.getState().handleNewProject(repoName);
-        if (!newProject) {
-            throw new Error("Project creation was cancelled or failed.");
-        }
-
-        addTerminalLine(`Cloning into project '${repoName}'...`, 'command');
+        addTerminalLine(`Cloning from ${url}...`, 'command');
 
         const onProgress = (progress: { phase: string; loaded: number; total: number }) => {
             set({ cloneProgress: progress });
         };
 
-        // No need to clear, handleNewProject switched to a new FS context
         await gitService.clone(url, undefined, onProgress);
 
         const newFiles = await gitService.loadFilesToMemory();
@@ -212,7 +191,8 @@ export const useGitStore = create<GitState>((set, get) => ({
         get().refresh();
 
         // Save the newly cloned files into the project's local storage
-        useProjectStore.getState().saveCurrentProject();
+        const { saveCurrentProject } = await import('./projectStore').then(m => m.useProjectStore.getState());
+        saveCurrentProject();
 
         return true;
     } catch (e: any) {

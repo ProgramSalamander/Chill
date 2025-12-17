@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IconClose, IconGitBranch } from './Icons';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
+import { useProjectStore } from '../stores/projectStore';
 
 const CloneModal: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
@@ -21,6 +22,14 @@ const CloneModal: React.FC = () => {
   const handleConfirmClone = async () => {
     if (repoUrl.trim() && !isCloning) {
       setError('');
+      const repoName = repoUrl.trim().split('/').pop()?.replace('.git', '') || 'cloned-project';
+      
+      const newProject = await useProjectStore.getState().handleNewProject(repoName);
+      if (!newProject) {
+          setError('Failed to create a new project for cloning. The operation was cancelled.');
+          return;
+      }
+
       const success = await clone(repoUrl.trim());
       if (success) {
         setIsCloneModalOpen(false);

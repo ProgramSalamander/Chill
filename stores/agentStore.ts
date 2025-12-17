@@ -235,7 +235,13 @@ async function _executeAndContinue(action: AgentPendingAction) {
 
     let result = "Error";
     try {
-      result = await handleAgentAction(toolName, args);
+      const { result: actionResult, change } = await handleAgentAction(toolName, args);
+      result = actionResult;
+      
+      if (change) {
+        useAgentStore.getState().addStagedChange(change);
+      }
+
       // If the action was readFile, update awareness
       if (toolName === 'readFile') {
           const file = useFileTreeStore.getState().files.find(f => f.name === args.path); // Simplified find
