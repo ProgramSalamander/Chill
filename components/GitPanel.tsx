@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
@@ -29,6 +30,8 @@ const GitPanel: React.FC = () => {
   const isFetching = useGitStore(state => state.isFetching);
   const stage = useGitStore(state => state.stage);
   const unstage = useGitStore(state => state.unstage);
+  const stageAll = useGitStore(state => state.stageAll);
+  const unstageAll = useGitStore(state => state.unstageAll);
   const commit = useGitStore(state => state.commit);
   const init = useGitStore(state => state.init);
   const clone = useGitStore(state => state.clone);
@@ -87,32 +90,32 @@ const GitPanel: React.FC = () => {
   };
 
   const renderFileItem = (item: GitStatus, isStaged: boolean) => {
-     let icon = <span className="text-yellow-500/70 text-[10px] font-mono font-bold">M</span>;
+     let icon = <span className="w-4 h-4 flex items-center justify-center text-yellow-500/70 text-[10px] font-mono font-bold bg-yellow-500/10 rounded-sm">M</span>;
      let colorClass = "text-amber-200";
 
      if (item.status.includes('added')) {
-         icon = <span className="text-green-500/70 text-[10px] font-mono font-bold">A</span>;
+         icon = <span className="w-4 h-4 flex items-center justify-center text-green-500/70 text-[10px] font-mono font-bold bg-green-500/10 rounded-sm">A</span>;
          colorClass = "text-green-200";
      } else if (item.status.includes('deleted')) {
-         icon = <span className="text-red-500/70 text-[10px] font-mono font-bold">D</span>;
+         icon = <span className="w-4 h-4 flex items-center justify-center text-red-500/70 text-[10px] font-mono font-bold bg-red-500/10 rounded-sm">D</span>;
          colorClass = "text-red-200";
      }
 
      const fileId = getFileIdByPath(item.filepath);
 
      return (
-         <div key={item.filepath} className="flex items-center justify-between group py-1">
-             <div className="flex items-center gap-2 overflow-hidden">
+         <div key={item.filepath} className="flex items-center justify-between group py-1 px-2 rounded-md hover:bg-white/5 transition-colors">
+             <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
                  {icon}
                  <span className={`text-xs truncate ${colorClass}`}>{item.filepath}</span>
              </div>
-             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                  {isStaged ? (
-                     <button onClick={() => fileId && unstage(fileId)} className="p-1 hover:text-white text-slate-500" title="Unstage"><IconMinusCircle size={14} /></button>
+                     <button onClick={() => fileId && unstage(fileId)} className="p-1.5 hover:text-white text-slate-500" title="Unstage"><IconMinusCircle size={14} /></button>
                  ) : (
                     <>
-                        <button onClick={() => fileId && revertFile(fileId)} className="p-1 hover:text-white text-slate-500" title="Discard Changes"><IconRefresh size={14} /></button>
-                        <button onClick={() => fileId && stage(fileId)} className="p-1 hover:text-white text-slate-500" title="Stage"><IconPlusCircle size={14} /></button>
+                        <button onClick={() => fileId && revertFile(fileId)} className="p-1.5 hover:text-white text-slate-500" title="Discard Changes"><IconRefresh size={14} /></button>
+                        <button onClick={() => fileId && stage(fileId)} className="p-1.5 hover:text-white text-slate-500" title="Stage"><IconPlusCircle size={14} /></button>
                     </>
                  )}
              </div>
@@ -231,7 +234,12 @@ const GitPanel: React.FC = () => {
               <div>
                   <div className="flex items-center justify-between px-2 mb-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Staged Changes</span>
-                      <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{stagedFiles.length}</span>
+                      <div className="flex items-center gap-2">
+                          <button onClick={unstageAll} disabled={stagedFiles.length === 0} className="p-1 hover:text-white text-slate-500 disabled:opacity-30" title="Unstage All Changes">
+                              <IconMinusCircle size={14} />
+                          </button>
+                          <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{stagedFiles.length}</span>
+                      </div>
                   </div>
                   <div className="space-y-0.5">
                       {stagedFiles.map(f => renderFileItem(f, true))}
@@ -243,7 +251,12 @@ const GitPanel: React.FC = () => {
               <div>
                    <div className="flex items-center justify-between px-2 mb-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Changes</span>
-                      <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{unstagedFiles.length}</span>
+                      <div className="flex items-center gap-2">
+                          <button onClick={stageAll} disabled={unstagedFiles.length === 0} className="p-1 hover:text-white text-slate-500 disabled:opacity-30" title="Stage All Changes">
+                              <IconPlusCircle size={14} />
+                          </button>
+                          <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{unstagedFiles.length}</span>
+                      </div>
                   </div>
                   <div className="space-y-0.5">
                       {unstagedFiles.map(f => renderFileItem(f, false))}

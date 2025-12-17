@@ -24,7 +24,9 @@ interface GitState {
   syncFile: (file: File) => Promise<void>;
   deleteFile: (file: File) => Promise<void>;
   stage: (fileId: string) => Promise<void>;
+  stageAll: () => Promise<void>;
   unstage: (fileId: string) => Promise<void>;
+  unstageAll: () => Promise<void>;
   commit: (message: string) => Promise<void>;
   clone: (url: string) => Promise<boolean>;
   pull: () => Promise<void>;
@@ -109,6 +111,21 @@ export const useGitStore = create<GitState>((set, get) => ({
     get().refresh();
   },
 
+  stageAll: async () => {
+    if (!get().isInitialized) return;
+    const unstagedFiles = get().status.filter(s => 
+        s.status === 'added' || s.status === 'modified' || s.status === 'deleted'
+    );
+    if (unstagedFiles.length === 0) return;
+
+    for (const fileStatus of unstagedFiles) {
+        await gitService.add(fileStatus.filepath);
+    }
+    
+    notify(`Staged ${unstagedFiles.length} files.`, 'info');
+    get().refresh();
+  },
+
   unstage: async (fileId) => {
     if (!get().isInitialized) return;
     const file = useFileTreeStore.getState().files.find(f => f.id === fileId);
@@ -116,6 +133,21 @@ export const useGitStore = create<GitState>((set, get) => ({
     const path = getFilePath(file, useFileTreeStore.getState().files);
     await gitService.reset(path);
     get().refresh();
+  },
+
+  unstageAll: async () => {
+      if (!get().isInitialized) return;
+      const stagedFiles = get().status.filter(s => 
+          s.status === '*added' || s.status === '*modified' || s.status === '*deleted'
+      );
+      if (stagedFiles.length === 0) return;
+
+      for (const fileStatus of stagedFiles) {
+          await gitService.reset(fileStatus.filepath);
+      }
+      
+      notify(`Unstaged ${stagedFiles.length} files.`, 'info');
+      get().refresh();
   },
 
   commit: async (message) => {
