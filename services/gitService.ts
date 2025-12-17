@@ -1,11 +1,13 @@
 
 
+
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { File } from '../types';
 import { getLanguage } from '../utils/fileUtils';
 import { useTerminalStore } from '../stores/terminalStore';
+import { useGitAuthStore } from '../stores/gitAuthStore';
 
 let fs: LightningFS;
 let pfs: any;
@@ -40,6 +42,27 @@ async function directoryExists(dirPath: string) {
     throw err;
   }
 }
+
+// These are called by isomorphic-git during an operation
+const onAuth = (): undefined => {
+  // We will always rely on onAuthFailure to prompt for credentials for security.
+  // This prevents storing credentials in memory longer than necessary.
+  return undefined;
+};
+
+const onAuthFailure = async (url: string) => {
+  const { addTerminalLine } = useTerminalStore.getState();
+  addTerminalLine(`Authentication required for ${new URL(url).hostname}.`, 'warning');
+  try {
+    const { username, token } = await useGitAuthStore.getState().promptForCredentials();
+    return { username, password: token }; // 'password' is used for PATs in isomorphic-git
+  } catch (e) {
+    addTerminalLine('Authentication cancelled.', 'info');
+    // Throwing an error will cancel the git operation and bubble up to the gitStore action.
+    throw new Error('Authentication cancelled by user.');
+  }
+};
+
 
 export interface GitStatus {
     filepath: string;
@@ -126,7 +149,9 @@ export const gitService = {
           corsProxy: proxy,
           onProgress,
           singleBranch: true,
-          depth: 1
+          depth: 1,
+          onAuth,
+          onAuthFailure,
       });
   },
 
@@ -250,25 +275,36 @@ export const gitService = {
   pull: async (name: string = 'Vibe Coder', email: string = 'coder@vibecode.ai') => {
     // Attempt to pull from 'main', fallback to 'master'
     try {
-      await git.pull({ fs, http, dir: '/', ref: 'main', singleBranch: true, author: { name, email } });
+      await git.pull({ fs, http, dir: '/', ref: 'main', singleBranch: true, author: { name, email }, onAuth, onAuthFailure });
     } catch (e: any) {
       if (e.code === 'ResolveRefError') {
         console.warn("Could not find 'main' branch, trying 'master'.");
-        await git.pull({ fs, http, dir: '/', ref: 'master', singleBranch: true, author: { name, email } });
+        await git.pull({ fs, http, dir: '/', ref: 'master', singleBranch: true, author: { name, email }, onAuth, onAuthFailure });
       } else {
         throw e;
       }
     }
   },
 
+  push: async (proxy: string = 'https://cors.isomorphic-git.org') => {
+    return git.push({
+      fs,
+      http,
+      dir: '/',
+      corsProxy: proxy,
+      onAuth,
+      onAuthFailure,
+    });
+  },
+
   fetch: async () => {
     // Attempt to fetch from 'main', fallback to 'master'
     try {
-      return await git.fetch({ fs, http, dir: '/', ref: 'main', singleBranch: true });
+      return await git.fetch({ fs, http, dir: '/', ref: 'main', singleBranch: true, onAuth, onAuthFailure });
     } catch (e: any) {
         if (e.code === 'ResolveRefError') {
             console.warn("Could not find 'main' branch, trying 'master'.");
-            return await git.fetch({ fs, http, dir: '/', ref: 'master', singleBranch: true });
+            return await git.fetch({ fs, http, dir: '/', ref: 'master', singleBranch: true, onAuth, onAuthFailure });
         } else {
             throw e;
         }

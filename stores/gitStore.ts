@@ -14,6 +14,7 @@ interface GitState {
   isCloning: boolean;
   isPulling: boolean;
   isFetching: boolean;
+  isPushing: boolean;
   cloneProgress: { phase: string; loaded: number; total: number } | null;
 
   // Actions
@@ -28,6 +29,7 @@ interface GitState {
   commit: (message: string) => Promise<void>;
   clone: (url: string) => Promise<boolean>;
   pull: () => Promise<void>;
+  push: () => Promise<void>;
   fetch: () => Promise<void>;
   revertFile: (fileId: string) => Promise<void>;
   reset: () => void;
@@ -41,6 +43,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   isCloning: false,
   isPulling: false,
   isFetching: false,
+  isPushing: false,
   cloneProgress: null,
 
   checkForExistingRepo: async () => {
@@ -236,6 +239,31 @@ export const useGitStore = create<GitState>((set, get) => ({
       addTerminalLine(`Pull failed: ${e.message}`, 'error');
       console.error(e);
       set({ isPulling: false });
+    }
+  },
+
+  push: async () => {
+    if (!get().isInitialized) return;
+    set({ isPushing: true });
+    const { addTerminalLine } = useTerminalStore.getState();
+    addTerminalLine('Pushing to remote...', 'command');
+    try {
+      const result = await gitService.push();
+      if (result.ok) {
+        notify('Push successful.', 'success');
+        addTerminalLine('Push successful.', 'success');
+      } else {
+        const error = result.error || 'Unknown push error. Check credentials or if the repo is private.';
+        addTerminalLine(`Push failed: ${error}`, 'error');
+        notify(`Push failed: ${error}`, 'error');
+      }
+    } catch (e: any) {
+      addTerminalLine(`Push failed: ${e.message}`, 'error');
+      notify(`Push failed: ${e.message}`, 'error');
+      console.error(e);
+    } finally {
+      set({ isPushing: false });
+      get().refresh();
     }
   },
 

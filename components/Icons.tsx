@@ -1,5 +1,6 @@
 
 
+
 import React from 'react';
 import { 
   FileCode, 
@@ -58,7 +59,9 @@ import {
   Moon,
   ArrowDown,
   Info,
-  Square
+  Square,
+  ArrowUp,
+  KeyRound
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -119,3 +122,5 @@ export const IconMoon = (props: any) => <Moon {...props} />;
 export const IconArrowDown = (props: any) => <ArrowDown {...props} />;
 export const IconInfo = (props: any) => <Info {...props} />;
 export const IconSquare = (props: any) => <Square {...props} />;
+export const IconArrowUp = (props: any) => <ArrowUp {...props} />;
+export const IconKeyRound = (props: any) => <KeyRound {...props} />;

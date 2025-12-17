@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
@@ -12,7 +13,8 @@ import {
   IconSearch,
   IconZap,
   IconRefresh,
-  IconArrowDown
+  IconArrowDown,
+  IconArrowUp
 } from './Icons';
 import { useGitStore } from '../stores/gitStore';
 import { useFileTreeStore } from '../stores/fileStore';
@@ -30,6 +32,7 @@ const GitPanel: React.FC = () => {
   const commits = useGitStore(state => state.commits);
   const isCloning = useGitStore(state => state.isCloning);
   const isPulling = useGitStore(state => state.isPulling);
+  const isPushing = useGitStore(state => state.isPushing);
   const isFetching = useGitStore(state => state.isFetching);
   const stage = useGitStore(state => state.stage);
   const unstage = useGitStore(state => state.unstage);
@@ -39,6 +42,7 @@ const GitPanel: React.FC = () => {
   const init = useGitStore(state => state.init);
   const clone = useGitStore(state => state.clone);
   const pull = useGitStore(state => state.pull);
+  const push = useGitStore(state => state.push);
   const fetchGit = useGitStore(state => state.fetch);
   const revertFile = useGitStore(state => state.revertFile);
 
@@ -188,13 +192,15 @@ const GitPanel: React.FC = () => {
       );
   }
 
+  const isBusy = isPulling || isFetching || isPushing;
+
   return (
       <div className="flex flex-col h-full overflow-hidden animate-in fade-in">
           {/* Action Header */}
           <div className="p-2 border-b border-white/5 flex items-center gap-2 shrink-0">
             <button 
               onClick={fetchGit}
-              disabled={isPulling || isFetching}
+              disabled={isBusy}
               className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {isFetching ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <IconRefresh size={14} />}
@@ -202,11 +208,19 @@ const GitPanel: React.FC = () => {
             </button>
             <button 
               onClick={pull}
-              disabled={isPulling || isFetching}
+              disabled={isBusy}
               className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {isPulling ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <IconArrowDown size={14} />}
               <span>{isPulling ? 'Pulling...' : 'Pull'}</span>
+            </button>
+             <button 
+              onClick={push}
+              disabled={isBusy}
+              className="flex-1 py-1.5 px-2 bg-white/5 text-slate-300 rounded-md text-xs hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              {isPushing ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <IconArrowUp size={14} />}
+              <span>{isPushing ? 'Pushing...' : 'Push'}</span>
             </button>
           </div>
 

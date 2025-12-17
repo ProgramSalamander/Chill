@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -11,6 +12,7 @@ import CommandPalette from './components/CommandPalette';
 import Sidebar from './components/Sidebar';
 import EditorTabs from './components/EditorTabs';
 import CloneModal from './components/CloneModal';
+import GitAuthModal from './components/GitAuthModal';
 import MenuBar from './components/MenuBar'; 
 import Toaster from './components/Toaster';
 import StatusBar from './components/StatusBar';
@@ -277,6 +279,7 @@ function App() {
       <DeleteConfirmModal />
       <DeleteProjectConfirmModal />
       <CloneModal />
+      <GitAuthModal />
       <CommandPalette />
     </div>
   );
