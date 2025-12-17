@@ -216,8 +216,14 @@ export const useGitStore = create<GitState>((set, get) => ({
 
         return true;
     } catch (e: any) {
-        addTerminalLine(`Clone failed: ${e.message}`, 'error');
-        console.error(e);
+        if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
+            addTerminalLine('Authentication failed. Please check the repository URL and your credentials.', 'error');
+        } else if (e.message?.includes('Authentication cancelled')) {
+            // This is expected, do nothing as onAuthFailure already logs it.
+        } else {
+            addTerminalLine(`Clone failed: ${e.message}`, 'error');
+            console.error(e);
+        }
         set({ isCloning: false, cloneProgress: null });
         return false;
     }
@@ -233,11 +239,19 @@ export const useGitStore = create<GitState>((set, get) => ({
       const newFiles = await gitService.loadFilesToMemory();
       useFileTreeStore.getState().setAllFiles(newFiles);
       notify('Pull successful. Workspace updated.', 'success');
-      set({ isPulling: false });
       get().refresh();
     } catch (e: any) {
-      addTerminalLine(`Pull failed: ${e.message}`, 'error');
-      console.error(e);
+      if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
+        addTerminalLine('Authentication failed. Please check your credentials.', 'error');
+        notify('Authentication failed', 'error');
+      } else if (e.message?.includes('Authentication cancelled')) {
+        // This is an expected flow, already handled by the auth modal.
+      } else {
+        addTerminalLine(`Pull failed: ${e.message}`, 'error');
+        notify(`Pull failed: ${e.message}`, 'error');
+        console.error(e);
+      }
+    } finally {
       set({ isPulling: false });
     }
   },
@@ -258,9 +272,16 @@ export const useGitStore = create<GitState>((set, get) => ({
         notify(`Push failed: ${error}`, 'error');
       }
     } catch (e: any) {
-      addTerminalLine(`Push failed: ${e.message}`, 'error');
-      notify(`Push failed: ${e.message}`, 'error');
-      console.error(e);
+      if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
+        addTerminalLine('Authentication failed. Please check your credentials and permissions for this repository.', 'error');
+        notify('Authentication failed', 'error');
+      } else if (e.message?.includes('Authentication cancelled')) {
+        // This is an expected flow.
+      } else {
+        addTerminalLine(`Push failed: ${e.message}`, 'error');
+        notify(`Push failed: ${e.message}`, 'error');
+        console.error(e);
+      }
     } finally {
       set({ isPushing: false });
       get().refresh();
@@ -275,12 +296,20 @@ export const useGitStore = create<GitState>((set, get) => ({
     try {
       await gitService.fetch();
       notify('Fetch complete.', 'info');
+    } catch (e: any) {
+      if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
+        addTerminalLine('Authentication failed. Please check your credentials.', 'error');
+        notify('Authentication failed', 'error');
+      } else if (e.message?.includes('Authentication cancelled')) {
+        // This is an expected flow.
+      } else {
+        addTerminalLine(`Fetch failed: ${e.message}`, 'error');
+        notify(`Fetch failed: ${e.message}`, 'error');
+        console.error(e);
+      }
+    } finally {
       set({ isFetching: false });
       get().refresh();
-    } catch (e: any) {
-      addTerminalLine(`Fetch failed: ${e.message}`, 'error');
-      console.error(e);
-      set({ isFetching: false });
     }
   },
 
