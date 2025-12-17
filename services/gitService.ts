@@ -225,7 +225,7 @@ export const gitService = {
         return await git.log({ fs, dir: '/' });
     } catch (e: any) {
         // This is an expected error for a new repository with no commits.
-        if (e.code === 'ResolveRefError') {
+        if (e.code === 'NotFoundError') {
             return []; // Return empty array silently.
         }
         // Log other unexpected errors.
