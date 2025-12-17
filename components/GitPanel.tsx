@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
 import { 
@@ -21,6 +21,9 @@ const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showAllStaged, setShowAllStaged] = useState(false);
+  const [showAllUnstaged, setShowAllUnstaged] = useState(false);
+  const INITIAL_FILES_TO_SHOW = 50;
 
   const isInitialized = useGitStore(state => state.isInitialized);
   const gitStatus = useGitStore(state => state.status);
@@ -40,6 +43,11 @@ const GitPanel: React.FC = () => {
   const revertFile = useGitStore(state => state.revertFile);
 
   const files = useFileTreeStore(state => state.files);
+  
+  useEffect(() => {
+    setShowAllStaged(false);
+    setShowAllUnstaged(false);
+  }, [gitStatus]);
 
   const getFileIdByPath = (path: string) => {
       const file = files.find(f => f.name === path || path.endsWith(f.name));
@@ -242,7 +250,17 @@ const GitPanel: React.FC = () => {
                       </div>
                   </div>
                   <div className="space-y-0.5">
-                      {stagedFiles.map(f => renderFileItem(f, true))}
+                      {(showAllStaged ? stagedFiles : stagedFiles.slice(0, INITIAL_FILES_TO_SHOW)).map(f => renderFileItem(f, true))}
+                      {stagedFiles.length > INITIAL_FILES_TO_SHOW && !showAllStaged && (
+                          <div className="px-2 pt-2">
+                              <button 
+                                  onClick={() => setShowAllStaged(true)} 
+                                  className="w-full text-center text-xs text-slate-400 hover:text-white bg-white/5 py-1.5 rounded-md transition-colors"
+                              >
+                                  Show all {stagedFiles.length} staged files...
+                              </button>
+                          </div>
+                      )}
                       {stagedFiles.length === 0 && <div className="px-2 text-xs text-slate-600 italic">No staged changes</div>}
                   </div>
               </div>
@@ -259,7 +277,17 @@ const GitPanel: React.FC = () => {
                       </div>
                   </div>
                   <div className="space-y-0.5">
-                      {unstagedFiles.map(f => renderFileItem(f, false))}
+                      {(showAllUnstaged ? unstagedFiles : unstagedFiles.slice(0, INITIAL_FILES_TO_SHOW)).map(f => renderFileItem(f, false))}
+                      {unstagedFiles.length > INITIAL_FILES_TO_SHOW && !showAllUnstaged && (
+                          <div className="px-2 pt-2">
+                              <button 
+                                  onClick={() => setShowAllUnstaged(true)} 
+                                  className="w-full text-center text-xs text-slate-400 hover:text-white bg-white/5 py-1.5 rounded-md transition-colors"
+                              >
+                                  Show all {unstagedFiles.length} changes...
+                              </button>
+                          </div>
+                      )}
                       {unstagedFiles.length === 0 && <div className="px-2 text-xs text-slate-600 italic">Working tree clean</div>}
                   </div>
               </div>
