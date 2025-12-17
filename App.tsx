@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -94,6 +95,23 @@ function App() {
       }
     }, 750);
   }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);
+
+  // Before Unload Listener
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Standard way to show a confirmation prompt
+      event.preventDefault();
+      // Required for some older browsers
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   // --- HANDLERS ---
   const handleSaveFile = useCallback(() => {
