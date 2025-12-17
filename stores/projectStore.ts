@@ -1,5 +1,3 @@
-
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ProjectMeta } from '../types';
@@ -103,6 +101,7 @@ export const useProjectStore = create<ProjectState>()(
 
       handleLoadProject: async (project) => {
         const { activeProject } = get();
+        await useGitStore.getState().checkForExistingRepo();
         if (activeProject?.id === project.id) return;
         
         get().saveCurrentProject();
@@ -119,7 +118,6 @@ export const useProjectStore = create<ProjectState>()(
 
           gitService.initForProject(project.id);
           useGitStore.getState().reset();
-          await useGitStore.getState().checkForExistingRepo();
 
           useTerminalStore.getState().addTerminalLine(`Switched to project: ${project.name}`, 'info');
         } else {
