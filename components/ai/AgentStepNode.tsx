@@ -2,13 +2,90 @@ import React, { useState, useEffect } from 'react';
 import { AgentStep } from '../../types';
 import { 
   IconSparkles, IconCpu, IconWand, IconTerminal, IconFileCode, 
-  IconCheck, IconClose, IconZap, IconChevronDown, IconChevronRight
+  IconCheck, IconClose, IconZap, IconChevronDown, IconChevronRight,
+  IconFileText, IconTrash, IconGitMerge, IconBug, IconPlayCircle,
+  IconNetwork, IconSearch, IconGitBranch, IconList, IconInfo
 } from '../Icons';
 
 interface AgentStepNodeProps {
   step: AgentStep;
   isLast: boolean;
 }
+
+// Helper component for displaying tool call arguments
+const ArgDisplay: React.FC<{ icon: React.ReactNode; label: string; value: string; valueClass?: string }> = ({ icon, label, value, valueClass }) => (
+  <div className="flex items-start gap-3">
+    <div className="flex items-center gap-2 text-slate-500 shrink-0 w-24">
+      {icon}
+      <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+    </div>
+    <div className={`flex-1 min-w-0 px-2 py-1 rounded text-xs break-words bg-black/40 font-mono ${valueClass || 'text-slate-300'}`}>
+      {value}
+    </div>
+  </div>
+);
+
+const ToolCallDisplay: React.FC<{ toolName: string; toolArgs: any }> = ({ toolName, toolArgs }) => {
+  if (toolName === 'writeFile') {
+    return (
+      <div className="flex flex-col bg-black/40 rounded border border-white/5">
+          <div className="flex items-center gap-2 text-slate-400 border-b border-white/5 p-2 text-xs">
+              <IconFileCode size={14} />
+              <span>Writing to <span className="font-mono text-indigo-300">{toolArgs.path}</span></span>
+          </div>
+          <pre className="text-green-300/80 max-h-40 overflow-y-auto custom-scrollbar p-2 font-mono text-xs">
+              {toolArgs.content}
+          </pre>
+      </div>
+    );
+  }
+  
+  if (typeof toolArgs !== 'object' || toolArgs === null || Object.keys(toolArgs).length === 0) {
+    return (
+      <div className="bg-black/40 rounded p-3 border border-white/5 text-xs text-slate-500 italic">
+        No parameters for this action.
+      </div>
+    );
+  }
+
+  const args = toolArgs as Record<string, any>;
+  let title = 'Tool Arguments';
+  let icon = <IconWand size={14} />;
+  
+  switch(toolName) {
+    case 'readFile': title = 'Read File'; icon = <IconFileText size={14}/>; break;
+    case 'deleteFile': title = 'Delete File'; icon = <IconTrash size={14}/>; break;
+    case 'git_diff': title = 'Git Diff'; icon = <IconGitMerge size={14}/>; break;
+    case 'tooling_lint': title = 'Run Linter'; icon = <IconBug size={14}/>; break;
+    case 'runtime_execJs': title = 'Execute Script'; icon = <IconPlayCircle size={14}/>; break;
+    case 'getFileStructure': title = 'Get File Structure'; icon = <IconNetwork size={14}/>; break;
+    case 'autoFixErrors': title = 'Auto-Fix Errors'; icon = <IconWand size={14}/>; break;
+    case 'tooling_runTests': title = 'Run Tests'; icon = <IconTerminal size={14}/>; break;
+    case 'searchCode': title = 'Search Code'; icon = <IconSearch size={14}/>; break;
+    case 'grep': title = 'Grep'; icon = <IconSearch size={14}/>; break;
+    case 'git_getStatus': title = 'Git Status'; icon = <IconGitBranch size={14}/>; break;
+    case 'fs_listFiles': title = 'List Files'; icon = <IconList size={14}/>; break;
+  }
+  
+  return (
+    <div className="bg-black/40 rounded border border-white/5">
+        <div className="flex items-center gap-2 text-slate-300 border-b border-white/5 p-2 text-xs font-bold">
+            {icon}
+            <span>{title}</span>
+        </div>
+        <div className="p-3 space-y-2">
+            {args.path && <ArgDisplay icon={<IconFileCode size={12} />} label="Path" value={args.path} valueClass="text-indigo-300" />}
+            {args.runner && <ArgDisplay icon={<IconTerminal size={12} />} label="Runner" value={args.runner} valueClass="text-yellow-300" />}
+            {args.command && <ArgDisplay icon={<IconTerminal size={12} />} label="Command" value={args.command} valueClass="text-yellow-300" />}
+            {args.query && <ArgDisplay icon={<IconSearch size={12} />} label="Query" value={args.query} valueClass="text-blue-300" />}
+            {args.pattern && <ArgDisplay icon={<IconSearch size={12} />} label="Pattern" value={args.pattern} valueClass="text-blue-300" />}
+            {Object.entries(args).filter(([key]) => !['path', 'runner', 'command', 'query', 'pattern', 'content'].includes(key)).map(([key, value]) => (
+                <ArgDisplay key={key} icon={<IconInfo size={12} />} label={key} value={String(value)} />
+            ))}
+        </div>
+    </div>
+  );
+};
 
 const AgentStepNode: React.FC<AgentStepNodeProps> = ({ step, isLast }) => {
     const [isExpanded, setIsExpanded] = useState(step.type === 'error' || step.type === 'user');
@@ -108,21 +185,7 @@ const AgentStepNode: React.FC<AgentStepNodeProps> = ({ step, isLast }) => {
                 {isExpanded && (
                     <div className="px-3 pb-3 pt-0 text-sm animate-in slide-in-from-top-2 duration-200">
                         {step.type === 'call' ? (
-                            <div className="bg-black/40 rounded p-2 border border-white/5 font-mono text-xs text-slate-300 overflow-x-auto">
-                                {step.toolName === 'writeFile' ? (
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-2 text-slate-500 border-b border-white/5 pb-1">
-                                            <IconFileCode size={12} />
-                                            <span>Writing to {step.toolArgs.path}</span>
-                                        </div>
-                                        <pre className="text-green-300/80 max-h-40 overflow-y-auto custom-scrollbar">
-                                            {step.toolArgs.content}
-                                        </pre>
-                                    </div>
-                                ) : (
-                                    <pre>{JSON.stringify(step.toolArgs, null, 2)}</pre>
-                                )}
-                            </div>
+                            <ToolCallDisplay toolName={step.toolName!} toolArgs={step.toolArgs} />
                         ) : (
                             <div className={`leading-relaxed whitespace-pre-wrap ${step.type === 'result' ? 'font-mono text-xs text-slate-400 bg-black/20 p-2 rounded max-h-60 overflow-y-auto custom-scrollbar' : 'text-slate-300'}`}>
                                 {step.text}
