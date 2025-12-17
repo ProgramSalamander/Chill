@@ -1,5 +1,3 @@
-
-
 import { create } from 'zustand';
 import { gitService, GitStatus } from '../services/gitService';
 import { Commit, File } from '../types';
@@ -198,11 +196,6 @@ export const useGitStore = create<GitState>((set, get) => ({
 
         const onProgress = (progress: { phase: string; loaded: number; total: number }) => {
             set({ cloneProgress: progress });
-            if (progress.total) {
-                addTerminalLine(`git (${progress.phase}): ${Math.round((progress.loaded / progress.total) * 100)}%`, 'info');
-            } else {
-                addTerminalLine(`git: ${progress.phase}...`, 'info');
-            }
         };
 
         // No need to clear, handleNewProject switched to a new FS context
