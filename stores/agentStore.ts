@@ -17,6 +17,7 @@ interface AgentState {
   // Actions
   startAgent: (goal: string) => Promise<void>;
   resetAgent: () => void;
+  stopAgent: () => void;
   summarizeTask: () => Promise<void>;
   
   // Staged Changes Actions
@@ -44,6 +45,24 @@ const useAgentStore = create<AgentState>((set, get) => ({
       agentChatSession: null,
       agentAwareness: new Set(),
     });
+  },
+
+  stopAgent: () => {
+    const { status } = get();
+    // Only allow stopping if it's actually running
+    if (status !== 'thinking' && status !== 'executing' && status !== 'planning') {
+      return;
+    }
+
+    set(state => ({
+      status: 'failed',
+      agentSteps: [...state.agentSteps, {
+        id: Date.now().toString(),
+        type: 'error',
+        text: 'Execution stopped by user.',
+        timestamp: Date.now()
+      }]
+    }));
   },
 
   startAgent: async (goal) => {

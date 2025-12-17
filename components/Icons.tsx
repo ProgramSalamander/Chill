@@ -57,7 +57,8 @@ import {
   Sun,
   Moon,
   ArrowDown,
-  Info
+  Info,
+  Square
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -117,3 +118,4 @@ export const IconSun = (props: any) => <Sun {...props} />;
 export const IconMoon = (props: any) => <Moon {...props} />;
 export const IconArrowDown = (props: any) => <ArrowDown {...props} />;
 export const IconInfo = (props: any) => <Info {...props} />;
+export const IconSquare = (props: any) => <Square {...props} />;

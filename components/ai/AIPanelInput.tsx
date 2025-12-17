@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { File } from '../../types';
 import { 
   IconZap, IconPlus, IconFileCode, IconX, IconClock, 
-  IconTrash, IconCheck
+  IconTrash, IconCheck, IconSquare
 } from '../Icons';
 import { useChatStore } from '../../stores/chatStore';
 import { useFileTreeStore } from '../../stores/fileStore';
+import { useAgentStore } from '../../stores/agentStore';
 
 interface AIPanelInputProps {
   mode: 'chat' | 'agent';
@@ -34,6 +35,8 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
 
   const contextScope = useChatStore(state => state.contextScope);
   const setContextScope = useChatStore(state => state.setContextScope);
+  const stopGeneration = useChatStore(state => state.stopGeneration);
+  const stopAgent = useAgentStore(state => state.stopAgent);
   const files = useFileTreeStore(state => state.files);
 
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -72,6 +75,14 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
     setPinnedFiles([]);
   };
   
+  const handleStop = () => {
+    if (mode === 'chat' && isGenerating) {
+      stopGeneration();
+    } else if (mode === 'agent' && isAgentRunning) {
+      stopAgent();
+    }
+  };
+
   const handleClearHistory = (e: React.MouseEvent) => {
     e.stopPropagation();
     setPromptHistory([]);
@@ -89,6 +100,8 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
   const togglePin = (fileId: string) => {
     setPinnedFiles(prev => prev.includes(fileId) ? prev.filter(id => id !== fileId) : [...prev, fileId]);
   };
+  
+  const isRunning = isGenerating || isAgentRunning;
 
   return (
     <div className="p-4 bg-white/5 border-t border-white/5 backdrop-blur-md z-20">
@@ -184,14 +197,25 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
             placeholder={mode === 'agent' ? "Describe a task for the agent..." : "Ask Vibe AI..."}
             className="w-full bg-transparent border-none text-sm text-white focus:outline-none placeholder-slate-600 resize-none py-2 max-h-32 min-h-[40px] custom-scrollbar"
             style={{ height: Math.min(input.split('\n').length * 20 + 20, 120) + 'px' }}
+            disabled={isRunning}
           />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isGenerating || isAgentRunning}
-            className={`p-2 rounded-lg text-white transition-all shadow-lg hover:shadow-xl disabled:bg-slate-800 disabled:text-slate-600 ${mode === 'agent' ? 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/30' : 'bg-vibe-accent hover:bg-indigo-400 shadow-indigo-500/30'}`}
-          >
-            <IconZap size={18} fill={input.trim() ? "currentColor" : "none"} />
-          </button>
+          {isRunning ? (
+            <button
+              onClick={handleStop}
+              className="p-2 rounded-lg text-white transition-all shadow-lg hover:shadow-xl bg-red-500 hover:bg-red-400 shadow-red-500/30"
+              title="Stop Generation"
+            >
+              <IconSquare size={18} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className={`p-2 rounded-lg text-white transition-all shadow-lg hover:shadow-xl disabled:bg-slate-800 disabled:text-slate-600 ${mode === 'agent' ? 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/30' : 'bg-vibe-accent hover:bg-indigo-400 shadow-indigo-500/30'}`}
+            >
+              <IconZap size={18} fill={input.trim() ? "currentColor" : "none"} />
+            </button>
+          )}
         </div>
       </div>
       {mode === 'chat' && (

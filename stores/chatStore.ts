@@ -11,6 +11,7 @@ import { getActiveChatConfig, getAIConfig } from '../services/configService';
 interface ChatState {
   messages: Message[];
   isGenerating: boolean;
+  isStopping: boolean;
   contextScope: 'project' | 'file';
   chatSession: AISession | null;
   activeChatProfileId: string | null;
@@ -18,6 +19,7 @@ interface ChatState {
   // Actions
   initChat: () => void;
   sendMessage: (text: string, contextFileIds?: string[]) => Promise<void>;
+  stopGeneration: () => void;
   setMessages: (messages: Message[]) => void;
   clearChat: () => void;
   setContextScope: (scope: 'project' | 'file') => void;
@@ -36,6 +38,7 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       messages: [],
       isGenerating: false,
+      isStopping: false,
       contextScope: 'project',
       chatSession: null,
       activeChatProfileId: null,
@@ -80,6 +83,10 @@ export const useChatStore = create<ChatState>()(
         get().initChat();
       },
 
+      stopGeneration: () => {
+        set({ isStopping: true });
+      },
+
       sendMessage: async (text, contextFileIds) => {
         let { chatSession } = get();
         if (!chatSession) {
@@ -93,7 +100,7 @@ export const useChatStore = create<ChatState>()(
         }
         
         const userMsg: Message = { id: Date.now().toString(), role: MessageRole.USER, text, timestamp: Date.now() };
-        set(state => ({ messages: [...state.messages, userMsg], isGenerating: true }));
+        set(state => ({ messages: [...state.messages, userMsg], isGenerating: true, isStopping: false }));
 
         try {
           const { files, activeFile } = useFileTreeStore.getState();
@@ -120,6 +127,9 @@ export const useChatStore = create<ChatState>()(
           
           let fullText = '';
           for await (const chunk of stream) {
+            if (get().isStopping) {
+              break;
+            }
             if (chunk.text) {
                 fullText += chunk.text;
                 set(state => ({
@@ -127,14 +137,21 @@ export const useChatStore = create<ChatState>()(
                 }));
             }
           }
+
+          const wasStopped = get().isStopping;
           set(state => ({
-            messages: state.messages.map(m => m.id === responseId ? { ...m, isStreaming: false } : m)
+            messages: state.messages.map(m => m.id === responseId ? { 
+              ...m, 
+              isStreaming: false,
+              text: wasStopped ? m.text + ' [Stopped]' : m.text,
+            } : m)
           }));
+
         } catch (error: any) { 
             useTerminalStore.getState().addTerminalLine(`AI Error: ${error.message}`, 'error'); 
             console.error(error);
         } finally { 
-          set({ isGenerating: false });
+          set({ isGenerating: false, isStopping: false });
         }
       },
 
