@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -25,10 +22,14 @@ import { useFileTreeStore } from './stores/fileStore';
 import { useProjectStore } from './stores/projectStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
+import { useAgentStore } from './stores/agentStore';
+import { useGitStore } from './stores/gitStore';
 
 import { aiService } from './services/aiService';
 import { initLinters, runLinting } from './services/lintingService';
 import { ragService } from './services/ragService';
+import { gitService } from './services/gitService';
+import { projectService } from './services/projectService';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { IconSparkles } from './components/Icons';
 
@@ -45,7 +46,6 @@ function App() {
   const undo = useFileTreeStore(state => state.undo);
   const redo = useFileTreeStore(state => state.redo);
   const saveFile = useFileTreeStore(state => state.saveFile);
-  const loadInitialProject = useProjectStore(state => state.loadInitialProject);
 
   const setDiagnostics = useTerminalStore(state => state.setDiagnostics);
   const diagnostics = useTerminalStore(state => state.diagnostics);
@@ -53,10 +53,7 @@ function App() {
   const isAIOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
-
-  const initChat = useChatStore(state => state.initChat);
-  const sendMessage = useChatStore(state => state.sendMessage);
-
+  
   // --- LOCAL COMPONENT STATE & REFS ---
   const [cursorPosition, setCursorPosition] = useState(0);
   const [selectedCode, setSelectedCode] = useState<string>('');
@@ -75,13 +72,21 @@ function App() {
   // Initialize services and load project on startup
   useEffect(() => {
     const startApp = async () => {
+      // Set dependencies for stores
+      useFileTreeStore.getState().setDependencies({ ragService });
+      useChatStore.getState().setDependencies({ aiService, ragService });
+      useAgentStore.getState().setDependencies({ aiService, ragService, gitService });
+      // FIX: Property 'setDependencies' does not exist on type 'GitState'.
+      // The gitStore imports its dependencies directly.
+      useProjectStore.getState().setDependencies({ projectService, gitService });
+
       await initLinters();
       console.log('Linting services initialized');
-      initChat();
-      await loadInitialProject();
+      useChatStore.getState().initChat();
+      await useProjectStore.getState().loadInitialProject();
     };
     startApp();
-  }, [initChat, loadInitialProject]);
+  }, []);
   
   // Debounced Linting Effect
   useEffect(() => {
@@ -91,12 +96,16 @@ function App() {
         return;
     }
     lintTimerRef.current = setTimeout(() => {
-      const newDiagnostics = runLinting(activeFile.content, activeFile.language);
-      if (JSON.stringify(newDiagnostics) !== JSON.stringify(diagnostics)) {
-        setDiagnostics(newDiagnostics);
+      try {
+        const newDiagnostics = runLinting(activeFile.content, activeFile.language);
+        if (JSON.stringify(newDiagnostics) !== JSON.stringify(diagnostics)) {
+          setDiagnostics(newDiagnostics);
+        }
+      } catch (e: any) {
+        addTerminalLine(`Linter error: ${e.message}`, 'error');
       }
     }, 750);
-  }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);
+  }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics, addTerminalLine]);
 
   // Before Unload Listener
   useEffect(() => {
@@ -134,11 +143,12 @@ function App() {
         const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
         console.log('[App] Got suggestion from aiService:', sugg);
         return sugg || null;
-    } catch (e) {
+    } catch (e: any) {
         console.error("[App] Suggestion fetch failed:", e);
+        addTerminalLine(`Code completion failed: ${e.message}`, 'error');
         return null;
     }
-  }, []);
+  }, [addTerminalLine]);
 
   const handleInlineAssist = async (instruction: string, range: any) => {
       const file = useFileTreeStore.getState().files.find(f => f.id === useFileTreeStore.getState().activeFileId);
@@ -157,9 +167,9 @@ function App() {
               updateFileContent(updatedContent);
               addTerminalLine('Inline Edit Applied', 'success');
           }
-      } catch (e) {
+      } catch (e: any) {
           console.error(e);
-          addTerminalLine('Inline Edit Failed', 'error');
+          addTerminalLine(`Inline Edit Failed: ${e.message}`, 'error');
       }
   };
 
@@ -179,7 +189,7 @@ function App() {
       handleInlineAssist(instruction, range);
     } else if (type === 'test') {
       setIsAIOpen(true);
-      sendMessage(`Generate comprehensive unit tests for the following code:\n\`\`\`${file.language}\n${context.code}\n\`\`\``);
+      useChatStore.getState().sendMessage(`Generate comprehensive unit tests for the following code:\n\`\`\`${file.language}\n${context.code}\n\`\`\``);
     } else if (type === 'docs') {
       const instruction = "Add detailed documentation (JSDoc/Docstring) to this code.";
       handleInlineAssist(instruction, context.range);
@@ -246,7 +256,7 @@ function App() {
                           />
                           {selectedCode && (
                              <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-                                 <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                                 <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); useChatStore.getState().sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
                              </div>
                           )}
                       </div>

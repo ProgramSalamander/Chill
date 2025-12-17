@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
@@ -18,6 +15,7 @@ import {
 } from './Icons';
 import { useGitStore } from '../stores/gitStore';
 import { useFileTreeStore } from '../stores/fileStore';
+import { useTerminalStore } from '../stores/terminalStore';
 
 const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -47,6 +45,7 @@ const GitPanel: React.FC = () => {
   const revertFile = useGitStore(state => state.revertFile);
 
   const files = useFileTreeStore(state => state.files);
+  const addTerminalLine = useTerminalStore(state => state.addTerminalLine);
   
   useEffect(() => {
     setShowAllStaged(false);
@@ -94,8 +93,10 @@ const GitPanel: React.FC = () => {
 
       const msg = await aiService.generateCommitMessage(changes);
       if (msg) setCommitMessage(msg);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      addTerminalLine(`AI commit message generation failed: ${e.message}`, 'error');
+      setCommitMessage('Update files');
     } finally {
       setIsGenerating(false);
     }

@@ -6,15 +6,17 @@ import { useTerminalStore } from './terminalStore';
 import { useGitStore } from './gitStore';
 import { useProjectStore } from './projectStore';
 import { notify } from '../stores/notificationStore';
-import { ragService } from '../services/ragService';
+import type { RAGService } from '../services/ragService';
 
 interface FileTreeState {
   files: File[];
   activeFileId: string;
   openFileIds: string[];
   fileToDelete: File | null;
+  _ragService: RAGService | null;
 
   // Actions
+  setDependencies: (services: { ragService: RAGService }) => void;
   setAllFiles: (newFiles: File[]) => void;
   resetFiles: () => void;
   createNode: (type: 'file' | 'folder', parentId: string | null, name: string, initialContent?: string) => Promise<File | null>;
@@ -40,10 +42,13 @@ export const useFileTreeStore = create<FileTreeState>()(
       activeFileId: '',
       openFileIds: [],
       fileToDelete: null,
+      _ragService: null,
+
+      setDependencies: (services) => set({ _ragService: services.ragService }),
 
       setAllFiles: (newFiles) => {
         set({ files: newFiles, openFileIds: [], activeFileId: '' });
-        ragService.triggerDebouncedUpdate(newFiles);
+        get()._ragService?.triggerDebouncedUpdate(newFiles);
       },
 
       resetFiles: () => {
@@ -146,7 +151,7 @@ export const useFileTreeStore = create<FileTreeState>()(
         set(state => ({ files: state.files.map(f => f.id === file.id ? { ...f, isModified: false } : f) }));
         notify(`Saved ${file.name}`, 'success');
         useGitStore.getState().syncFile(file);
-        ragService.triggerDebouncedUpdate(get().files);
+        get()._ragService?.triggerDebouncedUpdate(get().files);
         return true;
       },
 

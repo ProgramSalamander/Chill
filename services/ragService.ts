@@ -43,7 +43,7 @@ export interface SearchResult {
     endLine: number;
 }
 
-class RAGService {
+export class RAGService {
   private index: TFIDFIndex | null = null;
   public isIndexing: boolean = false;
   private debounceIndexRef: ReturnType<typeof setTimeout> | null = null;
