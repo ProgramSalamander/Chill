@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { gitService, GitStatus } from '../services/gitService';
 import { Commit, File } from '../types';
@@ -27,6 +28,7 @@ interface GitState {
   pull: () => Promise<void>;
   fetch: () => Promise<void>;
   reset: () => void;
+  checkForExistingRepo: () => Promise<void>;
 }
 
 export const useGitStore = create<GitState>((set, get) => ({
@@ -37,6 +39,17 @@ export const useGitStore = create<GitState>((set, get) => ({
   isPulling: false,
   isFetching: false,
   cloneProgress: null,
+
+  checkForExistingRepo: async () => {
+    try {
+        await gitService.readConfig();
+        set({ isInitialized: true });
+        get().refresh();
+        useTerminalStore.getState().addTerminalLine('Existing Git repository detected.', 'success');
+    } catch (e) {
+        set({ isInitialized: false });
+    }
+  },
 
   refresh: async () => {
     if (!get().isInitialized) return;

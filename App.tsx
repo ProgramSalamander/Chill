@@ -71,9 +71,13 @@ function App() {
 
   // Initialize services and load project on startup
   useEffect(() => {
-    initLinters().then(() => console.log('Linting services initialized'));
-    initChat();
-    loadInitialProject();
+    const startApp = async () => {
+      await initLinters();
+      console.log('Linting services initialized');
+      initChat();
+      await loadInitialProject();
+    };
+    startApp();
   }, [initChat, loadInitialProject]);
   
   // Debounced Linting Effect

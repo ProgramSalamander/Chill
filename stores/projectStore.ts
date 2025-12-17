@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ProjectMeta } from '../types';
@@ -6,6 +7,7 @@ import { useFileTreeStore } from './fileStore';
 import { useGitStore } from './gitStore';
 import { useChatStore } from './chatStore';
 import { useTerminalStore } from './terminalStore';
+import { gitService } from '../services/gitService';
 
 interface ProjectState {
   projectToDelete: ProjectMeta | null;
@@ -14,7 +16,7 @@ interface ProjectState {
 
   setProjectToDelete: (project: ProjectMeta | null) => void;
   confirmDeleteProject: () => Promise<void>;
-  loadInitialProject: () => void;
+  loadInitialProject: () => Promise<void>;
   handleNewProject: () => Promise<void>;
   handleLoadProject: (project: ProjectMeta) => Promise<void>;
   saveCurrentProject: () => void;
@@ -56,13 +58,18 @@ export const useProjectStore = create<ProjectState>()(
         }
       },
 
-      loadInitialProject: () => {
+      loadInitialProject: async () => {
         const recents = projectService.getRecents();
         set({ recentProjects: recents });
         const lastProjectId = projectService.getActiveProjectId();
-        const projectToLoad = recents.find(p => p.id === lastProjectId);
+        const projectToLoad = recents.find(p => p.id === lastProjectId) || recents[0];
+        
         if (projectToLoad) {
-          get().handleLoadProject(projectToLoad);
+          await get().handleLoadProject(projectToLoad);
+        } else {
+          // First time user, no projects.
+          gitService.initForProject('default-scratchpad');
+          useGitStore.getState().reset();
         }
       },
 
@@ -80,8 +87,10 @@ export const useProjectStore = create<ProjectState>()(
           recentProjects: projectService.getRecents() 
         });
 
-        useFileTreeStore.getState().resetFiles();
+        gitService.initForProject(newMeta.id);
         useGitStore.getState().reset();
+
+        useFileTreeStore.getState().resetFiles();
         useChatStore.getState().clearChat();
         useTerminalStore.getState().clearTerminal();
         useTerminalStore.getState().addTerminalLine(`New project created: ${name}`, 'success');
@@ -103,7 +112,10 @@ export const useProjectStore = create<ProjectState>()(
             recentProjects: projectService.getRecents() 
           });
 
+          gitService.initForProject(project.id);
           useGitStore.getState().reset();
+          await useGitStore.getState().checkForExistingRepo();
+
           useTerminalStore.getState().addTerminalLine(`Switched to project: ${project.name}`, 'info');
         } else {
           useTerminalStore.getState().addTerminalLine(`Failed to load project: ${project.name}`, 'error');

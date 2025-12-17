@@ -1,14 +1,28 @@
+
+
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { File } from '../types';
 import { getLanguage } from '../utils/fileUtils';
 
-// Initialize in-memory filesystem
-const fs = new LightningFS('vibecode-fs', { wipe: true });
-const pfs = fs.promises;
+let fs: LightningFS;
+let pfs: any;
 
-async function directoryExists(dirPath) {
+const initFs = (projectId: string) => {
+    if (!projectId) {
+        console.warn("Cannot initialize FS without a project ID. Using default 'scratchpad'.");
+        projectId = 'scratchpad';
+    }
+    fs = new LightningFS(`vibecode-fs-${projectId}`, { wipe: false });
+    pfs = fs.promises;
+};
+
+// Initialize with a default on module load, will be overwritten by project logic
+initFs('scratchpad');
+
+
+async function directoryExists(dirPath: string) {
   try {
     const stats = await pfs.stat(dirPath);
     return stats.isDirectory();
@@ -32,7 +46,8 @@ export interface GitStatus {
 }
 
 export const gitService = {
-  // Clear the FS manually when switching projects
+  initForProject: initFs,
+
   clear: async () => {
       try {
           const files = await pfs.readdir('/');
@@ -169,6 +184,11 @@ export const gitService = {
 
   commit: async (message: string, name: string = 'Vibe Coder', email: string = 'coder@vibecode.ai') => {
     return git.commit({ fs, dir: '/', message, author: { name, email } });
+  },
+
+  readConfig: async () => {
+    // FIX: The `key` property should be `path` for `git.getConfig`.
+    return git.getConfig({ fs, dir: '/', path: 'user.name' });
   },
 
   log: async () => {
