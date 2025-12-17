@@ -1,5 +1,3 @@
-
-
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
@@ -9,6 +7,21 @@ import { getLanguage } from '../utils/fileUtils';
 // Initialize in-memory filesystem
 const fs = new LightningFS('vibecode-fs', { wipe: true });
 const pfs = fs.promises;
+
+async function directoryExists(dirPath) {
+  try {
+    const stats = await pfs.stat(dirPath);
+    return stats.isDirectory();
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return false;
+    }
+    if (err.code === 'EEXIST') {
+      return true;
+    }
+    throw err;
+  }
+}
 
 export interface GitStatus {
     filepath: string;
@@ -86,12 +99,16 @@ export const gitService = {
 
   writeFile: async (filepath: string, content: string) => {
     try {
-        // Ensure directories exist
+        // Make parent directories if they don't exist
         const parts = filepath.split('/');
         if (parts.length > 1) {
-           const dir = parts.slice(0, -1).join('/');
-           // @ts-ignore
-           await pfs.mkdir(`/${dir}`, { recursive: true });
+          let currentPath = '';
+          for (let i = 0; i < parts.length - 1; i++) {
+              currentPath += `/${parts[i]}`;
+              if (!(await directoryExists(currentPath))) {
+                  await pfs.mkdir(currentPath);
+              }
+          }
         }
         await pfs.writeFile(`/${filepath}`, content, 'utf8');
     } catch (e) {
