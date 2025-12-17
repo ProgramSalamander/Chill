@@ -73,18 +73,44 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   init: async () => {
+    // Check for active project.
+    let activeProject = useProjectStore.getState().activeProject;
+    if (!activeProject) {
+        // If no active project, create one automatically.
+        const newProject = await useProjectStore.getState().handleNewProject("Untitled Project");
+        if (!newProject) {
+            // This should not happen if we provide a name, but as a safeguard.
+            notify("Project creation failed.", "error");
+            return;
+        }
+        // `handleNewProject` has already set up the new project context.
+    }
+    
     const { addTerminalLine } = useTerminalStore.getState();
     const { files } = useFileTreeStore.getState();
+
+    // Check if repo is already initialized in the current project FS.
+    const isAlreadyInitialized = await gitService.isRepoInitialized();
+    if(isAlreadyInitialized) {
+        set({ isInitialized: true });
+        get().refresh();
+        return;
+    }
+
     await gitService.init();
     set({ isInitialized: true });
 
+    // If an existing project was not a git repo, write its files to the git FS.
     for (const f of files) {
       if (f.type === 'file') {
         const path = getFilePath(f, files);
         await gitService.writeFile(path, f.content);
       }
     }
+
     addTerminalLine('Git repository initialized.', 'success');
+    
+    // Refresh status, which will now show untracked files if any existed.
     get().refresh();
   },
 

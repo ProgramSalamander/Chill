@@ -108,7 +108,10 @@ export const gitService = {
     try {
       const stats = await pfs.stat('/.git');
       return stats.type === 'dir';
-    } catch (e) {
+    } catch (e: any) {
+      if (e.code === 'ENOENT') {
+        return false; // This is an expected case, not an error.
+      }
       console.error("Failed to check for git repo:", e);
       return false;
     }
@@ -221,6 +224,11 @@ export const gitService = {
     try {
         return await git.log({ fs, dir: '/' });
     } catch (e: any) {
+        // This is an expected error for a new repository with no commits.
+        if (e.code === 'ResolveRefError') {
+            return []; // Return empty array silently.
+        }
+        // Log other unexpected errors.
         console.error("Failed to get git log:", e);
         useTerminalStore.getState().addTerminalLine(`Failed to get git log: ${e.message}`, 'error');
         return [];
