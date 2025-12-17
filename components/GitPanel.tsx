@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
@@ -33,6 +34,7 @@ const GitPanel: React.FC = () => {
   const clone = useGitStore(state => state.clone);
   const pull = useGitStore(state => state.pull);
   const fetchGit = useGitStore(state => state.fetch);
+  const revertFile = useGitStore(state => state.revertFile);
 
   const files = useFileTreeStore(state => state.files);
 
@@ -108,7 +110,10 @@ const GitPanel: React.FC = () => {
                  {isStaged ? (
                      <button onClick={() => fileId && unstage(fileId)} className="p-1 hover:text-white text-slate-500" title="Unstage"><IconMinusCircle size={14} /></button>
                  ) : (
-                     <button onClick={() => fileId && stage(fileId)} className="p-1 hover:text-white text-slate-500" title="Stage"><IconPlusCircle size={14} /></button>
+                    <>
+                        <button onClick={() => fileId && revertFile(fileId)} className="p-1 hover:text-white text-slate-500" title="Discard Changes"><IconRefresh size={14} /></button>
+                        <button onClick={() => fileId && stage(fileId)} className="p-1 hover:text-white text-slate-500" title="Stage"><IconPlusCircle size={14} /></button>
+                    </>
                  )}
              </div>
          </div>

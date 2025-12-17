@@ -29,6 +29,7 @@ interface GitState {
   clone: (url: string) => Promise<boolean>;
   pull: () => Promise<void>;
   fetch: () => Promise<void>;
+  revertFile: (fileId: string) => Promise<void>;
   reset: () => void;
   checkForExistingRepo: () => Promise<void>;
 }
@@ -201,6 +202,43 @@ export const useGitStore = create<GitState>((set, get) => ({
       addTerminalLine(`Fetch failed: ${e.message}`, 'error');
       console.error(e);
       set({ isFetching: false });
+    }
+  },
+
+  revertFile: async (fileId) => {
+    if (!get().isInitialized) return;
+    
+    const { files, updateFileContent, deleteNode, saveFile } = useFileTreeStore.getState();
+    const file = files.find(f => f.id === fileId);
+    if (!file) return;
+
+    const path = getFilePath(file, files);
+
+    try {
+        // First, determine if the file is untracked by checking if it exists in HEAD
+        const headContent = await gitService.readBlob(path).catch(() => null);
+
+        // Now, perform the checkout to revert/delete the file in the virtual FS
+        await gitService.checkout(path);
+
+        if (headContent !== null) {
+            // File existed in HEAD, so it was modified or deleted. We're reverting to HEAD state.
+            updateFileContent(headContent, true, file.id);
+            const updatedFile = useFileTreeStore.getState().files.find(f => f.id === fileId);
+            if (updatedFile) {
+                saveFile(updatedFile); // This also marks isModified as false
+            }
+            notify(`Reverted changes in ${file.name}`, 'info');
+        } else {
+            // File did not exist in HEAD, so it was an untracked file. Checkout deleted it.
+            await deleteNode(file);
+            notify(`Discarded new file ${file.name}`, 'info');
+        }
+    } catch (e: any) {
+        notify(`Failed to revert ${file.name}: ${e.message}`, 'error');
+        console.error(e);
+    } finally {
+        get().refresh();
     }
   },
 

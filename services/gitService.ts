@@ -150,6 +150,15 @@ export const gitService = {
     }
   },
 
+  checkout: async (filepath: string) => {
+    await git.checkout({
+      fs,
+      dir: '/',
+      filepaths: [filepath],
+      force: true,
+    });
+  },
+
   status: async (): Promise<GitStatus[]> => {
     try {
         const matrix = await git.statusMatrix({ fs, dir: '/' });
