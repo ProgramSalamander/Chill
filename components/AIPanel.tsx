@@ -5,12 +5,12 @@ import AIPanelInput from './ai/AIPanelInput';
 import Tooltip from './Tooltip';
 import { IconSparkles, IconCpu, IconClose, IconTrash, IconChevronDown } from './Icons';
 
-import { useChatStore } from '../../stores/chatStore';
-import { useFileTreeStore } from '../../stores/fileStore';
-import { useAgentStore } from '../../stores/agentStore';
-import { useUIStore } from '../../stores/uiStore';
+import { useChatStore } from '../stores/chatStore';
+import { useFileTreeStore } from '../stores/fileStore';
+import { useAgentStore } from '../stores/agentStore';
+import { useUIStore } from '../stores/uiStore';
 import PlanNode from './ai/PlanNode';
-import { getAIConfig } from '../../services/configService';
+import { getAIConfig } from '../services/configService';
 
 interface AIPanelProps {
   onInsertCode: (code: string) => void;
