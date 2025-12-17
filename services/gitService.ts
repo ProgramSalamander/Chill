@@ -27,7 +27,7 @@ initFs(initialProjectId);
 async function directoryExists(dirPath: string) {
   try {
     const stats = await pfs.stat(dirPath);
-    return stats.isDirectory();
+    return stats.type === 'dir';
   } catch (err) {
     if (err.code === 'ENOENT') {
       return false;
@@ -58,7 +58,7 @@ export const gitService = {
              try {
                 // Determine if dir or file
                 const stat = await pfs.stat(`/${file}`);
-                if (stat.isDirectory()) {
+                if (stat.type === 'dir') {
                     // Recursive delete helper (naive)
                     await gitService.deleteRecursive(`/${file}`);
                 } else {
@@ -83,7 +83,7 @@ export const gitService = {
           for (const file of files) {
               const curPath = `${path}/${file}`;
               const stat = await pfs.stat(curPath);
-              if (stat.isDirectory()) {
+              if (stat.type === 'dir') {
                   await gitService.deleteRecursive(curPath);
               } else {
                   await pfs.unlink(curPath);
@@ -98,6 +98,15 @@ export const gitService = {
         await git.init({ fs, dir: '/' });
     } catch (e) {
         console.error("Git Init Error", e);
+    }
+  },
+
+  isRepoInitialized: async (): Promise<boolean> => {
+    try {
+      const stats = await pfs.stat('/.git');
+      return stats.type === 'dir';
+    } catch (e) {
+      return false;
     }
   },
 
@@ -253,7 +262,7 @@ export const gitService = {
               const stat = await pfs.stat(fullPath);
               const id = Math.random().toString(36).slice(2, 11);
 
-              if (stat.isDirectory()) {
+              if (stat.type === 'dir') {
                    // Create folder node
                    files.push({
                        id,

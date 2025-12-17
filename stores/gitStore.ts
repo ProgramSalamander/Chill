@@ -44,11 +44,16 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   checkForExistingRepo: async () => {
     try {
-        await gitService.readConfig();
-        set({ isInitialized: true });
-        get().refresh();
-        useTerminalStore.getState().addTerminalLine('Existing Git repository detected.', 'success');
+        const isRepo = await gitService.isRepoInitialized();
+        if (isRepo) {
+            set({ isInitialized: true });
+            get().refresh();
+            useTerminalStore.getState().addTerminalLine('Existing Git repository detected.', 'success');
+        } else {
+            set({ isInitialized: false });
+        }
     } catch (e) {
+        console.error("Error checking for git repo:", e);
         set({ isInitialized: false });
     }
   },
