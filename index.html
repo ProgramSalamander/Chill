@@ -24,6 +24,8 @@
         --vibe-glass-alpha: 0.7;
         --vibe-border-rgb: 0, 0, 0;
         --vibe-border-alpha: 0.07;
+        --selection-bg-rgb: 59, 130, 246; /* A bright, solid blue for selections */
+        --selection-text-rgb: 255, 255, 255; /* White text for selections */
       }
       .dark {
         --bg-primary: 5 5 8;
@@ -38,6 +40,8 @@
         --vibe-glass-alpha: 0.65;
         --vibe-border-rgb: 255, 255, 255;
         --vibe-border-alpha: 0.08;
+        --selection-bg-rgb: 99, 102, 241; /* A vibrant indigo for selections */
+        --selection-text-rgb: 248, 250, 252; /* Off-white text for selections */
       }
       
       /* Premium Scrollbar */
@@ -109,8 +113,8 @@
       
       /* Active/Selection Colors */
       ::selection {
-        background: rgba(var(--vibe-accent), 0.3);
-        color: rgb(var(--text-primary));
+        background: rgb(var(--selection-bg-rgb));
+        color: rgb(var(--selection-text-rgb));
       }
 
       /* Ghost Text Animation */
