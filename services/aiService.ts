@@ -2,8 +2,9 @@ import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./c
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AIModelProfile, Message, AgentPlanItem, AISession, AIProviderAdapter, File } from "../types";
+import { useTerminalStore } from "../stores/terminalStore";
 
-export class AIService {
+class AIService {
   private getProvider(config: AIModelProfile): AIProviderAdapter {
     if (config.provider === 'openai') {
       return new OpenAIProvider();
@@ -33,19 +34,21 @@ export class AIService {
   }): Promise<AgentPlanItem[]> {
     const config = getActiveChatConfig();
     if (!config) {
-        throw new Error("No active chat model configured for agent planning.");
+        console.error("No active chat model configured for agent planning.");
+        return [];
     }
     try {
         const provider = this.getProvider(config);
         return await provider.generateAgentPlan({ ...props, config });
     } catch (e: any) {
         console.error("Failed to generate or parse plan", e);
-        throw new Error(`Failed to generate agent plan: ${e.message}`);
+        useTerminalStore.getState().addTerminalLine(`Failed to generate agent plan: ${e.message}`, 'error');
+        return [];
     }
   }
   
   // --- GENERIC TEXT GENERATION (used internally now) ---
-  private async generateText(
+  private generateText(
     config: AIModelProfile,
     prompt: string,
     options: {
@@ -69,7 +72,8 @@ export class AIService {
         return response.trim() || "Update files";
     } catch (e: any) {
         console.error("AI Error generating commit message:", e);
-        throw new Error(`AI commit message generation failed: ${e.message}`);
+        useTerminalStore.getState().addTerminalLine(`AI commit message generation failed.`, 'warning');
+        return "Update files";
     }
   }
 
@@ -158,7 +162,7 @@ Complete the code at the cursor position.`;
         return cleanedResponse ? cleanedResponse : null;
     } catch (e: any) {
         console.error('[aiService] getCodeCompletion error:', e);
-        throw e;
+        return null;
     }
   }
 
@@ -189,7 +193,8 @@ Complete the code at the cursor position.`;
         return cleanedText ? cleanedText : null;
     } catch (e: any) {
         console.error("Failed to edit code with AI:", e);
-        throw new Error(`AI code edit failed: ${e.message}`);
+        useTerminalStore.getState().addTerminalLine(`AI code edit failed: ${e.message}`, 'error');
+        return null;
     }
   }
 }

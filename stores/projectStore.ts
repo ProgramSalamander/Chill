@@ -1,24 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ProjectMeta } from '../types';
-import type { ProjectService } from '../services/projectService';
+import { projectService } from '../services/projectService';
 import { useFileTreeStore } from './fileStore';
 import { useGitStore } from './gitStore';
 import { useChatStore } from './chatStore';
 import { useTerminalStore } from './terminalStore';
-// FIX: Correctly import gitService to derive its type, as 'GitService' is not an exported member.
 import { gitService } from '../services/gitService';
-type GitService = typeof gitService;
 import { notify } from '../stores/notificationStore';
 
 interface ProjectState {
   projectToDelete: ProjectMeta | null;
   activeProject: ProjectMeta | null;
   recentProjects: ProjectMeta[];
-  _projectService: ProjectService | null;
-  _gitService: GitService | null;
 
-  setDependencies: (services: { projectService: ProjectService, gitService: GitService }) => void;
   setProjectToDelete: (project: ProjectMeta | null) => void;
   confirmDeleteProject: () => Promise<void>;
   loadInitialProject: () => Promise<void>;
@@ -33,22 +28,15 @@ export const useProjectStore = create<ProjectState>()(
       projectToDelete: null,
       activeProject: null,
       recentProjects: [],
-      _projectService: null,
-      _gitService: null,
-
-      setDependencies: (services) => set({ 
-        _projectService: services.projectService,
-        _gitService: services.gitService
-      }),
 
       setProjectToDelete: (project) => set({ projectToDelete: project }),
 
       confirmDeleteProject: async () => {
-        const { projectToDelete, activeProject, _projectService } = get();
-        if (!projectToDelete || !_projectService) return;
+        const { projectToDelete, activeProject } = get();
+        if (!projectToDelete) return;
 
         const wasActive = activeProject?.id === projectToDelete.id;
-        _projectService.deleteProject(projectToDelete.id);
+        projectService.deleteProject(projectToDelete.id);
 
         if (wasActive) {
           useFileTreeStore.getState().resetFiles();
@@ -59,7 +47,7 @@ export const useProjectStore = create<ProjectState>()(
           set({ activeProject: null });
         }
 
-        const newRecents = _projectService.getRecents();
+        const newRecents = projectService.getRecents();
         set({
           recentProjects: newRecents,
           projectToDelete: null,
@@ -71,29 +59,21 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       loadInitialProject: async () => {
-        const { _projectService } = get();
-        if (!_projectService) return;
-
-        const recents = _projectService.getRecents();
+        const recents = projectService.getRecents();
         set({ recentProjects: recents });
-        const lastProjectId = _projectService.getActiveProjectId();
+        const lastProjectId = projectService.getActiveProjectId();
         const projectToLoad = recents.find(p => p.id === lastProjectId) || recents[0];
         
         if (projectToLoad) {
           await get().handleLoadProject(projectToLoad);
         } else {
-          const { _gitService } = get();
-          if (!_gitService) return;
           // First time user, no projects.
-          _gitService.initForProject('default-scratchpad');
+          gitService.initForProject('default-scratchpad');
           useGitStore.getState().reset();
         }
       },
 
       handleNewProject: async (name?: string): Promise<ProjectMeta | void> => {
-        const { _projectService, _gitService } = get();
-        if (!_projectService || !_gitService) return;
-        
         let projectName = name;
         if (!projectName) {
           projectName = window.prompt("Enter project name:", "Untitled Project");
@@ -102,15 +82,15 @@ export const useProjectStore = create<ProjectState>()(
 
         get().saveCurrentProject();
 
-        const newMeta = _projectService.createProject(projectName);
-        _projectService.saveProject([], newMeta);
+        const newMeta = projectService.createProject(projectName);
+        projectService.saveProject([], newMeta);
         
         set({ 
           activeProject: newMeta, 
-          recentProjects: _projectService.getRecents() 
+          recentProjects: projectService.getRecents() 
         });
 
-        _gitService.initForProject(newMeta.id);
+        gitService.initForProject(newMeta.id);
         useGitStore.getState().reset();
 
         useFileTreeStore.getState().resetFiles();
@@ -121,25 +101,23 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       handleLoadProject: async (project) => {
-        const { activeProject, _projectService, _gitService } = get();
-        if (!_projectService || !_gitService) return;
-
+        const { activeProject } = get();
         await useGitStore.getState().checkForExistingRepo();
         if (activeProject?.id === project.id) return;
         
         get().saveCurrentProject();
 
-        const loadedFiles = _projectService.loadProject(project.id);
+        const loadedFiles = projectService.loadProject(project.id);
         if (loadedFiles) {
           useFileTreeStore.getState().setAllFiles(loadedFiles);
-          _projectService.saveProject(loadedFiles, project); // This updates the lastOpened timestamp
+          projectService.saveProject(loadedFiles, project); // This updates the lastOpened timestamp
           
           set({ 
             activeProject: project, 
-            recentProjects: _projectService.getRecents() 
+            recentProjects: projectService.getRecents() 
           });
 
-          _gitService.initForProject(project.id);
+          gitService.initForProject(project.id);
           useGitStore.getState().reset();
 
           useTerminalStore.getState().addTerminalLine(`Switched to project: ${project.name}`, 'info');
@@ -149,11 +127,11 @@ export const useProjectStore = create<ProjectState>()(
       },
       
       saveCurrentProject: () => {
-        const { activeProject, _projectService } = get();
+        const { activeProject } = get();
         const { files } = useFileTreeStore.getState();
-        if (activeProject && _projectService) {
-          _projectService.saveProject(files, activeProject);
-          set({ recentProjects: _projectService.getRecents() });
+        if (activeProject) {
+          projectService.saveProject(files, activeProject);
+          set({ recentProjects: projectService.getRecents() });
         }
       },
     }),

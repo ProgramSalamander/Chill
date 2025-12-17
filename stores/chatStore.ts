@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Message, MessageRole, AISession } from '../types';
-import type { AIService } from '../services/aiService';
-import type { RAGService } from '../services/ragService';
+import { aiService } from '../services/aiService';
+import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
 import { useTerminalStore } from './terminalStore';
@@ -15,11 +15,8 @@ interface ChatState {
   contextScope: 'project' | 'file';
   chatSession: AISession | null;
   activeChatProfileId: string | null;
-  _aiService: AIService | null;
-  _ragService: RAGService | null;
   
   // Actions
-  setDependencies: (services: { aiService: AIService; ragService: RAGService }) => void;
   initChat: () => void;
   sendMessage: (text: string, contextFileIds?: string[]) => Promise<void>;
   stopGeneration: () => void;
@@ -45,19 +42,10 @@ export const useChatStore = create<ChatState>()(
       contextScope: 'project',
       chatSession: null,
       activeChatProfileId: null,
-      _aiService: null,
-      _ragService: null,
-
-      setDependencies: (services) => set({ _aiService: services.aiService, _ragService: services.ragService }),
 
       initChat: () => {
-        let { activeChatProfileId, _aiService } = get();
+        let { activeChatProfileId } = get();
         const { messages } = get();
-
-        if (!_aiService) {
-          console.warn("AI Service not initialized in chat store. Cannot init chat.");
-          return;
-        }
     
         if (!activeChatProfileId) {
           const activeConfig = getActiveChatConfig();
@@ -73,7 +61,7 @@ export const useChatStore = create<ChatState>()(
         }
     
         const history = messages.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
-        const session = _aiService.createChatSession({
+        const session = aiService.createChatSession({
           systemInstruction: SYSTEM_INSTRUCTION,
           history,
           config: profile
@@ -100,7 +88,7 @@ export const useChatStore = create<ChatState>()(
       },
 
       sendMessage: async (text, contextFileIds) => {
-        let { chatSession, _ragService } = get();
+        let { chatSession } = get();
         if (!chatSession) {
           get().initChat();
           chatSession = get().chatSession;
@@ -129,8 +117,7 @@ export const useChatStore = create<ChatState>()(
               }
               prompt = `[EXPLICIT CONTEXT]\n${contextContent}\n[QUERY]\n${text}`;
           } else if (contextScope === 'project') {
-              if (!_ragService) throw new Error("RAG service not available.");
-              const context = _ragService.getContext(text, activeFile, files);
+              const context = ragService.getContext(text, activeFile, files);
               prompt = `[SMART CONTEXT]\n${context}\n\n[QUERY]\n${text}`;
           } else if (activeFile) {
               prompt = `[FILE: ${activeFile.name}]\n${activeFile.content}\n\n[QUERY]\n${text}`;

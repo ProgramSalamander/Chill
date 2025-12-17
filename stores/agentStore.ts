@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange } from '../types';
-import type { AIService } from '../services/aiService';
-import type { RAGService } from '../services/ragService';
-// FIX: Correctly import gitService to derive its type, as 'GitService' is not an exported member.
-import { gitService } from '../services/gitService';
-type GitService = typeof gitService;
+import { aiService } from '../services/aiService';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
 import { handleAgentAction } from '../services/agentToolService';
@@ -17,12 +13,8 @@ interface AgentState {
   stagedChanges: StagedChange[];
   agentAwareness: Set<string>;
   agentChatSession: AISession | null;
-  _aiService: AIService | null;
-  _ragService: RAGService | null;
-  _gitService: GitService | null;
 
   // Actions
-  setDependencies: (services: { aiService: AIService, ragService: RAGService, gitService: GitService }) => void;
   startAgent: (goal: string) => Promise<void>;
   resetAgent: () => void;
   stopAgent: () => void;
@@ -43,15 +35,6 @@ const useAgentStore = create<AgentState>((set, get) => ({
   stagedChanges: [],
   agentAwareness: new Set(),
   agentChatSession: null,
-  _aiService: null,
-  _ragService: null,
-  _gitService: null,
-
-  setDependencies: (services) => set({ 
-    _aiService: services.aiService, 
-    _ragService: services.ragService,
-    _gitService: services.gitService 
-  }),
 
   resetAgent: () => {
     set({
@@ -87,12 +70,9 @@ const useAgentStore = create<AgentState>((set, get) => ({
     set({ status: 'planning', agentSteps: [{ id: Date.now().toString(), type: 'user', text: goal, timestamp: Date.now() }] });
 
     try {
-      const { _aiService } = get();
-      if (!_aiService) throw new Error("AI Service not initialized in agent store.");
-
       const files = useFileTreeStore.getState().files;
       const context = `Project contains ${files.length} files.`;
-      const generatedPlan = await _aiService.generateAgentPlan({ goal, context });
+      const generatedPlan = await aiService.generateAgentPlan({ goal, context });
       
       set({ plan: generatedPlan, status: 'thinking' });
 
@@ -109,7 +89,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       if (!config) {
         throw new Error("No active AI model configured for the agent.");
       }
-      const session = _aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true, config });
+      const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true, config });
       set({ agentChatSession: session });
       await processNextStep();
 
@@ -255,12 +235,7 @@ async function _executeAndContinue(action: AgentPendingAction) {
 
     let result = "Error";
     try {
-      const { _aiService, _ragService, _gitService } = useAgentStore.getState();
-      if (!_aiService || !_ragService || !_gitService) {
-        throw new Error("Agent dependencies not fully initialized.");
-      }
-      
-      result = await handleAgentAction(toolName, args, { aiService: _aiService, ragService: _ragService, gitService: _gitService });
+      result = await handleAgentAction(toolName, args);
       // If the action was readFile, update awareness
       if (toolName === 'readFile') {
           const file = useFileTreeStore.getState().files.find(f => f.name === args.path); // Simplified find
