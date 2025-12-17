@@ -381,7 +381,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 // Enable CodeLens
                 codeLens: true,
                 lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
-                fixedOverflowWidgets: true,
             }}
          />
       </div>
