@@ -103,7 +103,9 @@ export const useChatStore = create<ChatState>()(
         set(state => ({ messages: [...state.messages, userMsg], isGenerating: true, isStopping: false }));
 
         try {
-          const { files, activeFile } = useFileTreeStore.getState();
+          // FIX: The `activeFile` property does not exist on the file store state. It must be derived from `files` and `activeFileId`.
+          const { files, activeFileId } = useFileTreeStore.getState();
+          const activeFile = files.find(f => f.id === activeFileId) || null;
           const { contextScope } = get();
           let prompt = text;
           

@@ -12,7 +12,6 @@ interface FileTreeState {
   files: File[];
   activeFileId: string;
   openFileIds: string[];
-  activeFile: File | null;
   fileToDelete: File | null;
 
   // Actions
@@ -40,16 +39,15 @@ export const useFileTreeStore = create<FileTreeState>()(
       files: [],
       activeFileId: '',
       openFileIds: [],
-      activeFile: null,
       fileToDelete: null,
 
       setAllFiles: (newFiles) => {
-        set({ files: newFiles, openFileIds: [], activeFileId: '', activeFile: null });
+        set({ files: newFiles, openFileIds: [], activeFileId: '' });
         ragService.triggerDebouncedUpdate(newFiles);
       },
 
       resetFiles: () => {
-        set({ files: [], activeFileId: '', openFileIds: [], activeFile: null });
+        set({ files: [], activeFileId: '', openFileIds: [] });
       },
 
       createNode: async (type, parentId, name, initialContent) => {
@@ -201,13 +199,6 @@ export const useFileTreeStore = create<FileTreeState>()(
     }),
     {
       name: 'vibe-file-tree-storage',
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          // Update activeFile derived state after rehydration
-          const activeFile = state.files.find(f => f.id === state.activeFileId) || null;
-          state.activeFile = activeFile;
-        }
-      },
       partialize: (state) => ({ 
         files: state.files, 
         activeFileId: state.activeFileId,
@@ -215,14 +206,4 @@ export const useFileTreeStore = create<FileTreeState>()(
       }),
     }
   )
-);
-
-// Subscribe to self to update derived state `activeFile`
-useFileTreeStore.subscribe(
-  (state, prevState) => {
-    if (state.activeFileId !== prevState.activeFileId || state.files !== prevState.files) {
-      const activeFile = state.files.find(f => f.id === state.activeFileId) || null;
-      useFileTreeStore.setState({ activeFile });
-    }
-  }
 );

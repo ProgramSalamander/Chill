@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import AgentHUD from './ai/AgentHUD';
 import ChatView from './ai/ChatView';
 import AIPanelInput from './ai/AIPanelInput';
@@ -69,7 +69,9 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const messages = useChatStore(state => state.messages);
   const isGenerating = useChatStore(state => state.isGenerating);
   const clearChat = useChatStore(state => state.clearChat);
-  const activeFile = useFileTreeStore(state => state.activeFile);
+  const files = useFileTreeStore(state => state.files);
+  const activeFileId = useFileTreeStore(state => state.activeFileId);
+  const activeFile = useMemo(() => files.find(f => f.id === activeFileId) || null, [files, activeFileId]);
   const updateFileContent = useFileTreeStore(state => state.updateFileContent);
   const isOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);

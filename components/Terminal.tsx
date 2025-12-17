@@ -23,7 +23,9 @@ const Terminal: React.FC = () => {
   const handleSelectDiagnostic = (line: number, col: number) => {
     // For now, this just selects the active file, assuming diagnostics are for it.
     // A more complex implementation would find the file associated with the diagnostic.
-    const activeFile = useFileTreeStore.getState().activeFile;
+    // FIX: The `activeFile` property does not exist on the file store state. It must be derived from `files` and `activeFileId`.
+    const { files, activeFileId } = useFileTreeStore.getState();
+    const activeFile = files.find(f => f.id === activeFileId);
     if (activeFile) {
         selectFile(activeFile);
         // We'd also need to tell the editor to jump to this line/col.

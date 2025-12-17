@@ -35,7 +35,9 @@ function App() {
   const activeSidebarView = useUIStore(state => state.activeSidebarView);
   
   const files = useFileTreeStore(state => state.files);
-  const activeFile = useFileTreeStore(state => state.activeFile);
+  const activeFileId = useFileTreeStore(state => state.activeFileId);
+  const activeFile = useMemo(() => files.find(f => f.id === activeFileId) || null, [files, activeFileId]);
+  
   const updateFileContent = useFileTreeStore(state => state.updateFileContent); 
   const undo = useFileTreeStore(state => state.undo);
   const redo = useFileTreeStore(state => state.redo);
@@ -97,7 +99,7 @@ function App() {
   }, [activeFile, saveFile]);
   
   const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
-    const currentFile = useFileTreeStore.getState().activeFile;
+    const currentFile = useFileTreeStore.getState().files.find(f => f.id === useFileTreeStore.getState().activeFileId);
     if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
         console.log('[App] Suggestion aborted (busy or no file).');
         return null;
@@ -115,7 +117,7 @@ function App() {
   }, []);
 
   const handleInlineAssist = async (instruction: string, range: any) => {
-      const file = useFileTreeStore.getState().activeFile;
+      const file = useFileTreeStore.getState().files.find(f => f.id === useFileTreeStore.getState().activeFileId);
       if (!file) return;
       try {
           const lines = file.content.split('\n');
@@ -138,7 +140,7 @@ function App() {
   };
 
   const handleAICommand = (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => {
-    const file = useFileTreeStore.getState().activeFile;
+    const file = useFileTreeStore.getState().files.find(f => f.id === useFileTreeStore.getState().activeFileId);
     if (!file) return;
 
     if (type === 'fix') {
@@ -243,7 +245,7 @@ function App() {
          </div>
          <ErrorBoundary>
            <AIPanel 
-             onInsertCode={(c) => updateFileContent(activeFile!.content.slice(0, cursorPosition) + c + activeFile!.content.slice(cursorPosition), true)}
+             onInsertCode={(c) => activeFile && updateFileContent(activeFile.content.slice(0, cursorPosition) + c + activeFile.content.slice(cursorPosition), true)}
            />
          </ErrorBoundary>
       </div>
