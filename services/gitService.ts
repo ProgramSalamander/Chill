@@ -1,5 +1,4 @@
 
-
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
@@ -9,17 +8,20 @@ import { getLanguage } from '../utils/fileUtils';
 let fs: LightningFS;
 let pfs: any;
 
+const ACTIVE_ID_KEY = 'vibe_active_project_id';
+
 const initFs = (projectId: string) => {
     if (!projectId) {
-        console.warn("Cannot initialize FS without a project ID. Using default 'scratchpad'.");
-        projectId = 'scratchpad';
+        console.warn("Cannot initialize FS without a project ID. Using default 'default-scratchpad'.");
+        projectId = 'default-scratchpad';
     }
     fs = new LightningFS(`vibecode-fs-${projectId}`, { wipe: false });
     pfs = fs.promises;
 };
 
-// Initialize with a default on module load, will be overwritten by project logic
-initFs('scratchpad');
+// Initialize FS on module load with the last active project ID
+const initialProjectId = localStorage.getItem(ACTIVE_ID_KEY) || 'default-scratchpad';
+initFs(initialProjectId);
 
 
 async function directoryExists(dirPath: string) {
