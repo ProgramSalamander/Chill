@@ -108,17 +108,17 @@ const SettingsModal: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                     {config.profiles.map(p => (
-                        <button 
+                        <div 
                             key={p.id}
                             onClick={() => setSelectedProfileId(p.id)}
-                            className={`w-full text-left p-2 rounded-lg transition-colors group flex items-start justify-between ${selectedProfileId === p.id ? 'bg-vibe-accent/20' : 'hover:bg-white/5'}`}
+                            className={`w-full text-left p-2 rounded-lg transition-colors group flex items-start justify-between cursor-pointer ${selectedProfileId === p.id ? 'bg-vibe-accent/20' : 'hover:bg-white/5'}`}
                         >
                             <div className="flex-1 min-w-0">
                                 <p className={`text-sm font-semibold truncate ${selectedProfileId === p.id ? 'text-white' : 'text-slate-300'}`}>{p.name}</p>
                                 <p className="text-xs text-slate-500 font-mono truncate">{p.modelId}</p>
                             </div>
                             <button onClick={(e) => { e.stopPropagation(); handleDeleteProfile(p.id); }} className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><IconTrash size={12}/></button>
-                        </button>
+                        </div>
                     ))}
                 </div>
                 <div className="p-2 border-t border-white/5">
