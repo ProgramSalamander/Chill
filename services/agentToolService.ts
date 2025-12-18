@@ -1,5 +1,4 @@
 
-
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { ragService } from './ragService';
@@ -7,7 +6,6 @@ import { generateProjectStructureContext, extractSymbols, resolveFileByPath, get
 import { notify } from '../stores/notificationStore';
 import { File, Diagnostic, StagedChange } from '../types';
 import { aiService } from './aiService';
-// FIX: Changed validateCode to runLinting as it is the exported function.
 import { runLinting } from './lintingService';
 import { gitService } from './gitService';
 
@@ -32,7 +30,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
           return { result: `Error: File not found at path ${path} (staged for deletion).` };
         }
         if (stagedChange.newContent !== undefined) {
-          const lang = getLanguage(path); // Infer language from path as the file might not exist yet
+          const lang = getLanguage(path); 
           return { result: `Success:\n\`\`\`${lang}\n${stagedChange.newContent}\n\`\`\`` };
         }
       }
@@ -139,7 +137,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
             return { result: `Success: No changes for ${path}.` };
         }
 
-        // A basic line-by-line diff. This doesn't use a proper LCS algorithm but is better than nothing.
         const headLines = headContent.split('\n');
         const currentLines = file.content.split('\n');
         const diffOutput: string[] = [];
@@ -212,7 +209,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
                 }).join(' '))
             };
             
-            // This is NOT a real sandbox. It's a minimal isolation for capturing output.
             const sandboxedFunction = new Function('console', fileToExec.content);
             sandboxedFunction(sandboxedConsole);
             
@@ -258,7 +254,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         let totalMatches = 0;
 
         try {
-            const regex = new RegExp(pattern, 'i'); // Case-insensitive, no 'g' flag needed for line-by-line test
+            const regex = new RegExp(pattern, 'i'); 
 
             for (const file of filesToSearch) {
                 if (!file.content) continue;
@@ -312,7 +308,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         }
         
         const originalContent = fileToFix.content;
-        // FIX: Changed validateCode to runLinting.
         const diagnostics = runLinting(originalContent, fileToFix.language);
 
         if (diagnostics.length === 0) {
@@ -326,7 +321,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         const instruction = `Please fix the following ${diagnostics.length} errors in the provided code snippet:\n${errorsString}\n\nReturn ONLY the complete, corrected code for the entire file. Do not add any explanations, comments, or markdown formatting.`;
 
         try {
-            // Use editCode to get the fix, treating the whole file as the selection.
             const fixedCode = await aiService.editCode('', originalContent, '', instruction, fileToFix, files);
             
             if (fixedCode && fixedCode.trim() !== originalContent.trim()) {

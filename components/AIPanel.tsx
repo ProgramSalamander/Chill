@@ -12,6 +12,7 @@ import { useAgentStore } from '../stores/agentStore';
 import { useUIStore } from '../stores/uiStore';
 import PlanNode from './ai/PlanNode';
 import { getAIConfig } from '../services';
+import { selectActiveFile, selectMessages, selectIsGenerating, selectIsAIOpen } from '../stores/selectors';
 
 interface AIPanelProps {
   onInsertCode: (code: string) => void;
@@ -24,7 +25,7 @@ const ModelSwitcher: React.FC = () => {
     const activeId = useChatStore(state => state.activeChatProfileId);
     const setActiveProfile = useChatStore(state => state.setActiveChatProfile);
 
-    const activeProfile = profiles.find(p => p.id === activeId) || profiles.find(p => p.id === globalActiveId) || profiles[0];
+    const activeProfile = useMemo(() => profiles.find(p => p.id === activeId) || profiles.find(p => p.id === globalActiveId) || profiles[0], [profiles, activeId, globalActiveId]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -36,24 +37,25 @@ const ModelSwitcher: React.FC = () => {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    if (!activeProfile) return <div className="text-[10px] text-red-400 font-mono mt-0.5">No Model</div>;
+    if (!activeProfile) return <div className="text-[10px] text-red-400 font-mono mt-0.5">No Model Selected</div>;
 
     return (
         <div className="relative" ref={wrapperRef}>
-            <button onClick={() => setIsOpen(!isOpen)} className="text-[10px] text-slate-500 font-mono mt-0.5 hover:text-white transition-colors flex items-center gap-1">
+            <button onClick={() => setIsOpen(!isOpen)} className="text-[10px] text-slate-500 font-mono mt-0.5 hover:text-white transition-colors flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
                 <span className="truncate max-w-[120px]" title={activeProfile.name}>{activeProfile.name}</span>
-                <IconChevronDown size={12} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <IconChevronDown size={10} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
-                <div className="absolute top-full mt-2 left-0 w-48 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50 z-30">
+                <div className="absolute top-full mt-2 left-0 w-52 bg-[#0f0f16]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl py-2 flex flex-col animate-in fade-in zoom-in-95 duration-200 ring-1 ring-black/50 z-50">
+                    <div className="px-3 py-1.5 text-[9px] font-bold text-slate-500 uppercase tracking-widest border-b border-white/5 mb-1">Select Profile</div>
                     {profiles.map(p => (
                         <button 
                             key={p.id}
                             onClick={() => { setActiveProfile(p.id); setIsOpen(false); }}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors mx-1 ${activeProfile.id === p.id ? 'bg-vibe-accent/20 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                            className={`w-full text-left px-3 py-2.5 transition-all mx-1 rounded-lg ${activeProfile.id === p.id ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5'}`}
                         >
-                            <p className="font-semibold truncate">{p.name}</p>
-                            <p className="text-slate-500 font-mono text-[10px] truncate">{p.modelId}</p>
+                            <p className="font-semibold text-xs truncate">{p.name}</p>
+                            <p className="text-slate-500 font-mono text-[9px] truncate opacity-60">{p.modelId}</p>
                         </button>
                     ))}
                 </div>
@@ -66,60 +68,66 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const [mode, setMode] = useState<'chat' | 'agent'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const messages = useChatStore(state => state.messages);
-  const isGenerating = useChatStore(state => state.isGenerating);
+  const messages = useChatStore(selectMessages);
+  const isGenerating = useChatStore(selectIsGenerating);
   const clearChat = useChatStore(state => state.clearChat);
-  const files = useFileTreeStore(state => state.files);
-  const activeFileId = useFileTreeStore(state => state.activeFileId);
-  const activeFile = useMemo(() => files.find(f => f.id === activeFileId) || null, [files, activeFileId]);
+  
+  const activeFile = useFileTreeStore(selectActiveFile);
   const updateFileContent = useFileTreeStore(state => state.updateFileContent);
-  const isOpen = useUIStore(state => state.isAIOpen);
+  
+  const isOpen = useUIStore(selectIsAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
+  
   const status = useAgentStore(state => state.status);
   const agentSteps = useAgentStore(state => state.agentSteps);
   const plan = useAgentStore(state => state.plan);
   const resetAgent = useAgentStore(state => state.resetAgent);
   const startAgent = useAgentStore(state => state.startAgent);
 
-  const isAgentRunning = status === 'thinking' || status === 'executing' || status === 'planning';
+  const isAgentRunning = useMemo(() => status === 'thinking' || status === 'executing' || status === 'planning', [status]);
   const lastStep = agentSteps[agentSteps.length - 1];
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      const timer = setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 150);
+      return () => clearTimeout(timer);
     }
   }, [messages, agentSteps, isOpen, mode, status, plan, lastStep]);
   
   return (
     <div 
       className={`
-        flex flex-col glass-panel rounded-2xl shadow-2xl 
-        transition-all duration-300 ease-in-out border-white/10 overflow-hidden shrink-0
-        ${isOpen ? 'w-[450px]' : 'w-0 p-0 border-0 opacity-0'}
+        flex flex-col glass-panel rounded-2xl shadow-3xl 
+        transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] border-white/10 overflow-hidden shrink-0
+        ${isOpen ? 'w-[460px]' : 'w-0 p-0 border-0 opacity-0 pointer-events-none'}
       `}
     >
-      <div className="absolute inset-0 z-[-1] opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat opacity-20 mix-blend-overlay"></div>
+      <div className="absolute inset-0 z-[-1] opacity-20 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat mix-blend-overlay"></div>
       
-      <div className="flex flex-col border-b border-white/5 bg-white/5 backdrop-blur-md z-10 shrink-0">
-          <div className="flex items-center justify-between p-4 pb-2">
-            <div className="flex items-center gap-3">
+      <div className="flex flex-col border-b border-white/5 bg-white/5 backdrop-blur-xl z-10 shrink-0">
+          <div className="flex items-center justify-between px-5 py-5 pb-3">
+            <div className="flex items-center gap-4">
               <div className="relative">
                   {mode === 'agent' ? (
-                    <div className="relative">
-                       <div className={`absolute inset-0 blur-lg opacity-40 animate-pulse ${status === 'completed' ? 'bg-green-500' : status === 'failed' ? 'bg-red-500' : 'bg-orange-500'}`}></div>
-                       <IconCpu size={24} className={`${status === 'completed' ? 'text-green-400' : status === 'failed' ? 'text-red-400' : 'text-orange-400'} relative z-10 ${isAgentRunning ? 'animate-spin-slow' : ''}`} />
+                    <div className="relative group">
+                       <div className={`absolute inset-0 blur-xl opacity-50 animate-pulse transition-colors ${status === 'completed' ? 'bg-green-500' : status === 'failed' ? 'bg-red-500' : 'bg-orange-500'}`}></div>
+                       <div className="bg-black/40 p-2 rounded-xl border border-white/10 relative z-10">
+                         <IconCpu size={22} className={`${status === 'completed' ? 'text-green-400' : status === 'failed' ? 'text-red-400' : 'text-orange-400'} ${isAgentRunning ? 'animate-spin-slow' : ''}`} />
+                       </div>
                     </div>
                   ) : (
-                    <div className="relative">
-                       <div className="absolute inset-0 bg-vibe-accent blur-lg opacity-40 animate-pulse"></div>
-                       <IconSparkles size={24} className="text-vibe-glow relative z-10" />
+                    <div className="relative group">
+                       <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-40 animate-pulse"></div>
+                       <div className="bg-black/40 p-2 rounded-xl border border-white/10 relative z-10">
+                         <IconSparkles size={22} className="text-vibe-glow" />
+                       </div>
                     </div>
                   )}
               </div>
               <div>
-                  <h3 className="font-bold tracking-wide text-white text-sm flex items-center gap-2">
+                  <h3 className="font-bold tracking-tight text-white text-base flex items-center gap-2">
                       {mode === 'chat' ? 'Vibe Chat' : 'Neural Agent'}
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono">v3.1</span>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono tracking-widest uppercase">Agent v3</span>
                   </h3>
                   <ModelSwitcher />
               </div>
@@ -128,52 +136,52 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
                 <Tooltip content={mode === 'chat' ? "Clear Chat" : "Reset Agent"} position="left">
                   <button 
                       onClick={() => mode === 'chat' ? clearChat() : resetAgent()}
-                      className="text-slate-500 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-full"
+                      className="text-slate-500 hover:text-red-400 transition-all p-2.5 hover:bg-white/5 rounded-xl"
                   >
-                    <IconTrash size={16} />
+                    <IconTrash size={18} />
                   </button>
                 </Tooltip>
                 <Tooltip content="Close Panel" position="left">
-                  <button onClick={() => setIsAIOpen(false)} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full">
-                    <IconClose size={18} />
+                  <button onClick={() => setIsAIOpen(false)} className="text-slate-500 hover:text-white transition-all p-2.5 hover:bg-white/5 rounded-xl">
+                    <IconClose size={20} />
                   </button>
                 </Tooltip>
             </div>
           </div>
 
-          <div className="px-4 pb-4 pt-1 flex items-center justify-between gap-2">
-              <div className="flex bg-black/20 p-1 rounded-xl border border-white/5 w-full backdrop-blur-sm">
+          <div className="px-5 pb-5 pt-1 flex items-center justify-between gap-2">
+              <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/10 w-full backdrop-blur-md">
                   <button 
                     onClick={() => setMode('chat')}
                     className={`
-                      flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
-                      ${mode === 'chat' ? 'bg-vibe-accent/20 text-white shadow-sm border border-vibe-accent/30' : 'text-slate-500 hover:text-slate-300'}
+                      flex-1 flex items-center justify-center gap-2.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all duration-300
+                      ${mode === 'chat' ? 'bg-vibe-accent/30 text-white shadow-lg border border-vibe-accent/40' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
-                    <IconSparkles size={12} />
+                    <IconSparkles size={13} />
                     Chat
                   </button>
                   <button 
                     onClick={() => setMode('agent')}
                     className={`
-                       flex-1 flex items-center justify-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
-                      ${mode === 'agent' ? 'bg-orange-500/20 text-orange-300 shadow-sm border border-orange-500/30' : 'text-slate-500 hover:text-slate-300'}
+                       flex-1 flex items-center justify-center gap-2.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all duration-300
+                      ${mode === 'agent' ? 'bg-orange-500/30 text-orange-300 shadow-lg border border-orange-500/40' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
-                    <IconCpu size={12} />
+                    <IconCpu size={13} />
                     Agent
                   </button>
               </div>
           </div>
           
           {mode === 'agent' && (plan.length > 0 || status === 'planning') && (
-            <div className="px-4 pb-3 animate-in fade-in duration-300">
+            <div className="px-5 pb-4 animate-in fade-in slide-in-from-top-2 duration-400">
                 <PlanNode plan={plan} status={status} />
             </div>
           )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/30">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar bg-gradient-to-b from-transparent via-transparent to-black/40">
         {mode === 'chat' ? (
           <ChatView 
             messages={messages}
@@ -187,7 +195,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
             agentSteps={agentSteps}
           />
         )}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-4" />
       </div>
 
       <AIPanelInput

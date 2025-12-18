@@ -1,12 +1,15 @@
+
 import React from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
-import { IconBrain, IconCheckCircle, IconGitBranch, IconArrowDown, IconRefresh } from './Icons';
+import { useLinterStore, availableLinters } from '../stores/linterStore';
+import { IconBrain, IconCheckCircle, IconGitBranch, IconArrowDown, IconRefresh, IconBug } from './Icons';
 
 const StatusBar: React.FC = () => {
     const indexingProgress = useUIStore(state => state.indexingProgress);
     const indexingStatus = useUIStore(state => state.indexingStatus);
     const { isCloning, isPulling, isFetching, cloneProgress } = useGitStore();
+    const linterStatuses = useLinterStore(state => state.linterStatuses);
 
     const getIndexingContent = () => {
         if (indexingStatus === 'indexing') {
@@ -66,22 +69,48 @@ const StatusBar: React.FC = () => {
         return null;
     };
 
+    const getLinterStatusContent = () => {
+        const activeLinters = availableLinters.filter(l => linterStatuses[l.id] === 'initializing' || linterStatuses[l.id] === 'ready');
+        
+        return activeLinters.map(l => {
+            const status = linterStatuses[l.id];
+            if (status === 'initializing') {
+                return (
+                    <div key={l.id} className="flex items-center gap-2 text-amber-400 animate-pulse">
+                        <IconBug size={12} className="animate-spin-slow" />
+                        <span>Initializing {l.name}...</span>
+                    </div>
+                );
+            }
+            if (status === 'ready') {
+                return (
+                    <div key={l.id} className="flex items-center gap-2 text-slate-500 opacity-80 group hover:opacity-100 transition-opacity">
+                        <IconBug size={12} className="text-green-500/50 group-hover:text-green-500 transition-colors" />
+                        <span>{l.name} Ready</span>
+                    </div>
+                );
+            }
+            return null;
+        });
+    };
 
     return (
         <div className="h-6 bg-vibe-900/80 backdrop-blur-sm border-t border-vibe-border flex items-center px-4 text-xs text-slate-400 shrink-0">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 overflow-hidden">
                 {/* Git Status */}
                 {getGitStatusContent()}
                 {/* RAG Indexing Status */}
                 {getIndexingContent()}
+                {/* Linter Status */}
+                {getLinterStatusContent()}
             </div>
 
             <div className="flex-1" />
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 shrink-0">
                  <span className="font-mono text-[10px] text-slate-500">UTF-8</span>
                  <span className="font-mono text-[10px] text-slate-500">LF</span>
-                 <span className="font-mono text-[10px] text-slate-500">Chill</span>
+                 <span className="font-mono text-[10px] text-slate-500 tracking-wider font-bold">CHILL IDE</span>
             </div>
         </div>
     );

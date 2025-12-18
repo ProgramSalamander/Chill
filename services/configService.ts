@@ -8,9 +8,9 @@ const DEFAULT_PROFILE_ID = 'default-gemini-flash';
 const DEFAULT_CONFIG: AIConfig = {
   profiles: [{
     id: DEFAULT_PROFILE_ID,
-    name: 'Default Gemini Flash',
+    name: 'Vibe Flash (Gemini 3)',
     provider: 'gemini',
-    modelId: 'gemini-2.5-flash',
+    modelId: 'gemini-3-flash-preview',
     baseUrl: '',
     apiKey: ''
   }],

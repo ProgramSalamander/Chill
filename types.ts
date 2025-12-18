@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 
 export interface File {
@@ -223,6 +222,8 @@ export interface PreFlightResult {
 }
 
 // --- Linter Types ---
+export type LinterStatus = 'idle' | 'initializing' | 'ready' | 'error';
+
 export interface Linter {
   id: string;
   name: string;

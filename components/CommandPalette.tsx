@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   IconSearch, 
@@ -21,6 +22,10 @@ interface CommandAction {
   shortcut?: string;
   run: () => void;
 }
+
+type PaletteItem = 
+  | { type: 'file'; data: File }
+  | { type: 'action'; data: CommandAction };
 
 const CommandPalette: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -56,13 +61,13 @@ const CommandPalette: React.FC = () => {
       } },
   ];
 
-  const flatItems = useMemo(() => {
+  const flatItems = useMemo((): PaletteItem[] => {
     if (!query) {
-      const fileItems = files
+      const fileItems: PaletteItem[] = files
         .filter(f => f.type === 'file')
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map(f => ({ type: 'file' as const, data: f }));
-      const actionItems = actions.map(a => ({ type: 'action' as const, data: a }));
+        .map(f => ({ type: 'file', data: f }));
+      const actionItems: PaletteItem[] = actions.map(a => ({ type: 'action', data: a }));
       return [...fileItems, ...actionItems];
     }
 
@@ -73,7 +78,7 @@ const CommandPalette: React.FC = () => {
         data: f,
         score: fuzzySearch(query, f.name)
       }))
-      .filter(item => item.score > 0.05); // Adjust threshold as needed
+      .filter(item => item.score > 0.05);
 
     const scoredActions = actions
       .map(a => ({
@@ -81,14 +86,16 @@ const CommandPalette: React.FC = () => {
         data: a,
         score: fuzzySearch(query, a.label)
       }))
-      .filter(item => item.score > 0.1); // Higher threshold for actions
+      .filter(item => item.score > 0.1);
 
     const allItems = [...scoredFiles, ...scoredActions];
     allItems.sort((a, b) => b.score - a.score);
     
-    // FIX: Correctly map to create a discriminated union by omitting the `score` property.
-    // This ensures TypeScript can correlate `item.type` with the type of `item.data`.
-    return allItems.map(({ score, ...rest }) => rest);
+    // Correctly typed PaletteItem array
+    return allItems.map(({ type, data }): PaletteItem => {
+        if (type === 'file') return { type, data: data as File };
+        return { type, data: data as CommandAction };
+    });
   }, [files, actions, query]);
 
   useEffect(() => {
@@ -133,31 +140,31 @@ const CommandPalette: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsCommandPaletteOpen(false)}>
       <div 
-        className="w-[600px] max-w-[90vw] bg-[#0f0f16] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+        className="w-[600px] max-w-[90vw] bg-[#0f0f16]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-3xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center px-4 py-3 border-b border-white/5 bg-white/5">
-           <IconSearch className="text-slate-500 w-5 h-5 mr-3" />
+        <div className="flex items-center px-6 py-4 border-b border-white/5 bg-white/5">
+           <IconSearch className="text-vibe-glow w-5 h-5 mr-4 opacity-70" />
            <input 
              ref={inputRef}
              type="text"
-             className="flex-1 bg-transparent border-none outline-none text-slate-200 placeholder-slate-500 font-sans text-sm"
+             className="flex-1 bg-transparent border-none outline-none text-slate-200 placeholder-slate-600 font-sans text-sm"
              placeholder="Type a command or search files..."
              value={query}
              onChange={e => setQuery(e.target.value)}
              onKeyDown={handleKeyDown}
            />
-           <div className="flex gap-1">
-             <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px] font-medium text-slate-500">
+           <div className="flex gap-2">
+             <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 font-mono text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                ESC
              </kbd>
            </div>
         </div>
         
-        <div className="max-h-[60vh] overflow-y-auto p-2" ref={listRef}>
+        <div className="max-h-[50vh] overflow-y-auto p-2.5 custom-scrollbar" ref={listRef}>
            {flatItems.length === 0 ? (
-             <div className="py-8 text-center text-slate-500 text-sm">
-               No results found.
+             <div className="py-12 text-center text-slate-500 text-sm italic">
+               No results matching your query.
              </div>
            ) : (
              <>
@@ -169,13 +176,13 @@ const CommandPalette: React.FC = () => {
                         key={`file-${item.data.id}`}
                         onClick={() => { selectFile(item.data); setIsCommandPaletteOpen(false); }}
                         className={`
-                          flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm mb-1
-                          ${isSelected ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5'}
+                          flex items-center justify-between px-4 py-2.5 rounded-xl cursor-pointer transition-all text-sm mb-1
+                          ${isSelected ? 'bg-vibe-accent/20 text-white shadow-lg' : 'text-slate-400 hover:bg-white/5'}
                         `}
                      >
-                       <div className="flex items-center gap-3">
-                         <IconFileCode size={16} className={isSelected ? 'text-vibe-glow' : 'text-slate-600'} />
-                         <span>{item.data.name}</span>
+                       <div className="flex items-center gap-4">
+                         <IconFileCode size={18} className={isSelected ? 'text-vibe-glow' : 'text-slate-600'} />
+                         <span className="font-medium">{item.data.name}</span>
                        </div>
                        {isSelected && <IconChevronRight size={14} className="opacity-50" />}
                      </div>
@@ -186,18 +193,18 @@ const CommandPalette: React.FC = () => {
                         key={`action-${item.data.id}`}
                         onClick={() => { item.data.run(); setIsCommandPaletteOpen(false); }}
                         className={`
-                          flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm mb-1
-                          ${isSelected ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5'}
+                          flex items-center justify-between px-4 py-2.5 rounded-xl cursor-pointer transition-all text-sm mb-1
+                          ${isSelected ? 'bg-vibe-accent/20 text-white shadow-lg' : 'text-slate-400 hover:bg-white/5'}
                         `}
                      >
-                       <div className="flex items-center gap-3">
+                       <div className="flex items-center gap-4">
                          <div className={isSelected ? 'text-vibe-glow' : 'text-slate-600'}>
                              {item.data.icon}
                          </div>
-                         <span>{item.data.label}</span>
+                         <span className="font-medium">{item.data.label}</span>
                        </div>
                        {item.data.shortcut && (
-                         <span className={`text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-600'}`}>
+                         <span className={`text-[10px] font-bold tracking-widest ${isSelected ? 'text-indigo-200' : 'text-slate-600'}`}>
                            {item.data.shortcut}
                          </span>
                        )}
@@ -209,13 +216,12 @@ const CommandPalette: React.FC = () => {
            )}
         </div>
         
-        <div className="px-4 py-2 bg-vibe-900 border-t border-white/5 text-[10px] text-slate-600 flex justify-between items-center">
-            <span>
-              <span className="text-vibe-glow">↑↓</span> to navigate
+        <div className="px-5 py-3 bg-vibe-900 border-t border-white/5 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 flex justify-between items-center">
+            <span className="flex items-center gap-4">
+              <span className="flex items-center gap-1"><span className="text-vibe-glow">↑↓</span> to navigate</span>
+              <span className="flex items-center gap-1"><span className="text-vibe-glow">↵</span> to select</span>
             </span>
-            <span>
-              <span className="text-vibe-glow">↵</span> to select
-            </span>
+            <span className="opacity-50">Vibe Search Engine</span>
         </div>
       </div>
     </div>
