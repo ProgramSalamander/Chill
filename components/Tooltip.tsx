@@ -1,4 +1,6 @@
+
 import React, { useState, useRef, useLayoutEffect, useCallback } from 'react';
+import { useUIStore } from '../stores/uiStore';
 
 interface TooltipProps {
   content: React.ReactNode;
@@ -17,6 +19,7 @@ const Tooltip: React.FC<TooltipProps> = ({
   const [style, setStyle] = useState<React.CSSProperties>({});
   const wrapperRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const isDraggingSidebar = useUIStore(state => state.isDraggingSidebar);
 
   const calculatePosition = useCallback(() => {
     if (!wrapperRef.current || !tooltipRef.current) return;
@@ -25,7 +28,6 @@ const Tooltip: React.FC<TooltipProps> = ({
     const tooltipRect = tooltipRef.current.getBoundingClientRect();
     const newStyle: React.CSSProperties = {};
     
-    // Reduced gap from 8 to 4 to make tooltip closer to the icon
     const gap = 4;
     const screenPadding = 8;
     
@@ -52,7 +54,6 @@ const Tooltip: React.FC<TooltipProps> = ({
         break;
     }
     
-    // Viewport clamping
     if (left < screenPadding) {
       left = screenPadding;
     } else if (left + tooltipRect.width > window.innerWidth - screenPadding) {
@@ -72,12 +73,12 @@ const Tooltip: React.FC<TooltipProps> = ({
   }, [position, content, shortcut]);
 
   useLayoutEffect(() => {
-    if (visible) {
+    if (visible && !isDraggingSidebar) {
       calculatePosition();
     }
-  }, [visible, calculatePosition]);
+  }, [visible, calculatePosition, isDraggingSidebar]);
 
-  const show = () => setVisible(true);
+  const show = () => !isDraggingSidebar && setVisible(true);
   const hide = () => setVisible(false);
 
   return (
@@ -97,8 +98,8 @@ const Tooltip: React.FC<TooltipProps> = ({
         style={{
           ...style,
           position: 'fixed',
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'scale(1)' : 'scale(0.95)',
+          opacity: (visible && !isDraggingSidebar) ? 1 : 0,
+          transform: (visible && !isDraggingSidebar) ? 'scale(1)' : 'scale(0.95)',
           transition: 'opacity 0.08s ease-out, transform 0.08s ease-out',
           pointerEvents: 'none',
           zIndex: 250,

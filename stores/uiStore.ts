@@ -21,6 +21,7 @@ interface UIState {
   isPreviewOpen: boolean;
   isCloneModalOpen: boolean;
   isNewProjectModalOpen: boolean;
+  isDraggingSidebar: boolean;
   
   // Context Menu
   contextMenu: ContextMenuState;
@@ -43,6 +44,7 @@ interface UIState {
   setIsCloneModalOpen: (isOpen: boolean) => void;
   setIsNewProjectModalOpen: (isOpen: boolean) => void;
   setIndexingStatus: (status: IndexingStatus) => void;
+  setIsDraggingSidebar: (isDragging: boolean) => void;
   
   setInlineCompletionsEnabled: (enabled: boolean) => void;
   setDisabledInlineLanguages: (languages: string[]) => void;
@@ -109,6 +111,7 @@ export const useUIStore = create<UIState>()(
       isPreviewOpen: false,
       isCloneModalOpen: false,
       isNewProjectModalOpen: false,
+      isDraggingSidebar: false,
       indexingStatus: 'idle',
       
       contextMenu: { x: 0, y: 0, visible: false, items: [] },
@@ -129,6 +132,7 @@ export const useUIStore = create<UIState>()(
       setIsCloneModalOpen: (isOpen) => set({ isCloneModalOpen: isOpen }),
       setIsNewProjectModalOpen: (isOpen) => set({ isNewProjectModalOpen: isOpen }),
       setIndexingStatus: (status) => set({ indexingStatus: status }),
+      setIsDraggingSidebar: (isDragging) => set({ isDraggingSidebar: isDragging }),
       
       setInlineCompletionsEnabled: (enabled) => set({ inlineCompletionsEnabled: enabled }),
       setDisabledInlineLanguages: (languages) => set({ disabledInlineLanguages: languages }),
