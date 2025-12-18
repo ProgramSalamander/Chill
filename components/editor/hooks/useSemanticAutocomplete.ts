@@ -32,21 +32,25 @@ export const useSemanticAutocomplete = (
             // Only search if we have enough context
             if (textUntil.trim().length < 4) return { suggestions: [] };
 
-            const results = ragService.search(textUntil, 3);
-            
-            const suggestions = results.map(r => ({
-                label: { 
-                    label: `✨ ${r.snippet.slice(0, 30).replace(/\n/g, ' ')}...`, 
-                    description: `from ${r.filePath}` 
-                },
-                kind: monacoInstance.languages.CompletionItemKind.Snippet,
-                insertText: r.snippet,
-                documentation: `Matched Code from ${r.filePath}:\n\n${r.snippet}`,
-                range: range,
-                sortText: '000_' + r.score // Prioritize these
-            }));
+            try {
+                const results = await ragService.search(textUntil, 3);
+                
+                const suggestions = results.map(r => ({
+                    label: { 
+                        label: `✨ ${r.snippet.slice(0, 30).replace(/\n/g, ' ')}...`, 
+                        description: `from ${r.filePath}` 
+                    },
+                    kind: monacoInstance.languages.CompletionItemKind.Snippet,
+                    insertText: r.snippet,
+                    documentation: `Matched Code from ${r.filePath}:\n\n${r.snippet}`,
+                    range: range,
+                    sortText: '000_' + r.score // Prioritize these
+                }));
 
-            return { suggestions };
+                return { suggestions };
+            } catch (e) {
+                return { suggestions: [] };
+            }
         }
     });
 

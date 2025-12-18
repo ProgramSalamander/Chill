@@ -178,7 +178,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
     }
 
     case 'searchCode': {
-      const results = ragService.search(args.query, 5);
+      const results = await ragService.search(args.query, 5);
       if (!results.length) return { result: "No semantic matches found." };
       return { result: `Search Results:\n${results.map(r => `File: ${r.filePath}\nSnippet: ${r.snippet}`).join('\n---\n')}` };
     }

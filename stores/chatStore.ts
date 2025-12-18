@@ -124,7 +124,7 @@ export const useChatStore = create<ChatState>()(
               }
               prompt = `[EXPLICIT CONTEXT]\n${contextContent}\n[QUERY]\n${text}`;
           } else if (contextScope === 'project') {
-              const context = ragService.getContext(text, activeFile, files);
+              const context = await ragService.getContext(text, activeFile, files);
               prompt = `[SMART CONTEXT]\n${context}\n\n[QUERY]\n${text}`;
           } else if (activeFile) {
               prompt = `[FILE: ${activeFile.name}]\n${activeFile.content}\n\n[QUERY]\n${text}`;

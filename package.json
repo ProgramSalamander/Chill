@@ -24,7 +24,8 @@
     "@isomorphic-git/lightning-fs": "^4.6.2",
     "buffer": "^6.0.3",
     "showdown": "^2.1.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "webworker": "^0.8.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
