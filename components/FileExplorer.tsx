@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { 
   IconFileCode, 
@@ -10,7 +11,8 @@ import {
   IconFolderPlus,
   IconCheck,
   IconClose,
-  IconBrain
+  IconBrain,
+  IconSparkles
 } from './Icons';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -31,6 +33,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const createNode = useFileTreeStore(state => state.createNode);
   const toggleFolder = useFileTreeStore(state => state.toggleFolder);
   const agentAwareness = useAgentStore(state => state.agentAwareness);
+  const patches = useAgentStore(state => state.patches);
 
   const isGitInitialized = useGitStore(state => state.isInitialized);
   const gitStatus = useGitStore(state => state.status);
@@ -73,12 +76,10 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
     return gitStatus.find(s => s.filepath === filePath);
   }, [isGitInitialized, gitStatus, filePath, node.type]);
 
-  // 'added' in gitService means untracked
   const isAdded = nodeGitStatus?.status === 'added';
-  // 'modified' means modified in the working directory
   const isModified = nodeGitStatus?.status === 'modified';
-  
   const isAware = agentAwareness?.has(node.id);
+  const hasPatch = patches.some(p => p.fileId === node.id);
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -117,7 +118,8 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
         className={`
           group flex items-center gap-2 py-1.5 px-3 cursor-pointer transition-all relative rounded-lg mx-1
           ${activeFileId === node.id ? 'bg-vibe-accent/20 text-vibe-text-main' : 'text-vibe-text-soft hover:bg-black/5 dark:hover:bg-white/5 hover:text-vibe-text-main'}
-          ${isAware && activeFileId !== node.id ? 'bg-vibe-glow/5 border border-vibe-glow/10 shadow-[0_0_10px_rgba(199,210,254,0.05)]' : ''}
+          ${isAware && activeFileId !== node.id ? 'bg-vibe-glow/5 border border-vibe-glow/10' : ''}
+          ${hasPatch ? 'ring-1 ring-vibe-accent/20' : ''}
         `}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => selectFile(node)}
@@ -136,7 +138,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
           )}
         </span>
 
-        <span className={`flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (isModified ? 'text-amber-500' : (isAdded ? 'text-green-600 dark:text-green-400' : 'text-vibe-text-muted'))}`}>
+        <span className={`flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (hasPatch ? 'text-vibe-accent' : (isModified ? 'text-amber-500' : (isAdded ? 'text-green-600 dark:text-green-400' : 'text-vibe-text-muted')))}`}>
           {node.type === 'folder' ? (
              node.isOpen ? <IconFolderOpen size={16} /> : <IconFolder size={16} />
           ) : (
@@ -161,12 +163,18 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
             </div>
         ) : (
             <>
-              <span className={`truncate text-sm flex-1 min-w-0 ${node.isModified ? 'italic' : ''} ${isModified ? 'text-amber-600 dark:text-amber-200' : (isAdded ? 'text-green-600 dark:text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
+              <span className={`truncate text-sm flex-1 min-w-0 ${node.isModified ? 'italic' : ''} ${hasPatch ? 'text-vibe-glow font-bold' : (isModified ? 'text-amber-600 dark:text-amber-200' : (isAdded ? 'text-green-600 dark:text-green-200' : ''))} ${isAware ? 'text-vibe-glow/80' : ''}`}>
                   {node.name}
               </span>
 
               <div className="flex items-center gap-x-2 mr-2 shrink-0">
-                  {node.isModified && (
+                  {hasPatch && (
+                      <div className="flex items-center gap-1">
+                          <IconSparkles size={10} className="text-vibe-accent animate-pulse" />
+                          <span className="text-[8px] font-black uppercase text-vibe-accent tracking-tighter">Patch</span>
+                      </div>
+                  )}
+                  {node.isModified && !hasPatch && (
                       <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse" title="Unsaved changes"></div>
                   )}
 
@@ -177,7 +185,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                       <span className="text-[9px] font-bold text-green-600 dark:text-green-400 font-mono bg-green-500/10 px-1 rounded" title="Added (Untracked)">U</span>
                   )}
                   
-                  {isAware && !isModified && !isAdded && (
+                  {isAware && !isModified && !isAdded && !hasPatch && (
                       <IconBrain size={10} className="text-vibe-glow animate-pulse opacity-50" />
                   )}
               </div>

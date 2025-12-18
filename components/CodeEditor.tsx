@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
@@ -54,19 +55,39 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
   getDomNode() {
     if (!this.domNode) {
       this.domNode = document.createElement('div');
-      this.domNode.className = 'ai-patch-widget';
+      this.domNode.className = 'ai-patch-widget animate-in fade-in slide-in-from-top-2 duration-300';
+      this.domNode.style.cssText = `
+        display: flex;
+        gap: 8px;
+        background: rgba(15, 15, 22, 0.85);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(129, 140, 248, 0.3);
+        border-radius: 12px;
+        padding: 4px 6px;
+        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(129, 140, 248, 0.1);
+        pointer-events: auto;
+        z-index: 100;
+      `;
+
+      const info = document.createElement('div');
+      info.style.cssText = 'color: #818cf8; font-size: 9px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; padding: 0 4px; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 2px;';
+      info.textContent = 'AI Proposal';
 
       const keep = document.createElement('button');
       keep.textContent = 'Keep';
-      keep.className = 'btn-keep';
+      keep.style.cssText = 'background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s;';
       keep.onclick = (e) => { e.stopPropagation(); this.onAccept(); };
+      keep.onmouseover = () => { keep.style.background = 'rgba(34, 197, 94, 0.3)'; };
+      keep.onmouseout = () => { keep.style.background = 'rgba(34, 197, 94, 0.15)'; };
 
       const reject = document.createElement('button');
       reject.textContent = 'Reject';
-      reject.className = 'btn-reject';
+      reject.style.cssText = 'background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 2px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s;';
       reject.onclick = (e) => { e.stopPropagation(); this.onReject(); };
+      reject.onmouseover = () => { reject.style.background = 'rgba(239, 68, 68, 0.3)'; };
+      reject.onmouseout = () => { reject.style.background = 'rgba(239, 68, 68, 0.15)'; };
 
-      this.domNode.append(keep, reject);
+      this.domNode.append(info, keep, reject);
     }
     return this.domNode;
   }

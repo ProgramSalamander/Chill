@@ -43,14 +43,15 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         return { result: `Error: Cannot write file. A folder already exists at path ${path}` };
       }
 
-      if (existingFile) { // Create an inline patch for existing file
+      if (existingFile) { 
+        // Create an inline patch for existing file
         const lines = existingFile.content.split('\n');
         addPatch({
           fileId: existingFile.id,
           range: {
             startLineNumber: 1,
             startColumn: 1,
-            endLineNumber: lines.length,
+            endLineNumber: lines.length || 1,
             endColumn: (lines[lines.length - 1]?.length || 0) + 1
           },
           originalText: existingFile.content,
@@ -58,10 +59,10 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         });
 
         return {
-          result: `Success: Proposed changes to ${path} as an inline patch. Review in editor.`,
+          result: `Success: Proposed changes to ${path} as an AI patch. Review in the editor.`,
         };
       } else { 
-        // For new files, create them immediately as if the user did it
+        // For new files, create them as empty first, then apply a patch
         const { createNode } = useFileTreeStore.getState();
         const pathSegments = path.split('/').filter(p => p);
         const name = pathSegments.pop() || 'untitled.ts';
@@ -78,11 +79,29 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
             }
         }
         
-        await createNode('file', currentParentId, name, content);
+        // Create as EMPTY file first
+        const newFile = await createNode('file', currentParentId, name, '');
         
-        return {
-          result: `Success: Created and opened new file: ${path}`,
-        };
+        if (newFile) {
+            // Immediately stage the content as a patch
+            addPatch({
+              fileId: newFile.id,
+              range: {
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 1,
+                endColumn: 1
+              },
+              originalText: '',
+              proposedText: content
+            });
+
+            return {
+              result: `Success: Created new file ${path} and staged content for review.`,
+            };
+        }
+        
+        return { result: `Error: Failed to create file ${path}.` };
       }
     }
     
@@ -333,7 +352,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
                   range: {
                     startLineNumber: 1,
                     startColumn: 1,
-                    endLineNumber: lines.length,
+                    endLineNumber: lines.length || 1,
                     endColumn: (lines[lines.length - 1]?.length || 0) + 1
                   },
                   originalText: originalContent,
@@ -341,7 +360,7 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
                 });
 
                 return {
-                  result: `Success: Analyzed and proposed an automatic fix for ${diagnostics.length} errors in ${path}. Review inline.`,
+                  result: `Success: Analyzed and proposed an AI patch for ${diagnostics.length} errors in ${path}. Review in the editor.`,
                 };
             } else if (fixedCode) {
                 return { result: `Success: Analysis complete, but no changes were necessary.` };

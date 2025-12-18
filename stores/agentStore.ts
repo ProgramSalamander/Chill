@@ -26,6 +26,8 @@ interface AgentState {
   rejectAllChanges: () => void;
 }
 
+const generatePatchId = () => `patch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
 const useAgentStore = create<AgentState>((set, get) => ({
   status: 'idle',
   agentSteps: [],
@@ -139,12 +141,10 @@ For each turn, I will tell you which step needs to be worked on. You should outp
   
   addPatch: (patch) => {
     set(state => ({
-      patches: [...state.patches, { ...patch, id: Date.now().toString(), status: 'pending' }]
+      patches: [...state.patches, { ...patch, id: generatePatchId(), status: 'pending' }]
     }));
-    const file = useFileTreeStore.getState().files.find(f => f.id === patch.fileId);
-    if (file) {
-      useFileTreeStore.getState().selectFile(file);
-    }
+    // Note: We no longer auto-switch files here to prevent UI jitter during multi-file agent tasks.
+    // The File Explorer will show a badge for files with patches.
   },
 
   acceptPatch: (patchId) => {
