@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -12,39 +13,38 @@
     <style>
       /* --- THEME CSS VARIABLES --- */
       :root {
-        --bg-primary: 247 247 248; /* A custom very light gray */
-        --bg-secondary: 252 252 253; /* Lighter for panels */
-        --bg-tertiary: 241 241 242; /* For borders/hovers */
-        --text-primary: 28 33 48; /* A dark slate, not pure black */
-        --text-secondary: 82 90 115; /* A softer slate */
-        --text-tertiary: 142 149 169; /* Even softer for tertiary info */
-        --vibe-accent: 29 78 216; /* blue-700, stronger for accessibility on light bg */
-        --vibe-glow: 59 130 246; /* blue-500 */
-        --vibe-glass-rgb: 255, 255, 255; /* Pure white for the glass effect */
-        --vibe-glass-alpha: 0.7;
+        --bg-primary: 248 249 250;
+        --bg-secondary: 255 255 255;
+        --bg-tertiary: 241 243 245;
+        --text-primary: 33 37 41;
+        --text-secondary: 73 80 87;
+        --text-tertiary: 173 181 189;
+        --vibe-accent: 79 70 229; /* indigo-600 */
+        --vibe-glow: 99 102 241; /* indigo-500 */
+        --vibe-glass-rgb: 255, 255, 255;
+        --vibe-glass-alpha: 0.8;
         --vibe-border-rgb: 0, 0, 0;
-        --vibe-border-alpha: 0.07;
-        --selection-bg-rgb: 59, 130, 246; /* A bright, solid blue for selections */
-        --selection-text-rgb: 255, 255, 255; /* White text for selections */
+        --vibe-border-alpha: 0.08;
+        --selection-bg-rgb: 99, 102, 241;
+        --selection-text-rgb: 255, 255, 255;
       }
       .dark {
-        --bg-primary: 5 5 8;
-        --bg-secondary: 15 15 22;
-        --bg-tertiary: 24 24 36;
-        --text-primary: 248 250 252; /* slate-50 */
-        --text-secondary: 148 163 184; /* slate-400 */
-        --text-tertiary: 100 116 139; /* slate-500 */
-        --vibe-accent: 129 140 248; /* indigo-400 */
-        --vibe-glow: 199 210 254; /* indigo-300 */
-        --vibe-glass-rgb: 20, 20, 30;
-        --vibe-glass-alpha: 0.65;
+        --bg-primary: 3 3 5;
+        --bg-secondary: 10 10 15;
+        --bg-tertiary: 18 18 26;
+        --text-primary: 241 245 249;
+        --text-secondary: 148 163 184;
+        --text-tertiary: 71 85 105;
+        --vibe-accent: 129 140 248;
+        --vibe-glow: 165 180 252;
+        --vibe-glass-rgb: 15, 15, 25;
+        --vibe-glass-alpha: 0.7;
         --vibe-border-rgb: 255, 255, 255;
-        --vibe-border-alpha: 0.08;
-        --selection-bg-rgb: 99, 102, 241; /* A vibrant indigo for selections */
-        --selection-text-rgb: 248, 250, 252; /* Off-white text for selections */
+        --vibe-border-alpha: 0.1;
+        --selection-bg-rgb: 79, 70, 229;
+        --selection-text-rgb: 255, 255, 255;
       }
       
-      /* Premium Scrollbar */
       ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -55,36 +55,40 @@
       ::-webkit-scrollbar-thumb {
         background: rgba(var(--text-primary), 0.1); 
         border-radius: 10px;
-        border: 1px solid rgba(var(--bg-primary), 0.1);
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: rgba(var(--text-primary), 0.25); 
+        background: rgba(var(--text-primary), 0.2); 
       }
       
       body {
         background-color: rgb(var(--bg-primary));
         color: rgb(var(--text-primary));
         overflow: hidden;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
       }
 
-      /* Animated Aurora Background */
       .aurora-bg {
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
+        top: -50%;
+        left: -50%;
+        width: 200vw;
+        height: 200vh;
         z-index: -1;
         background: 
-          radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
-          radial-gradient(at 98% 1%, rgba(168, 85, 247, 0.1) 0px, transparent 50%),
-          radial-gradient(at 10% 90%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
-          radial-gradient(at 90% 90%, rgba(236, 72, 153, 0.08) 0px, transparent 50%);
-        filter: blur(40px);
-        opacity: 0.3; /* Default opacity for light mode */
+          radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+          radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%),
+          radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
+          radial-gradient(at 0% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%);
+        filter: blur(80px);
+        opacity: 0.5;
+        animation: aurora-drift 40s ease-in-out infinite alternate;
+      }
+      @keyframes aurora-drift {
+        0% { transform: rotate(0deg) scale(1); }
+        100% { transform: rotate(10deg) scale(1.1); }
       }
       .dark .aurora-bg {
-        opacity: 0.8;
+        opacity: 0.9;
       }
 
       .noise-overlay {
@@ -94,37 +98,36 @@
         width: 100%;
         height: 100%;
         z-index: -1;
-        opacity: 0.03;
+        opacity: 0.02;
         pointer-events: none;
         background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
       }
-      .dark .noise-overlay {
-        opacity: 0.03;
-      }
 
-      /* Modern Glass Panels */
       .glass-panel {
         background: rgba(var(--vibe-glass-rgb), var(--vibe-glass-alpha));
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
         border: 1px solid rgba(var(--vibe-border-rgb), var(--vibe-border-alpha));
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
       }
       
-      /* Active/Selection Colors */
+      .vibe-card {
+        background: rgba(var(--vibe-glass-rgb), calc(var(--vibe-glass-alpha) * 0.5));
+        border: 1px solid rgba(var(--vibe-border-rgb), var(--vibe-border-alpha));
+        border-radius: 1rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .vibe-card:hover {
+        background: rgba(var(--vibe-glass-rgb), calc(var(--vibe-glass-alpha) * 0.8));
+        border-color: rgba(var(--vibe-accent), 0.3);
+        transform: translateY(-2px);
+      }
+
       ::selection {
         background: rgb(var(--selection-bg-rgb));
         color: rgb(var(--selection-text-rgb));
       }
 
-      /* Ghost Text Animation */
-      .ghost-text {
-        opacity: 0.5;
-        color: rgb(var(--vibe-accent)) !important;
-        font-style: italic;
-      }
-
-      /* Removes the background color from the code blocks */
       .prism-code,
       pre[class*="language-"],
       code[class*="language-"] {
@@ -152,24 +155,14 @@
               }
             },
             animation: {
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'float': 'float 6s ease-in-out infinite',
-              'glow': 'glow 3s ease-in-out infinite alternate',
-              'aurora': 'aurora 20s linear infinite',
+              'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 8s ease-in-out infinite',
+              'spin-slow': 'spin 12s linear infinite',
             },
             keyframes: {
               float: {
                 '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-10px)' },
-              },
-              glow: {
-                'from': { boxShadow: '0 0 10px -10px rgb(var(--vibe-accent))' },
-                'to': { boxShadow: '0 0 25px 5px rgba(var(--vibe-accent), 0.4)' },
-              },
-              aurora: {
-                '0%': { backgroundPosition: '0% 50%' },
-                '50%': { backgroundPosition: '100% 50%' },
-                '100%': { backgroundPosition: '0% 50%' },
+                '50%': { transform: 'translateY(-15px)' },
               }
             }
           }

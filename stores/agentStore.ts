@@ -1,10 +1,9 @@
+
 import { create } from 'zustand';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange } from '../types';
-import { aiService } from '../services/aiService';
+import { aiService, handleAgentAction, getActiveChatConfig } from '../services';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
-import { handleAgentAction } from '../services/agentToolService';
-import { getActiveChatConfig } from '../services/configService';
 
 interface AgentState {
   status: AgentStatus;
@@ -14,13 +13,11 @@ interface AgentState {
   agentAwareness: Set<string>;
   agentChatSession: AISession | null;
 
-  // Actions
   startAgent: (goal: string) => Promise<void>;
   resetAgent: () => void;
   stopAgent: () => void;
   summarizeTask: () => Promise<void>;
   
-  // Staged Changes Actions
   addStagedChange: (change: Omit<StagedChange, 'id'>) => void;
   applyChange: (id: string) => Promise<void>;
   rejectChange: (id: string) => void;
@@ -49,7 +46,6 @@ const useAgentStore = create<AgentState>((set, get) => ({
 
   stopAgent: () => {
     const { status } = get();
-    // Only allow stopping if it's actually running
     if (status !== 'thinking' && status !== 'executing' && status !== 'planning') {
       return;
     }
@@ -84,7 +80,6 @@ Current Plan:
 ${JSON.stringify(generatedPlan, null, 2)}
 For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action.`;
       
-      // FIX: The agent needs an AI model configuration to create a chat session.
       const config = getActiveChatConfig();
       if (!config) {
         throw new Error("No active AI model configured for the agent.");
@@ -141,7 +136,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
     }
   },
   
-  // --- Staged Changes Actions ---
   addStagedChange: (change) => {
     set(state => ({
       stagedChanges: [...state.stagedChanges, { ...change, id: Date.now().toString() }]
@@ -219,8 +213,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
   }
 }));
 
-// --- Helper functions to be called within the store ---
-
 async function _executeAndContinue(action: AgentPendingAction) {
     const { toolName, args } = action;
 
@@ -242,9 +234,8 @@ async function _executeAndContinue(action: AgentPendingAction) {
         useAgentStore.getState().addStagedChange(change);
       }
 
-      // If the action was readFile, update awareness
       if (toolName === 'readFile') {
-          const file = useFileTreeStore.getState().files.find(f => f.name === args.path); // Simplified find
+          const file = useFileTreeStore.getState().files.find(f => f.name === args.path);
           if (file) {
               useAgentStore.setState(state => ({ agentAwareness: new Set(state.agentAwareness).add(file.id) }));
           }
@@ -281,10 +272,8 @@ async function _executeAndContinue(action: AgentPendingAction) {
 async function processNextStep() {
   const { plan, agentChatSession, summarizeTask } = useAgentStore.getState();
   
-  // Logic to find the next available step based on dependencies
   const stepIndex = plan.findIndex(p => {
     if (p.status !== 'pending') return false;
-    // If dependencies exist, ensure they are all completed or skipped
     if (p.dependencies && p.dependencies.length > 0) {
       const allDepsMet = p.dependencies.every(depId => {
         const dep = plan.find(d => d.id === depId);
@@ -337,18 +326,15 @@ async function handleAgentResponse(response: any) {
         agentRole: useAgentStore.getState().plan.find(p => p.status === 'active')?.assignedAgent || 'coder'
     };
     
-    // All tool calls are executed now, file ops will be staged by the tool service
     await _executeAndContinue(actionToPerform);
     
   } else {
-    // No tool calls, assume step is complete
     const activeIndex = useAgentStore.getState().plan.findIndex(p => p.status === 'active');
     if (activeIndex !== -1) {
       const newPlan = useAgentStore.getState().plan.map((p, idx) => idx === activeIndex ? { ...p, status: 'completed' as const } : p);
       useAgentStore.setState({ plan: newPlan });
       processNextStep();
     } else {
-      // If no active step, might be the end of the plan
       processNextStep();
     }
   }

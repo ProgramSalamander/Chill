@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -26,9 +24,7 @@ import { useProjectStore } from './stores/projectStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
 
-import { aiService } from './services/aiService';
-import { initLinters, runLinting } from './services/lintingService';
-import { ragService } from './services/ragService';
+import { aiService, initLinters, runLinting, ragService } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { IconSparkles } from './components/Icons';
 
@@ -101,19 +97,16 @@ function App() {
   // Before Unload Listener
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      // Standard way to show a confirmation prompt
       event.preventDefault();
-      // Required for some older browsers
       event.returnValue = '';
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Cleanup function
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
   // --- HANDLERS ---
   const handleSaveFile = useCallback(() => {
@@ -125,14 +118,11 @@ function App() {
   const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
     const currentFile = useFileTreeStore.getState().files.find(f => f.id === useFileTreeStore.getState().activeFileId);
     if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
-        console.log('[App] Suggestion aborted (busy or no file).');
         return null;
     }
 
     try {
-        console.log('[App] Calling aiService.getCodeCompletion...');
         const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
-        console.log('[App] Got suggestion from aiService:', sugg);
         return sugg || null;
     } catch (e) {
         console.error("[App] Suggestion fetch failed:", e);
@@ -170,12 +160,7 @@ function App() {
     if (type === 'fix') {
       const { error, range } = context;
       addTerminalLine(`Auto-fixing: ${error}...`, 'info');
-      // Use inline assist to fix directly
       const instruction = `Fix this error: "${error}". Return the corrected code block.`;
-      
-      // Calculate a range slightly around the error for context if needed, 
-      // but Monaco context object passed here usually has the error range.
-      // We pass the error range directly to inline assist.
       handleInlineAssist(instruction, range);
     } else if (type === 'test') {
       setIsAIOpen(true);

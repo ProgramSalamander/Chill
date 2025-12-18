@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import AgentHUD from './ai/AgentHUD';
 import ChatView from './ai/ChatView';
@@ -10,7 +11,7 @@ import { useFileTreeStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useUIStore } from '../stores/uiStore';
 import PlanNode from './ai/PlanNode';
-import { getAIConfig } from '../services/configService';
+import { getAIConfig } from '../services';
 
 interface AIPanelProps {
   onInsertCode: (code: string) => void;
@@ -65,7 +66,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
   const [mode, setMode] = useState<'chat' | 'agent'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // State from Stores
   const messages = useChatStore(state => state.messages);
   const isGenerating = useChatStore(state => state.isGenerating);
   const clearChat = useChatStore(state => state.clearChat);
@@ -100,7 +100,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
     >
       <div className="absolute inset-0 z-[-1] opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat opacity-20 mix-blend-overlay"></div>
       
-      {/* Header */}
       <div className="flex flex-col border-b border-white/5 bg-white/5 backdrop-blur-md z-10 shrink-0">
           <div className="flex items-center justify-between p-4 pb-2">
             <div className="flex items-center gap-3">
@@ -142,7 +141,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
             </div>
           </div>
 
-          {/* Mode Switcher */}
           <div className="px-4 pb-4 pt-1 flex items-center justify-between gap-2">
               <div className="flex bg-black/20 p-1 rounded-xl border border-white/5 w-full backdrop-blur-sm">
                   <button 
@@ -168,7 +166,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
               </div>
           </div>
           
-          {/* Sticky Plan View */}
           {mode === 'agent' && (plan.length > 0 || status === 'planning') && (
             <div className="px-4 pb-3 animate-in fade-in duration-300">
                 <PlanNode plan={plan} status={status} />
@@ -176,7 +173,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
           )}
       </div>
 
-      {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-gradient-to-b from-transparent to-black/30">
         {mode === 'chat' ? (
           <ChatView 
@@ -194,7 +190,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       <AIPanelInput
         mode={mode}
         isGenerating={isGenerating}
