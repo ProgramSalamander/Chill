@@ -130,13 +130,15 @@ function App() {
         if (diagnostics.length > 0) setDiagnostics([]);
         return;
     }
-    lintTimerRef.current = setTimeout(() => {
-      const newDiagnostics = runLinting(activeFile.content, activeFile.language);
+    lintTimerRef.current = setTimeout(async () => {
+      const newDiagnostics = await runLinting(activeFile.content, activeFile.language);
+      // Simple equality check to avoid re-rendering loop, assuming diagnostic objects are stable enough
+      // or at least don't change if content didn't change significantly in a way that alters lint results
       if (JSON.stringify(newDiagnostics) !== JSON.stringify(diagnostics)) {
         setDiagnostics(newDiagnostics);
       }
     }, 750);
-  }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);
+  }, [activeFile?.content, activeFile?.id, activeFile?.language, diagnostics, setDiagnostics]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -358,7 +360,6 @@ function App() {
                                         title="Live Preview"
                                         sandbox="allow-scripts allow-modals" 
                                     />
-                                    {/* Optional: Add a loading overlay if URL is empty initially, though it usually is fast enough */}
                                 </div>
                             )}
                         </>

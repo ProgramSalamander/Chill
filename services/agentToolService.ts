@@ -169,7 +169,8 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         let report = '';
         for (const f of filesToLint) {
             if (f.type !== 'file') continue;
-            const diagnostics = runLinting(getEffectiveContent(f), f.language);
+            // Now async await
+            const diagnostics = await runLinting(getEffectiveContent(f), f.language);
             if (diagnostics.length > 0) {
                 report += `\nFile: ${getFilePath(f, files)}\n` + diagnostics.map(d => `  - [${d.severity}] L${d.startLine}: ${d.message}`).join('\n');
             }
@@ -189,7 +190,8 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         if (!file || file.type !== 'file') return { result: `[ERROR] File not found: ${path}` };
 
         const currentContent = getEffectiveContent(file);
-        const diagnostics = runLinting(currentContent, file.language);
+        // Now async await
+        const diagnostics = await runLinting(currentContent, file.language);
         if (!diagnostics.length) return { result: `No errors to fix in ${path}.` };
 
         const instruction = `Fix these issues in ${path}:\n${diagnostics.map(d => d.message).join('\n')}\nReturn only the complete fixed code.`;

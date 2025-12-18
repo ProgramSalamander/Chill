@@ -2,12 +2,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Linter, LinterStatus } from '../types';
-import { ruffLinter } from '../services/linters/ruffLinter';
-import { basicLinter } from '../services/linters/basicLinter';
 
 export const availableLinters: Linter[] = [
-  ruffLinter,
-  basicLinter,
+  {
+    id: 'ruff-linter',
+    name: 'Ruff',
+    description: 'An extremely fast Python linter and code formatter, written in Rust (WASM).',
+    supportedLanguages: ['python'],
+  },
+  {
+    id: 'basic-linter',
+    name: 'Basic Syntax Check',
+    description: 'A simple syntax checker for unbalanced brackets, braces, and parentheses.',
+    supportedLanguages: ['javascript', 'typescript', 'json', 'css', 'jsx', 'tsx'],
+  },
 ];
 
 interface LinterState {
@@ -22,7 +30,7 @@ interface LinterState {
 export const useLinterStore = create<LinterState>()(
   persist(
     (set, get) => ({
-      installedLinters: new Set(['ruff-linter', 'basic-linter']), // Install both by default
+      installedLinters: new Set(['ruff-linter', 'basic-linter']), 
       linterStatuses: {},
 
       installLinter: (id) => {
@@ -52,7 +60,6 @@ export const useLinterStore = create<LinterState>()(
       partialize: (state) => ({
         installedLinters: Array.from(state.installedLinters)
       }),
-      // Fix: Use explicit Set<string> type to prevent Set<unknown> inference and ensure return type compatibility with LinterState.
       merge: (persistedState: any, currentState: LinterState): LinterState => {
         const installed = new Set<string>(persistedState?.installedLinters || ['ruff-linter', 'basic-linter']);
         return {

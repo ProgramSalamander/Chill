@@ -1,61 +1,83 @@
 
-import { Diagnostic, Linter } from '../types';
-import { useLinterStore, availableLinters } from '../stores/linterStore';
+import { Diagnostic } from '../types';
+import { useLinterStore } from '../stores/linterStore';
 import { errorService } from './errorService';
+import { LINT_WORKER_CODE } from './lintWorkerCode';
 
-// Initialize a specific linter
-export const initLinter = async (linter: Linter) => {
-  const { linterStatuses, setLinterStatus } = useLinterStore.getState();
-  
-  if (linterStatuses[linter.id] === 'initializing' || linterStatuses[linter.id] === 'ready') {
-    return;
+class LintingService {
+  private worker: Worker | null = null;
+  private pendingRequests = new Map<string, { resolve: (d: Diagnostic[]) => void }>();
+
+  constructor() {
+    this.initWorker();
   }
 
-  if (!linter.init) {
-    setLinterStatus(linter.id, 'ready');
-    return;
-  }
+  private initWorker() {
+    try {
+      const blob = new Blob([LINT_WORKER_CODE], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(blob);
+      // Fix: Worker must be type 'module' to support ES imports inside the worker code
+      this.worker = new Worker(workerUrl, { type: 'module' });
 
-  setLinterStatus(linter.id, 'initializing');
-  try {
-    await linter.init();
-    setLinterStatus(linter.id, 'ready');
-  } catch (e: any) {
-    setLinterStatus(linter.id, 'error');
-    errorService.report(e, `Linter Init: ${linter.name}`, { terminal: true, severity: 'error' });
-  }
-};
-
-// This is no longer called globally on startup
-export const initLinters = async () => {
-  console.log('On-demand linting initialization active.');
-};
-
-export const runLinting = (code: string, language: string): Diagnostic[] => {
-  const { installedLinters, linterStatuses } = useLinterStore.getState();
-
-  // Find the first installed linter that supports this language.
-  const linter = availableLinters.find(l =>
-    installedLinters.has(l.id) && l.supportedLanguages.includes(language)
-  );
-
-  if (linter) {
-    // If linter is not ready and not currently initializing, trigger initialization
-    if (!linterStatuses[linter.id]) {
-        initLinter(linter);
-        return [];
-    }
-
-    if (linterStatuses[linter.id] === 'ready') {
-        try {
-            return linter.lint(code);
-        } catch (e: any) {
-            errorService.report(e, `Linter: ${linter.name}`, { notifyUser: false, terminal: true, severity: 'error' });
-            return [];
+      this.worker.onmessage = (e) => {
+        const { id, diagnostics, error } = e.data;
+        if (this.pendingRequests.has(id)) {
+          const { resolve } = this.pendingRequests.get(id)!;
+          if (error) {
+             console.error("Lint Worker Error:", error);
+             resolve([]); 
+          } else {
+             resolve(diagnostics || []);
+          }
+          this.pendingRequests.delete(id);
         }
+      };
+
+      this.worker.onerror = (e) => {
+        console.error("Lint Worker Critical Error", e);
+      };
+    } catch (e) {
+      errorService.report(e, "Lint Worker Init", { silent: true });
     }
   }
 
-  // No linter found or not ready for this language
-  return [];
+  public runLinting(code: string, language: string): Promise<Diagnostic[]> {
+    if (!this.worker) return Promise.resolve([]);
+
+    const { installedLinters } = useLinterStore.getState();
+    const id = Math.random().toString(36).slice(2);
+
+    return new Promise((resolve) => {
+      // Timeout fallback
+      const timeout = setTimeout(() => {
+        if (this.pendingRequests.has(id)) {
+            this.pendingRequests.delete(id);
+            resolve([]);
+        }
+      }, 5000);
+
+      this.pendingRequests.set(id, { 
+          resolve: (d) => {
+              clearTimeout(timeout);
+              resolve(d);
+          } 
+      });
+
+      this.worker!.postMessage({ 
+          id, 
+          code, 
+          language, 
+          activeLinters: Array.from(installedLinters) 
+      });
+    });
+  }
+}
+
+export const lintingService = new LintingService();
+
+// Export as standalone function for backward compatibility / ease of use
+export const runLinting = (code: string, language: string) => lintingService.runLinting(code, language);
+
+export const initLinters = async () => {
+    // No-op, managed by worker internally
 };

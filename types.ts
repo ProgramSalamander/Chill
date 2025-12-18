@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 export interface File {
@@ -230,7 +231,7 @@ export interface Linter {
   description: string;
   supportedLanguages: string[];
   init?: () => Promise<void>;
-  lint: (code: string) => Diagnostic[];
+  lint?: (code: string) => Diagnostic[];
 }
 
 export interface ContextMenuItem {
