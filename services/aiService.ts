@@ -1,3 +1,4 @@
+
 import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./configService";
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
@@ -17,6 +18,27 @@ class AIService {
     if (usage) {
         useUsageStore.getState().recordUsage(config.modelId, config.provider, usage, type);
     }
+  }
+
+  /**
+   * Cleans AI response to extract code from markdown blocks or strip conversational text.
+   */
+  private cleanResponse(text: string): string {
+    let cleaned = text.trim();
+    
+    // 1. Extract from markdown code block if present (e.g. "Here is code:\n```js\n...\n```")
+    const codeBlockMatch = cleaned.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+        return codeBlockMatch[1].trim();
+    }
+
+    // 2. Strip standard markdown if it covers the whole string (e.g. starts with backticks)
+    if (cleaned.startsWith('```')) {
+        return cleaned.replace(/^```\w*\s*/, '').replace(/\s*```$/, '').trim();
+    }
+
+    // 3. Fallback: Return trimmed text
+    return cleaned;
   }
 
   // --- CHAT SESSION ---
@@ -133,19 +155,13 @@ ${codeAfterCursor}
         const response = await this.generateText(
             config, 
             prompt, 
-            { temperature: 0.1, maxOutputTokens: 256, signal }, 
+            { temperature: 0, maxOutputTokens: 256, signal }, 
             'completion'
         );
         
         if (!response) return null;
 
-        let cleanedResponse = response;
-        
-        // Remove markdown artifacts if the model hallucinated them
-        const trimmedResponse = response.trim();
-        if (trimmedResponse.startsWith('```') && trimmedResponse.endsWith('```')) {
-            cleanedResponse = trimmedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
-        }
+        let cleanedResponse = this.cleanResponse(response);
 
         // Final sanity check: ensure the completion doesn't simply restate the prefix or suffix
         if (cleanedResponse) {
@@ -190,15 +206,10 @@ ${codeAfterCursor}
     const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-2000)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 2000)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
     
     try {
-        const text = await this.generateText(config, prompt, {}, 'completion');
+        const text = await this.generateText(config, prompt, { temperature: 0 }, 'completion');
         if (!text) return null;
 
-        let cleanedText = text.trim();
-        if (cleanedText.startsWith('```')) {
-            cleanedText = cleanedText.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
-        }
-        
-        return cleanedText ? cleanedText : null;
+        return this.cleanResponse(text);
     } catch (e: any) {
         errorService.report(e, "AI Service (Code Edit)");
         return null;
