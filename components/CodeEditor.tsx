@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { Diagnostic, AIPatch } from '../types';
@@ -26,16 +27,14 @@ interface CodeEditorProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onSave?: () => void;
-  // Live Preview Props
   showPreview?: boolean;
   previewContent?: string;
   diagnostics?: Diagnostic[];
-  // Inline AI
   onInlineAssist?: (instruction: string, range: any) => Promise<void>;
   onAICommand?: (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => void;
 }
 
-// --- Content Widget for AI Patches ---
+// --- Enhanced AI Patch Widget ---
 
 class AIPatchWidget implements monaco.editor.IContentWidget {
   private domNode: HTMLDivElement | null = null;
@@ -56,38 +55,53 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
       const isNewFile = this.patch.originalText === '';
       this.domNode = document.createElement('div');
       this.domNode.className = 'ai-patch-widget animate-in fade-in slide-in-from-top-2 duration-300';
+      
+      // Inline styles for glassmorphism and vibe
       this.domNode.style.cssText = `
         display: flex;
-        gap: 8px;
-        background: rgba(15, 15, 22, 0.85);
-        backdrop-filter: blur(12px);
-        border: 1px solid ${isNewFile ? 'rgba(34, 197, 94, 0.4)' : 'rgba(129, 140, 248, 0.3)'};
-        border-radius: 12px;
-        padding: 4px 6px;
-        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px ${isNewFile ? 'rgba(34, 197, 94, 0.1)' : 'rgba(129, 140, 248, 0.1)'};
+        gap: 6px;
+        background: rgba(15, 15, 24, 0.9);
+        backdrop-filter: blur(16px);
+        border: 1px solid ${isNewFile ? 'rgba(34, 197, 94, 0.4)' : 'rgba(129, 140, 248, 0.4)'};
+        border-radius: 10px;
+        padding: 4px 8px;
+        box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.7);
         pointer-events: auto;
         z-index: 100;
+        transform: translateY(4px);
       `;
 
-      const info = document.createElement('div');
-      info.style.cssText = `color: ${isNewFile ? '#4ade80' : '#818cf8'}; font-size: 9px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; padding: 0 4px; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 2px;`;
-      info.textContent = isNewFile ? 'AI New Content' : 'AI Proposal';
+      const label = document.createElement('div');
+      label.style.cssText = `
+        color: ${isNewFile ? '#4ade80' : '#818cf8'};
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: flex;
+        align-items: center;
+        padding-right: 6px;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+      `;
+      label.textContent = isNewFile ? 'AI New' : 'AI Edit';
 
+      const btnStyle = 'padding: 2px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; border: 1px solid transparent;';
+      
       const keep = document.createElement('button');
       keep.textContent = 'Keep';
-      keep.style.cssText = 'background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s;';
+      keep.style.cssText = btnStyle + 'background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.2);';
       keep.onclick = (e) => { e.stopPropagation(); this.onAccept(); };
       keep.onmouseover = () => { keep.style.background = 'rgba(34, 197, 94, 0.3)'; };
       keep.onmouseout = () => { keep.style.background = 'rgba(34, 197, 94, 0.15)'; };
 
       const reject = document.createElement('button');
       reject.textContent = 'Reject';
-      reject.style.cssText = 'background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 2px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s;';
+      reject.style.cssText = btnStyle + 'background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.2);';
       reject.onclick = (e) => { e.stopPropagation(); this.onReject(); };
       reject.onmouseover = () => { reject.style.background = 'rgba(239, 68, 68, 0.3)'; };
       reject.onmouseout = () => { reject.style.background = 'rgba(239, 68, 68, 0.15)'; };
 
-      this.domNode.append(info, keep, reject);
+      this.domNode.append(label, keep, reject);
     }
     return this.domNode;
   }
@@ -123,11 +137,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onInlineAssist,
   onAICommand
 }) => {
-  // State for editor instances
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [monacoInstance, setMonacoInstance] = useState<typeof monaco | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
+  // Resizing Preview
+  const [previewWidthPercent, setPreviewWidthPercent] = useState(50);
+  const isResizingRef = useRef(false);
+
   // Inline Input State
   const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
@@ -138,20 +155,49 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const acceptPatch = useAgentStore(state => state.acceptPatch);
   const rejectPatch = useAgentStore(state => state.rejectPatch);
   const activeFileId = useFileTreeStore(state => state.activeFileId);
-  const activePatches = useMemo(() => patches.filter(p => p.fileId === activeFileId && p.status === 'pending'), [patches, activeFileId]);
+  
+  const activePatches = useMemo(() => 
+    patches.filter(p => p.fileId === activeFileId && p.status === 'pending'), 
+    [patches, activeFileId]
+  );
   
   const decorationIdsRef = useRef<string[]>([]);
   const widgetsRef = useRef<Map<string, AIPatchWidget>>(new Map());
 
   const mappedLanguage = getMonacoLanguage(language);
 
-  // --- Initialize Hooks for Editor Features ---
-  
+  // Hooks for IDE features
   const commandId = useAICommand(editor);
   useInlineCompletion(monacoInstance, editor, mappedLanguage, onFetchSuggestion);
   useSemanticAutocomplete(monacoInstance, editor, mappedLanguage);
   useCodeLens(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
   useQuickFix(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
+
+  // --- Resizing Logic for Split View ---
+  const handleResizeMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const container = document.getElementById('editor-container');
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newWidth = 100 - (x / rect.width) * 100;
+    setPreviewWidthPercent(Math.max(10, Math.min(newWidth, 90)));
+  }, []);
+
+  const handleResizeMouseUp = useCallback(() => {
+    isResizingRef.current = false;
+    document.body.style.cursor = '';
+    window.removeEventListener('mousemove', handleResizeMouseMove);
+    window.removeEventListener('mouseup', handleResizeMouseUp);
+  }, [handleResizeMouseMove]);
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('mousemove', handleResizeMouseMove);
+    window.addEventListener('mouseup', handleResizeMouseUp);
+  };
 
   // --- AI Patches Effect ---
   useEffect(() => {
@@ -160,19 +206,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     const model = editor.getModel();
     if (!model) return;
 
-    // 1. Cleanup old decorations and widgets
+    // Cleanup
     decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
     widgetsRef.current.forEach(widget => editor.removeContentWidget(widget));
     widgetsRef.current.clear();
 
-    // 2. Apply current patches
     const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
 
     activePatches.forEach(patch => {
-      // Step 1: Temporarily apply text if not already matching
       const currentTextInRange = model.getValueInRange(patch.range);
       const isNewFile = patch.originalText === '';
 
+      // Auto-apply text for previewing the patch
       if (currentTextInRange !== patch.proposedText) {
           editor.executeEdits('ai-vibe', [{
               range: patch.range,
@@ -180,12 +225,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           }]);
       }
 
-      // If it's a new file, the range should ideally cover the whole inserted block
-      const decorationRange = isNewFile 
-          ? model.getFullModelRange() 
-          : patch.range;
+      const decorationRange = isNewFile ? model.getFullModelRange() : patch.range;
 
-      // Step 2: Add visual markers
       newDecorations.push({
         range: decorationRange,
         options: {
@@ -199,15 +240,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
       });
 
-      // Step 3: Add Widget
       const widget = new AIPatchWidget(
         editor,
         patch,
         () => acceptPatch(patch.id),
         () => {
-            // Revert text before rejecting in store
             editor.executeEdits('ai-vibe-revert', [{
-                range: model.getFullModelRange(), // Use full range for new file revert to ensure clean
+                range: model.getFullModelRange(), 
                 text: patch.originalText
             }]);
             rejectPatch(patch.id);
@@ -220,25 +259,22 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     decorationIdsRef.current = editor.deltaDecorations([], newDecorations);
 
     return () => {
-        // Final cleanup
         decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
         widgetsRef.current.forEach(widget => editor.removeContentWidget(widget));
         widgetsRef.current.clear();
     };
   }, [activePatches, editor, monacoInstance, acceptPatch, rejectPatch]);
 
-  // --- Theme Handling ---
+  // --- Theme & Diagnostics ---
   useEffect(() => {
     if (monacoInstance) {
       monacoInstance.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
     }
   }, [theme, monacoInstance]);
 
-  // --- Diagnostics Handling ---
   useEffect(() => {
     if (!editor || !monacoInstance) return;
     const model = editor.getModel();
-    
     if (model && diagnostics) {
         const markers = diagnostics.map(d => ({
             severity: d.severity === 'error' ? monacoInstance.MarkerSeverity.Error : monacoInstance.MarkerSeverity.Warning,
@@ -257,50 +293,41 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     setEditor(editorInstance);
     setMonacoInstance(monacoInst);
 
-    // --- Define Custom Themes ---
     monacoInst.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
     monacoInst.editor.defineTheme('vibe-light-theme', vibeLightTheme);
-    monacoInst.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
     
-    // --- Keybindings ---
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyZ, () => {
-        if (onUndo) onUndo();
-    });
+    // Keybindings
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyZ, () => onUndo?.());
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyMod.Shift | monacoInst.KeyCode.KeyZ, () => onRedo?.());
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyS, () => onSave?.());
 
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyMod.Shift | monacoInst.KeyCode.KeyZ, () => {
-        if (onRedo) onRedo();
-    });
-
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyS, () => {
-        if (onSave) onSave();
-    });
-
-    // Cmd+K for Inline AI
+    // Precise Inline AI Positioning
     editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyK, () => {
         const position = editorInstance.getPosition();
         if (position) {
             const scrolledPos = editorInstance.getScrolledVisiblePosition(position);
             const selection = editorInstance.getSelection();
+            const lineHeight = editorInstance.getOption(monacoInst.editor.EditorOption.lineHeight);
+            
             if (scrolledPos) {
                 setInlineInputPos({ 
                     top: scrolledPos.top, 
                     left: scrolledPos.left, 
-                    lineHeight: 20 // Approx line height
+                    lineHeight: lineHeight
                 });
                 setSavedSelection(selection);
             }
         }
     });
 
-    // --- Event Listeners ---
     editorInstance.onDidChangeCursorPosition((e: any) => {
       const offset = editorInstance.getModel()?.getOffsetAt(e.position) || 0;
-      if (onCursorChange) onCursorChange(offset);
+      onCursorChange?.(offset);
     });
 
     editorInstance.onDidChangeCursorSelection((e: any) => {
         const selection = editorInstance.getModel()?.getValueInRange(e.selection);
-        if (onSelectionChange) onSelectionChange(selection || '');
+        onSelectionChange?.(selection || '');
     });
   };
   
@@ -319,10 +346,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   return (
-    <div className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
+    <div id="editor-container" className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
       {/* Editor Pane */}
-      <div className={`relative h-full transition-all duration-300 ${showPreview ? 'w-1/2 border-r border-vibe-border' : 'w-full'}`}>
-         
+      <div 
+        className="relative h-full transition-[width] duration-75 ease-out"
+        style={{ width: showPreview ? `${100 - previewWidthPercent}%` : '100%' }}
+      >
          <InlineInput 
             position={inlineInputPos} 
             onClose={() => setInlineInputPos(null)} 
@@ -354,20 +383,32 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 bracketPairColorization: { enabled: true },
                 padding: { top: 20, bottom: 20 },
                 inlineSuggest: { enabled: true },
-                suggest: {
-                    showWords: false
-                },
-                // Enable CodeLens
+                suggest: { showWords: false },
                 codeLens: true,
                 lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
             }}
          />
       </div>
+
+      {/* Split Resizer */}
+      {showPreview && (
+          <div 
+            onMouseDown={handleResizeMouseDown}
+            className="w-1.5 h-full cursor-col-resize group flex items-center justify-center bg-black/20 hover:bg-vibe-accent transition-colors z-30"
+          >
+              <div className="w-0.5 h-10 bg-white/10 group-hover:bg-white/40 rounded-full" />
+          </div>
+      )}
+
+       {/* Live Preview Pane */}
        {showPreview && (
-          <div className="w-1/2 h-full flex flex-col bg-white/5 animate-in slide-in-from-right-5 fade-in duration-300 backdrop-blur-sm border-l border-vibe-border">
+          <div 
+            className="h-full flex flex-col bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border"
+            style={{ width: `${previewWidthPercent}%` }}
+          >
               <iframe 
                   ref={iframeRef}
-                  className="w-full h-full border-none bg-white"
+                  className="w-full h-full border-none"
                   srcDoc={previewContent}
                   title="Live Preview"
                   sandbox="allow-scripts allow-modals" 
