@@ -29,7 +29,7 @@ import { useAgentStore } from './stores/agentStore';
 
 import { aiService, runLinting } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
-import { IconSparkles, IconCommand, IconLayout, IconSettings, IconZap } from './components/Icons';
+import { IconSparkles, IconCommand, IconLayout, IconSettings, IconZap, IconBrain } from './components/Icons';
 
 function App() {
   const theme = useUIStore(state => state.theme);
@@ -110,7 +110,7 @@ function App() {
     e.preventDefault();
     showContextMenu(e.clientX, e.clientY, [
       { id: 'cmd', label: 'Command Palette', icon: <IconCommand size={14}/>, shortcut: '⌘P', onClick: () => setIsCommandPaletteOpen(true) },
-      { id: 'ai-help', label: 'Ask AI Assistant', icon: <IconSparkles size={14}/>, shortcut: '⌘L', onClick: () => setIsAIOpen(true) },
+      { id: 'ai-help', label: 'Ask AI Assistant', icon: <IconBrain size={14}/>, shortcut: '⌘L', onClick: () => setIsAIOpen(true) },
       { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
       { id: 'format', label: 'Format Document', icon: <IconZap size={14}/>, shortcut: '⇧⌥F', onClick: () => addTerminalLine("Formatting not implemented", "info") },
       { id: 'sidebar', label: 'Toggle Sidebar', icon: <IconLayout size={14}/>, shortcut: '⌘B', onClick: () => useUIStore.getState().setActiveSidebarView(useUIStore.getState().activeSidebarView ? null : 'explorer') },

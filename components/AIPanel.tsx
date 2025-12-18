@@ -4,7 +4,7 @@ import AgentHUD from './ai/AgentHUD';
 import ChatView from './ai/ChatView';
 import AIPanelInput from './ai/AIPanelInput';
 import Tooltip from './Tooltip';
-import { IconSparkles, IconCpu, IconClose, IconTrash, IconChevronDown } from './Icons';
+import { IconSparkles, IconCpu, IconClose, IconTrash, IconChevronDown, IconMessage } from './Icons';
 
 import { useChatStore } from '../stores/chatStore';
 import { useFileTreeStore } from '../stores/fileStore';
@@ -119,7 +119,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
                     <div className="relative group">
                        <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-40 animate-pulse"></div>
                        <div className="bg-black/40 p-2 rounded-xl border border-white/10 relative z-10">
-                         <IconSparkles size={22} className="text-vibe-glow" />
+                         <IconMessage size={22} className="text-vibe-glow" />
                        </div>
                     </div>
                   )}
@@ -158,7 +158,7 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
                       ${mode === 'chat' ? 'bg-vibe-accent/30 text-white shadow-lg border border-vibe-accent/40' : 'text-slate-500 hover:text-slate-300'}
                     `}
                   >
-                    <IconSparkles size={13} />
+                    <IconMessage size={13} />
                     Chat
                   </button>
                   <button 

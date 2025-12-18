@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles, IconRefresh, IconArrowRight, IconTrash } from './Icons';
+import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconBrain, IconRefresh, IconArrowRight, IconTrash } from './Icons';
 import Tooltip from './Tooltip';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useUIStore } from '../stores/uiStore';
@@ -116,8 +116,8 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
                 onClick={() => setIsAIOpen(!isAIOpen)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.1)]' : 'bg-black/5 dark:bg-white/5 text-vibe-text-soft border-transparent hover:text-vibe-text-main hover:bg-black/10 dark:hover:bg-white/10'}`}
             >
-                <IconSparkles size={14} />
-                <span className="hidden sm:inline">AI</span>
+                <IconBrain size={14} />
+                <span className="hidden sm:inline">AI Assistant</span>
             </button>
           </Tooltip>
       </div>

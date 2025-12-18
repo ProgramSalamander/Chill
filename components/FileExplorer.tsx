@@ -121,7 +121,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
     e.stopPropagation();
 
     const items = node.type === 'file' ? [
-        { id: 'ai-explain', label: 'AI Explain', icon: <IconSparkles size={14}/>, onClick: () => {
+        { id: 'ai-explain', label: 'AI Explain', icon: <IconBrain size={14}/>, onClick: () => {
             useUIStore.getState().setIsAIOpen(true);
             useChatStore.getState().sendMessage(`Explain the purpose and logic of the file: ${node.name}`, [node.id]);
         }},

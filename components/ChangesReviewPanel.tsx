@@ -2,7 +2,7 @@
 import React from 'react';
 import { useAgentStore } from '../stores/agentStore';
 import { useFileTreeStore } from '../stores/fileStore';
-import { IconSparkles, IconGitMerge } from './Icons';
+import { IconSparkles } from './Icons';
 
 const ChangeFileListItem: React.FC<{ 
     label: string; 
@@ -35,7 +35,7 @@ const ChangesReviewPanel: React.FC = () => {
         <div className="flex flex-col h-full bg-vibe-900/50">
             <div className="p-4 border-b border-white/5 shrink-0 bg-white/[0.02]">
                 <div className="flex items-center gap-2 mb-3">
-                    <IconGitMerge size={16} className="text-vibe-glow" />
+                    <IconSparkles size={16} className="text-vibe-glow" />
                     <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
                         AI Proposals ({patches.length})
                     </div>
@@ -76,7 +76,7 @@ const ChangesReviewPanel: React.FC = () => {
                 ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                         <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3 opacity-20">
-                            <IconGitMerge size={24} />
+                            <IconSparkles size={24} />
                         </div>
                         <p className="text-xs text-slate-500 italic">No pending patches</p>
                     </div>
