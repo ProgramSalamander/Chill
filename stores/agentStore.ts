@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange, AIPatch } from '../types';
+import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, AIPatch } from '../types';
 import { aiService, handleAgentAction, getActiveChatConfig, errorService } from '../services';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
@@ -9,7 +9,6 @@ interface AgentState {
   status: AgentStatus;
   agentSteps: AgentStep[];
   plan: AgentPlanItem[];
-  stagedChanges: StagedChange[];
   patches: AIPatch[];
   agentAwareness: Set<string>;
   agentChatSession: AISession | null;
@@ -19,13 +18,10 @@ interface AgentState {
   stopAgent: () => void;
   summarizeTask: () => Promise<void>;
   
-  addStagedChange: (change: Omit<StagedChange, 'id'>) => void;
   addPatch: (patch: Omit<AIPatch, 'id' | 'status'>) => void;
   acceptPatch: (patchId: string) => void;
   rejectPatch: (patchId: string) => void;
   
-  applyChange: (id: string) => Promise<void>;
-  rejectChange: (id: string) => void;
   applyAllChanges: () => Promise<void>;
   rejectAllChanges: () => void;
 }
@@ -34,7 +30,6 @@ const useAgentStore = create<AgentState>((set, get) => ({
   status: 'idle',
   agentSteps: [],
   plan: [],
-  stagedChanges: [],
   patches: [],
   agentAwareness: new Set(),
   agentChatSession: null,
@@ -44,7 +39,6 @@ const useAgentStore = create<AgentState>((set, get) => ({
       status: 'idle',
       agentSteps: [],
       plan: [],
-      stagedChanges: [],
       patches: [],
       agentChatSession: null,
       agentAwareness: new Set(),
@@ -81,7 +75,7 @@ const useAgentStore = create<AgentState>((set, get) => ({
 
       const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant executing a plan.
 ENVIRONMENT: You are in a browser-based environment. You CANNOT use commands like \`npx create-react-app\`, \`vite\`, \`next\`, or other complex build tools.
-WORKFLOW: To create a project boilerplate, you MUST create each file individually using the 'writeFile' tool. For example, to create a React app, first call \`writeFile\` for \`package.json\`, then \`index.html\`, then \`src/App.js\`, etc. Your file system operations will be staged for user review.
+WORKFLOW: To create a project boilerplate, you MUST create each file individually using the 'writeFile' tool. Your file modifications will be staged as AI Patches for user review.
 
 Current Plan:
 ${JSON.stringify(generatedPlan, null, 2)}
@@ -127,7 +121,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
         }]
       }));
 
-      if (get().stagedChanges.length > 0 || get().patches.length > 0) {
+      if (get().patches.length > 0) {
         set({ status: 'awaiting_changes_review' });
         useUIStore.getState().setActiveSidebarView('changes');
       } else {
@@ -143,16 +137,14 @@ For each turn, I will tell you which step needs to be worked on. You should outp
     }
   },
   
-  addStagedChange: (change) => {
-    set(state => ({
-      stagedChanges: [...state.stagedChanges, { ...change, id: Date.now().toString() }]
-    }));
-  },
-
   addPatch: (patch) => {
     set(state => ({
       patches: [...state.patches, { ...patch, id: Date.now().toString(), status: 'pending' }]
     }));
+    const file = useFileTreeStore.getState().files.find(f => f.id === patch.fileId);
+    if (file) {
+      useFileTreeStore.getState().selectFile(file);
+    }
   },
 
   acceptPatch: (patchId) => {
@@ -173,7 +165,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       patches: state.patches.filter(p => p.id !== patchId)
     }));
 
-    if (get().patches.length === 0 && get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+    if (get().patches.length === 0 && get().status === 'awaiting_changes_review') {
       set({ status: 'completed' });
     }
   },
@@ -187,87 +179,21 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       patches: state.patches.filter(p => p.id !== patchId)
     }));
 
-    if (get().patches.length === 0 && get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+    if (get().patches.length === 0 && get().status === 'awaiting_changes_review') {
       set({ status: 'completed' });
     }
   },
 
-  applyChange: async (id) => {
-    const change = get().stagedChanges.find(c => c.id === id);
-    if (!change) return;
-
-    const { createNode, updateFileContent, deleteNode } = useFileTreeStore.getState();
-
-    try {
-      switch (change.type) {
-        case 'create':
-          if (change.newContent !== undefined) {
-             const pathSegments = change.path.split('/').filter(p => p);
-             const name = pathSegments.pop() || 'untitled';
-             
-             let currentParentId: string | null = null;
-             for(const segment of pathSegments) {
-                 const currentFiles = useFileTreeStore.getState().files;
-                 const existingFolder = currentFiles.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
-                 if(existingFolder) {
-                     currentParentId = existingFolder.id;
-                 } else {
-                     const newFolder = await createNode('folder', currentParentId, segment);
-                     if(!newFolder) throw new Error(`Failed to create parent folder ${segment}`);
-                     currentParentId = newFolder.id;
-                 }
-             }
-             await createNode('file', currentParentId, name, change.newContent);
-          }
-          break;
-        case 'update':
-          if (change.fileId && change.newContent !== undefined) {
-            updateFileContent(change.newContent, true, change.fileId);
-          }
-          break;
-        case 'delete':
-          const fileToDelete = useFileTreeStore.getState().files.find(f => f.id === change.fileId);
-          if (fileToDelete) {
-            await deleteNode(fileToDelete);
-          }
-          break;
-      }
-    } catch (e: any) {
-      errorService.report(e, "Agent Apply Change");
-    }
-    
-    set(state => ({
-        stagedChanges: state.stagedChanges.filter(c => c.id !== id)
-    }));
-    
-    if (get().stagedChanges.length === 0 && get().patches.length === 0 && get().status === 'awaiting_changes_review') {
-        set({ status: 'completed' });
-    }
-  },
-
-  rejectChange: (id) => {
-    set(state => ({
-      stagedChanges: state.stagedChanges.filter(c => c.id !== id)
-    }));
-
-    if (get().stagedChanges.length === 0 && get().patches.length === 0 && get().status === 'awaiting_changes_review') {
-        set({ status: 'completed' });
-    }
-  },
-
   applyAllChanges: async () => {
-    const changes = [...get().stagedChanges];
-    for (const change of changes) {
-        await get().applyChange(change.id);
-    }
     const patches = [...get().patches];
     for (const patch of patches) {
       get().acceptPatch(patch.id);
     }
+    useFileTreeStore.getState().saveAllFiles();
   },
 
   rejectAllChanges: () => {
-    set({ stagedChanges: [], patches: [], status: 'completed' });
+    set({ patches: [], status: 'completed' });
   }
 }));
 
@@ -285,13 +211,9 @@ async function _executeAndContinue(action: AgentPendingAction) {
 
     let result = "Error";
     try {
-      const { result: actionResult, change } = await handleAgentAction(toolName, args);
-      result = actionResult;
+      const actionResult = await handleAgentAction(toolName, args);
+      result = actionResult.result;
       
-      if (change) {
-        useAgentStore.getState().addStagedChange(change);
-      }
-
       if (toolName === 'fs_readFile') {
           const file = useFileTreeStore.getState().files.find(f => f.name === args.path);
           if (file) {

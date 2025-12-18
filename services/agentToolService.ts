@@ -1,17 +1,18 @@
+
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { ragService } from './ragService';
 import { generateProjectStructureContext, extractSymbols, resolveFileByPath, getFilePath, getLanguage } from '../utils/fileUtils';
 import { notify } from '../stores/notificationStore';
-import { File, Diagnostic, StagedChange } from '../types';
+import { File, Diagnostic } from '../types';
 import { aiService } from './aiService';
 import { runLinting } from './lintingService';
 import { gitService } from './gitService';
 
-export const handleAgentAction = async (toolName: string, args: any): Promise<{ result: string; change?: Omit<StagedChange, 'id'> }> => {
+export const handleAgentAction = async (toolName: string, args: any): Promise<{ result: string }> => {
   const { addTerminalLine } = useTerminalStore.getState();
   const { files } = useFileTreeStore.getState();
-  const { stagedChanges, addPatch } = await import('../stores/agentStore').then(m => m.useAgentStore.getState());
+  const { addPatch } = await import('../stores/agentStore').then(m => m.useAgentStore.getState());
 
   switch (toolName) {
     case 'fs_listFiles':
@@ -20,21 +21,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
 
     case 'fs_readFile': {
       const path = args.path;
-
-      // Check staged changes first. They represent the agent's current "virtual" filesystem state.
-      const stagedChange = [...stagedChanges].reverse().find(c => c.path === path);
-
-      if (stagedChange) {
-        if (stagedChange.type === 'delete') {
-          return { result: `Error: File not found at path ${path} (staged for deletion).` };
-        }
-        if (stagedChange.newContent !== undefined) {
-          const lang = getLanguage(path); 
-          return { result: `Success:\n\`\`\`${lang}\n${stagedChange.newContent}\n\`\`\`` };
-        }
-      }
-
-      // If no relevant staged change, fall back to the committed filesystem state.
       const fileToRead = resolveFileByPath(path, files);
       if (fileToRead && fileToRead.type === 'file') {
         return { result: `Success:\n\`\`\`${fileToRead.language}\n${fileToRead.content}\n\`\`\`` };
@@ -74,14 +60,28 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         return {
           result: `Success: Proposed changes to ${path} as an inline patch. Review in editor.`,
         };
-      } else { // Create new file
+      } else { 
+        // For new files, create them immediately as if the user did it
+        const { createNode } = useFileTreeStore.getState();
+        const pathSegments = path.split('/').filter(p => p);
+        const name = pathSegments.pop() || 'untitled.ts';
+        
+        let currentParentId: string | null = null;
+        for(const segment of pathSegments) {
+            const currentFiles = useFileTreeStore.getState().files;
+            const existingFolder = currentFiles.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
+            if(existingFolder) {
+                currentParentId = existingFolder.id;
+            } else {
+                const newFolder = await createNode('folder', currentParentId, segment);
+                if(newFolder) currentParentId = newFolder.id;
+            }
+        }
+        
+        await createNode('file', currentParentId, name, content);
+        
         return {
-          result: `Success: Staged new file creation for ${path}`,
-          change: {
-            type: 'create',
-            path,
-            newContent: content,
-          }
+          result: `Success: Created and opened new file: ${path}`,
         };
       }
     }
@@ -98,14 +98,11 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         if (fileToDelete.type === 'folder') {
             return { result: `Error: Cannot delete a folder. Use a different tool if you need to remove directories.` };
         }
+        
+        // Direct deletion
+        await useFileTreeStore.getState().deleteNode(fileToDelete);
         return {
-          result: `Success: Staged file deletion for ${path}`,
-          change: {
-            type: 'delete',
-            path,
-            fileId: fileToDelete.id,
-            oldContent: fileToDelete.content,
-          }
+          result: `Success: Deleted file ${path}`,
         };
     }
 
@@ -330,7 +327,6 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
             
             if (fixedCode && fixedCode.trim() !== originalContent.trim()) {
                 notify(`Staged auto-fix for ${path}`, 'success');
-                // Instead of update change, use inline patch if possible
                 const lines = originalContent.split('\n');
                 addPatch({
                   fileId: fileToFix.id,

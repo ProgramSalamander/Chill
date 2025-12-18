@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AgentStep, AgentStatus, AgentPlanItem } from '../../types';
 import { IconCpu, IconGitMerge, IconSparkles } from '../Icons';
@@ -21,7 +22,7 @@ const GoalNode: React.FC<{ step: AgentStep }> = ({ step }) => (
 );
 
 const ChangesReviewNode: React.FC = () => {
-    const { applyAllChanges, rejectAllChanges, stagedChanges } = useAgentStore();
+    const { applyAllChanges, rejectAllChanges, patches } = useAgentStore();
     const setActiveSidebarView = useUIStore(state => state.setActiveSidebarView);
 
     const handleReview = () => {
@@ -30,16 +31,16 @@ const ChangesReviewNode: React.FC = () => {
 
     return (
         <div className="relative pl-6">
-            <div className="absolute left-0 top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 bg-blue-500/10 border-blue-500/30 text-blue-300 shadow-[0_0_10px_rgba(0,0,0,0.2)]">
+            <div className="absolute left-0 top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 bg-vibe-accent/10 border-vibe-accent/30 text-vibe-glow shadow-[0_0_10px_rgba(0,0,0,0.2)]">
                 <IconGitMerge size={14} />
             </div>
-             <div className="ml-3 bg-[#181824] border border-blue-500/30 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+             <div className="ml-3 bg-[#181824] border border-vibe-accent/30 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(99,102,241,0.1)]">
                 <div className="p-4">
                     <h4 className="text-sm font-bold text-white mb-1">Review Proposed Changes</h4>
-                    <p className="text-xs text-slate-400 mb-4">The agent has finished and staged {stagedChanges.length} change{stagedChanges.length > 1 ? 's' : ''}.</p>
+                    <p className="text-xs text-slate-400 mb-4">The agent has finished and proposed {patches.length} patch{patches.length > 1 ? 'es' : ''}.</p>
                     <div className="flex flex-col gap-2">
-                        <button onClick={handleReview} className="w-full py-2 rounded-lg bg-blue-500/20 text-blue-200 hover:bg-blue-500/30 text-xs font-bold transition-colors">
-                            View Changes
+                        <button onClick={handleReview} className="w-full py-2 rounded-lg bg-vibe-accent/20 text-vibe-glow hover:bg-vibe-accent/30 text-xs font-bold transition-colors">
+                            View Patches
                         </button>
                         <div className="flex gap-2">
                             <button onClick={() => rejectAllChanges()} className="flex-1 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 text-xs font-bold transition-colors">

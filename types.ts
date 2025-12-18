@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export interface File {
@@ -194,15 +195,6 @@ export interface AgentPendingAction {
   toolName: string;
   args: any;
   agentRole: AgentRole;
-}
-
-export interface StagedChange {
-  id: string;
-  type: 'create' | 'update' | 'delete';
-  path: string;
-  fileId?: string; // for updates and deletes
-  oldContent?: string; // for updates and deletes
-  newContent?: string; // for creates and updates
 }
 
 export interface AIPatch {

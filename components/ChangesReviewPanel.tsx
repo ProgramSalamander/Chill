@@ -1,31 +1,19 @@
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useAgentStore } from '../stores/agentStore';
 import { useFileTreeStore } from '../stores/fileStore';
-import { IconFilePlus, IconTrash, IconEdit, IconSparkles, IconGitMerge } from './Icons';
-import { AIPatch, StagedChange } from '../types';
+import { IconSparkles, IconGitMerge } from './Icons';
 
 const ChangeFileListItem: React.FC<{ 
     label: string; 
-    type: 'create' | 'update' | 'delete' | 'patch'; 
     onClick: () => void;
-}> = ({ label, type, onClick }) => {
-  const getChangeConfig = () => {
-    switch(type) {
-      case 'create': return { icon: <IconFilePlus size={14}/>, color: 'text-green-400' };
-      case 'update': return { icon: <IconEdit size={14}/>, color: 'text-amber-400' };
-      case 'delete': return { icon: <IconTrash size={14}/>, color: 'text-red-400' };
-      case 'patch': return { icon: <IconSparkles size={14}/>, color: 'text-vibe-glow' };
-    }
-  }
-  const { icon, color } = getChangeConfig();
-
+}> = ({ label, onClick }) => {
   return (
     <button 
       onClick={onClick}
       className="flex w-full items-center gap-2 p-2 rounded-lg hover:bg-white/5 transition-all text-left group"
     >
-      <span className={`${color} group-hover:scale-110 transition-transform`}>{icon}</span>
+      <span className="text-vibe-glow group-hover:scale-110 transition-transform"><IconSparkles size={14}/></span>
       <span className="text-xs font-mono text-slate-300 truncate group-hover:text-white" title={label}>{label}</span>
     </button>
   );
@@ -33,18 +21,11 @@ const ChangeFileListItem: React.FC<{
 
 
 const ChangesReviewPanel: React.FC = () => {
-    const { stagedChanges, patches, applyAllChanges, rejectAllChanges } = useAgentStore();
+    const { patches, applyAllChanges, rejectAllChanges } = useAgentStore();
     const { files, selectFile } = useFileTreeStore();
 
     const handleSelectFile = (fileId: string) => {
         const file = files.find(f => f.id === fileId);
-        if (file) {
-            selectFile(file);
-        }
-    };
-
-    const handleSelectPath = (path: string) => {
-        const file = files.find(f => f.name === path || path.endsWith('/' + f.name));
         if (file) {
             selectFile(file);
         }
@@ -56,20 +37,20 @@ const ChangesReviewPanel: React.FC = () => {
                 <div className="flex items-center gap-2 mb-3">
                     <IconGitMerge size={16} className="text-vibe-glow" />
                     <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                        AI Proposals ({stagedChanges.length + patches.length})
+                        AI Proposals ({patches.length})
                     </div>
                 </div>
                 <div className="flex gap-2">
                     <button 
                        onClick={() => rejectAllChanges()}
-                       disabled={(stagedChanges.length + patches.length) === 0}
+                       disabled={patches.length === 0}
                        className="flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 disabled:opacity-30 transition-all"
                     >
                         Reject All
                     </button>
                     <button 
                        onClick={() => applyAllChanges()}
-                       disabled={(stagedChanges.length + patches.length) === 0}
+                       disabled={patches.length === 0}
                        className="flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 disabled:opacity-30 transition-all"
                     >
                         Apply All
@@ -78,7 +59,7 @@ const ChangesReviewPanel: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-4">
-                {patches.length > 0 && (
+                {patches.length > 0 ? (
                     <div>
                         <div className="px-2 mb-1 text-[9px] font-black text-slate-500 uppercase tracking-widest">In-file Patches</div>
                         {patches.map(patch => {
@@ -87,34 +68,17 @@ const ChangesReviewPanel: React.FC = () => {
                                 <ChangeFileListItem 
                                     key={patch.id} 
                                     label={file?.name || 'Unknown File'} 
-                                    type="patch" 
                                     onClick={() => handleSelectFile(patch.fileId)} 
                                 />
                             );
                         })}
                     </div>
-                )}
-
-                {stagedChanges.length > 0 && (
-                    <div>
-                        <div className="px-2 mb-1 text-[9px] font-black text-slate-500 uppercase tracking-widest">File Operations</div>
-                        {stagedChanges.map(change => (
-                            <ChangeFileListItem 
-                                key={change.id} 
-                                label={change.path} 
-                                type={change.type} 
-                                onClick={() => handleSelectPath(change.path)} 
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {stagedChanges.length === 0 && patches.length === 0 && (
+                ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                         <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3 opacity-20">
                             <IconGitMerge size={24} />
                         </div>
-                        <p className="text-xs text-slate-500 italic">No pending changes</p>
+                        <p className="text-xs text-slate-500 italic">No pending patches</p>
                     </div>
                 )}
             </div>

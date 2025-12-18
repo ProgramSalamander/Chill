@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen, IconZap } from './Icons';
 import { SidebarView } from '../types';
@@ -21,7 +22,7 @@ const Sidebar: React.FC = () => {
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
 
   const gitStatus = useGitStore(state => state.status);
-  const stagedChangesCount = useAgentStore(state => state.stagedChanges.length);
+  const patchesCount = useAgentStore(state => state.patches.length);
 
   const visibleSortedViews = useMemo(() => 
     sidebarViews.filter(v => v.visible).sort((a,b) => a.order - b.order), 
@@ -167,7 +168,7 @@ const Sidebar: React.FC = () => {
               {visibleSortedViews.map((view, index) => {
                 const isActive = activeSidebarView === view.id;
                 const hasGitBadge = view.id === 'git' && gitStatus.filter(s => s.status !== 'unmodified').length > 0;
-                const hasChangesBadge = view.id === 'changes' && stagedChangesCount > 0;
+                const hasChangesBadge = view.id === 'changes' && patchesCount > 0;
                 const isDragged = draggedId === view.id;
                 const isDragOver = dragOverId === view.id;
 
@@ -195,8 +196,8 @@ const Sidebar: React.FC = () => {
                           <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-vibe-900 shadow-sm animate-pulse"></div>
                         )}
                         {hasChangesBadge && (
-                          <div className="absolute top-0 right-0 w-4 h-4 bg-blue-500 rounded-full border-2 border-vibe-900 text-[9px] flex items-center justify-center text-white font-bold shadow-md">
-                            {stagedChangesCount}
+                          <div className="absolute top-0 right-0 w-4 h-4 bg-vibe-accent rounded-full border-2 border-vibe-900 text-[9px] flex items-center justify-center text-white font-bold shadow-md">
+                            {patchesCount}
                           </div>
                         )}
                       </div>
