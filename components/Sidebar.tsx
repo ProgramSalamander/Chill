@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen, IconZap } from './Icons';
+import { IconSearch, IconSettings } from './Icons';
 import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
@@ -36,10 +36,6 @@ const Sidebar: React.FC = () => {
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, view: SidebarView } | null>(null);
-  const [hiddenMenuOpen, setHiddenMenuOpen] = useState(false);
-  const hiddenMenuRef = useRef<HTMLDivElement>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const activeIndex = visibleSortedViews.findIndex(v => v.id === activeSidebarView);
@@ -55,16 +51,6 @@ const Sidebar: React.FC = () => {
        setIndicatorStyle({ top: indicatorStyle.top, opacity: 0 });
     }
   }, [activeSidebarView, visibleSortedViews]);
-
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (hiddenMenuRef.current && !hiddenMenuRef.current.contains(event.target as Node)) { setHiddenMenuOpen(false); }
-      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) { setContextMenu(null); }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handleDragStart = (e: React.DragEvent, view: SidebarView) => {
     e.dataTransfer.setData('text/plain', view.id);
@@ -98,22 +84,6 @@ const Sidebar: React.FC = () => {
   };
 
   const handleDragEnd = () => { setDraggedId(null); setDragOverId(null); };
-  const handleContextMenu = (e: React.MouseEvent, view: SidebarView) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, view }); };
-  
-  const handleHide = () => {
-    if (!contextMenu) return;
-    if (contextMenu.view.id === activeSidebarView) { setActiveSidebarView(null); }
-    const newViews = sidebarViews.map(v => v.id === contextMenu.view.id ? { ...v, visible: false } : v);
-    updateSidebarViews(newViews);
-    setContextMenu(null);
-  };
-
-  const handleShow = (id: string) => {
-    const newViews = sidebarViews.map(v => v.id === id ? { ...v, visible: true } : v);
-    updateSidebarViews(newViews);
-  };
-
-  const hiddenViews = sidebarViews.filter(v => !v.visible).sort((a,b) => a.order - b.order);
 
   // --- Resizing Logic ---
   const isResizingRef = useRef(false);
@@ -182,7 +152,6 @@ const Sidebar: React.FC = () => {
                       onDragOver={e => handleDragOver(e, view)}
                       onDrop={e => handleDrop(e, view)}
                       onDragEnd={handleDragEnd}
-                      onContextMenu={e => handleContextMenu(e, view)}
                       onClick={() => setActiveSidebarView(isActive ? null : view.id)}
                       className={`p-3 rounded-xl transition-all duration-300 relative group w-[44px] h-[44px] flex items-center justify-center cursor-pointer
                         ${isActive ? 'bg-vibe-accent/20 text-vibe-accent dark:text-white' : 'text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/10'}
@@ -229,52 +198,6 @@ const Sidebar: React.FC = () => {
                 <IconSettings size={20} strokeWidth={1.5} />
               </button>
             </Tooltip>
-            
-            <div className="relative pt-1" ref={hiddenMenuRef}>
-              <Tooltip content="Manage Views" position="top">
-                <button
-                  onClick={() => setHiddenMenuOpen(p => !p)}
-                  className={`p-2 rounded-full transition-colors ${hiddenMenuOpen ? 'bg-black/5 dark:bg-white/10 text-vibe-text-main' : 'text-vibe-text-muted hover:text-vibe-text-main'}`}
-                >
-                  <IconMore size={16} />
-                </button>
-              </Tooltip>
-              {hiddenMenuOpen && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-vibe-text-muted uppercase tracking-wider">
-                    Hidden Views
-                  </div>
-                  {hiddenViews.length > 0 ? hiddenViews.map(view => (
-                    <button 
-                      key={view.id}
-                      onClick={() => handleShow(view.id)}
-                      className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-vibe-accent/20 hover:text-vibe-text-main flex items-center gap-3 transition-colors mx-1 rounded-lg"
-                    >
-                      <IconEye size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" />
-                      <span>{view.title.split('(')[0].trim()}</span>
-                    </button>
-                  )) : (
-                    <div className="px-3 py-2 text-xs text-vibe-text-muted italic">None</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {contextMenu && (
-              <div 
-                ref={contextMenuRef}
-                style={{ top: contextMenu.y, left: contextMenu.x + 10 }}
-                className="fixed z-50 w-32 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50"
-              >
-                <button 
-                  onClick={handleHide}
-                  className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 flex items-center gap-3 transition-colors mx-1 rounded-lg"
-                >
-                  <IconEyeOff size={14} className="text-vibe-text-muted group-hover:text-red-500" />
-                  <span>Hide</span>
-                </button>
-              </div>
-            )}
         </div>
         
         {/* Content Panel */}
