@@ -30,7 +30,7 @@ import { useAgentStore } from './stores/agentStore';
 import { aiService, runLinting, executionService, previewService } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { getFilePath } from './utils/fileUtils';
-import { IconSparkles, IconCommand, IconLayout, IconSettings, IconZap, IconBrain } from './components/Icons';
+import { IconSparkles, IconCommand, IconLayout, IconSettings, IconZap, IconBrain, IconRefresh, IconExternalLink, IconGlobe, IconClose } from './components/Icons';
 
 function App() {
   const theme = useUIStore(state => state.theme);
@@ -53,6 +53,7 @@ function App() {
   const isAIOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
+  const setIsPreviewOpen = useUIStore(state => state.setIsPreviewOpen);
   const showContextMenu = useUIStore(state => state.showContextMenu);
   const setIsCommandPaletteOpen = useUIStore(state => state.setIsCommandPaletteOpen);
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
@@ -70,6 +71,18 @@ function App() {
 
   // --- Preview Logic ---
   const [previewUrl, setPreviewUrl] = useState('');
+  const [previewKey, setPreviewKey] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const handleRefreshPreview = useCallback(() => {
+      // If it's a blob URL (Markdown), we need to regenerate the blob URL
+      if (previewUrl.startsWith('blob:')) {
+          setPreviewKey(prev => prev + 1);
+      } else if (iframeRef.current && iframeRef.current.contentWindow) {
+          // If it's a SW URL (HTML), we can just reload the iframe content
+          iframeRef.current.contentWindow.location.reload();
+      }
+  }, [previewUrl]);
 
   useEffect(() => {
     if (!isPreviewOpen) return;
@@ -86,6 +99,7 @@ function App() {
              });
         } else {
              // Use Service Worker for web projects
+             // This pushes the current (possibly unsaved) state to the SW cache
              previewService.updatePreviewFiles(files);
              
              let path = 'index.html';
@@ -97,7 +111,15 @@ function App() {
                  if (index) path = getFilePath(index, files);
              }
              
-             setPreviewUrl(`/preview/${path}`);
+             // Check if path has changed
+             const newUrl = `/preview/${path}`;
+             setPreviewUrl(prev => {
+                 if (prev !== newUrl) return newUrl;
+                 return prev;
+             });
+             
+             // NOTE: We don't auto-reload the iframe on every keystroke to prevent flickering.
+             // Users can press the refresh button or we could add a smarter debounce.
         }
     };
 
@@ -291,6 +313,8 @@ function App() {
       
       if (activeFile.language === 'html') {
           setIsPreviewOpen(true);
+          // Small delay to ensure preview pane is mounted before reloading
+          setTimeout(() => handleRefreshPreview(), 100);
       } else {
           await executionService.runCode(activeFile.content, activeFile.language);
       }
@@ -348,12 +372,53 @@ function App() {
                             </div>
                             
                             {isPreviewOpen && (
-                                <div className="w-1/2 h-full bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border overflow-hidden relative">
+                                <div className="w-1/2 h-full bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border overflow-hidden relative flex flex-col">
+                                    {/* Browser Toolbar */}
+                                    <div className="h-9 shrink-0 bg-slate-100 border-b border-slate-200 flex items-center px-2 gap-2 text-slate-600">
+                                        <div className="flex items-center gap-1">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-red-400 opacity-50"></div>
+                                            <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 opacity-50"></div>
+                                            <div className="w-2.5 h-2.5 rounded-full bg-green-400 opacity-50"></div>
+                                        </div>
+                                        <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-md px-2 py-0.5 mx-2 text-[10px] shadow-sm group hover:border-slate-300 transition-colors">
+                                            <IconGlobe size={12} className="text-slate-400 mr-2 group-hover:text-blue-500" />
+                                            <span className="truncate text-slate-500 font-mono select-none flex-1">
+                                              {previewUrl.startsWith('blob:') ? 'Markdown Preview' : previewUrl.replace(/^\/preview\//, 'localhost:3000/')}
+                                            </span>
+                                            <button 
+                                                onClick={handleRefreshPreview} 
+                                                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors"
+                                                title="Reload Frame"
+                                            >
+                                                <IconRefresh size={12} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button 
+                                                onClick={() => window.open(previewUrl, '_blank')}
+                                                className="p-1.5 hover:bg-slate-200 rounded-md text-slate-500 hover:text-slate-800 transition-colors"
+                                                title="Open in New Tab"
+                                            >
+                                                <IconExternalLink size={14} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setIsPreviewOpen(false)}
+                                                className="p-1.5 hover:bg-slate-200 rounded-md text-slate-500 hover:text-red-500 transition-colors"
+                                                title="Close Preview"
+                                            >
+                                                <IconClose size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Content Frame */}
                                     <iframe 
+                                        key={previewKey}
+                                        ref={iframeRef}
                                         className="w-full h-full border-none bg-white"
                                         src={previewUrl}
                                         title="Live Preview"
-                                        sandbox="allow-scripts allow-modals allow-same-origin" 
+                                        sandbox="allow-scripts allow-modals allow-same-origin allow-forms" 
                                     />
                                 </div>
                             )}

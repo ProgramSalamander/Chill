@@ -56,7 +56,9 @@ import {
   ArrowUp,
   KeyRound,
   Download,
-  Image
+  Image,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -116,3 +118,5 @@ export const IconArrowUp = (props: any) => <ArrowUp {...props} />;
 export const IconKeyRound = (props: any) => <KeyRound {...props} />;
 export const IconDownload = (props: any) => <Download {...props} />;
 export const IconImage = (props: any) => <Image {...props} />;
+export const IconExternalLink = (props: any) => <ExternalLink {...props} />;
+export const IconGlobe = (props: any) => <Globe {...props} />;
