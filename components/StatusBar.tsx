@@ -55,7 +55,7 @@ const StatusBar: React.FC = () => {
         }
         if (indexingStatus === 'ready') {
             return (
-                <div className="flex items-center gap-1.5 text-green-400 opacity-80 hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400 opacity-80 hover:opacity-100 transition-opacity">
                     <IconCheckCircle size={12} />
                     <span className="hidden sm:inline">Context Ready</span>
                 </div>
@@ -78,7 +78,7 @@ const StatusBar: React.FC = () => {
         }
         if (isPulling) {
             return (
-                <div className="flex items-center gap-1.5 text-blue-400">
+                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                     <IconArrowDown size={12} className="animate-bounce" />
                     <span>Pulling...</span>
                 </div>
@@ -86,7 +86,7 @@ const StatusBar: React.FC = () => {
         }
         if (isPushing) {
             return (
-                <div className="flex items-center gap-1.5 text-blue-400">
+                <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                     <IconArrowUp size={12} className="animate-bounce" />
                     <span>Pushing...</span>
                 </div>
@@ -94,7 +94,7 @@ const StatusBar: React.FC = () => {
         }
         if (isFetching) {
             return (
-                <div className="flex items-center gap-1.5 text-slate-400">
+                <div className="flex items-center gap-1.5 text-vibe-text-soft">
                     <IconRefresh size={12} className="animate-spin" />
                     <span className="hidden sm:inline">Fetching...</span>
                 </div>
@@ -109,12 +109,12 @@ const StatusBar: React.FC = () => {
         if (activeLinters.length === 0) return null;
 
         return (
-            <div className="flex items-center gap-3 border-l border-white/5 pl-3 ml-1">
+            <div className="flex items-center gap-3 border-l border-vibe-border pl-3 ml-1">
                 {activeLinters.map(l => {
                     const status = linterStatuses[l.id];
                     if (status === 'initializing') {
                         return (
-                            <div key={l.id} className="flex items-center gap-1.5 text-amber-400 animate-pulse" title={`${l.name}: Initializing`}>
+                            <div key={l.id} className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 animate-pulse" title={`${l.name}: Initializing`}>
                                 <IconBug size={12} className="animate-spin-slow" />
                                 <span className="hidden md:inline">{l.name}</span>
                             </div>
@@ -122,7 +122,7 @@ const StatusBar: React.FC = () => {
                     }
                     if (status === 'error') {
                         return (
-                            <div key={l.id} className="flex items-center gap-1.5 text-red-400" title={`${l.name}: Failed to start`}>
+                            <div key={l.id} className="flex items-center gap-1.5 text-red-600 dark:text-red-400" title={`${l.name}: Failed to start`}>
                                 <IconAlert size={12} />
                                 <span className="hidden md:inline">{l.name}</span>
                             </div>
@@ -130,8 +130,8 @@ const StatusBar: React.FC = () => {
                     }
                     if (status === 'ready') {
                         return (
-                            <div key={l.id} className="flex items-center gap-1.5 text-slate-500 opacity-60 hover:opacity-100 transition-opacity" title={`${l.name}: Ready`}>
-                                <IconCheckCircle size={12} className="text-green-500/80" />
+                            <div key={l.id} className="flex items-center gap-1.5 text-vibe-text-soft opacity-60 hover:opacity-100 transition-opacity" title={`${l.name}: Ready`}>
+                                <IconCheckCircle size={12} className="text-green-600 dark:text-green-500/80" />
                                 <span className="hidden md:inline">{l.name}</span>
                             </div>
                         );
@@ -143,12 +143,12 @@ const StatusBar: React.FC = () => {
     };
 
     return (
-        <div className="h-7 bg-[#050508] border-t border-white/5 flex items-center px-3 text-[10px] text-slate-500 font-medium select-none z-30 shrink-0">
+        <div className="h-7 bg-vibe-900 border-t border-vibe-border flex items-center px-3 text-[10px] text-vibe-text-soft font-medium select-none z-30 shrink-0">
             {/* Left Section: App Status & Git */}
             <div className="flex items-center gap-4 overflow-hidden flex-1">
                 {/* Git Branch Info */}
-                <div className="flex items-center gap-1.5 hover:text-slate-300 transition-colors cursor-pointer group">
-                    <IconGitBranch size={12} className={isGitInitialized ? "text-vibe-accent group-hover:text-vibe-glow" : "text-slate-600"} />
+                <div className="flex items-center gap-1.5 hover:text-vibe-text-main transition-colors cursor-pointer group">
+                    <IconGitBranch size={12} className={isGitInitialized ? "text-vibe-accent group-hover:text-vibe-glow" : "text-vibe-text-muted"} />
                     <span>{isGitInitialized ? 'main' : 'local'}</span>
                     {!isGitInitialized && <span className="hidden sm:inline opacity-50 italic">- git not init</span>}
                 </div>
@@ -163,7 +163,7 @@ const StatusBar: React.FC = () => {
             <div className="flex items-center gap-4 shrink-0">
                  {activeFile && (
                      <div className="flex items-center gap-3">
-                        <span className="text-slate-400 hidden sm:inline" title="File Language">
+                        <span className="text-vibe-text-muted hidden sm:inline" title="File Language">
                             {activeFile.language === 'typescript' ? 'TypeScript' : 
                              activeFile.language === 'javascript' ? 'JavaScript' : 
                              activeFile.language === 'python' ? 'Python' : 
@@ -175,7 +175,7 @@ const StatusBar: React.FC = () => {
                      </div>
                  )}
                  
-                 <div className="h-3 w-px bg-white/10 hidden sm:block"></div>
+                 <div className="h-3 w-px bg-vibe-border hidden sm:block"></div>
 
                  <div className="flex items-center gap-3 hidden sm:flex">
                     <span title="Encoding">UTF-8</span>
@@ -183,9 +183,9 @@ const StatusBar: React.FC = () => {
                  </div>
 
                  {activeProject && (
-                    <div className="flex items-center gap-2 pl-3 border-l border-white/10 ml-1">
+                    <div className="flex items-center gap-2 pl-3 border-l border-vibe-border ml-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                        <span className="text-slate-300 max-w-[100px] truncate" title={`Project: ${activeProject.name}`}>{activeProject.name}</span>
+                        <span className="text-vibe-text-main max-w-[100px] truncate" title={`Project: ${activeProject.name}`}>{activeProject.name}</span>
                     </div>
                  )}
             </div>
