@@ -67,6 +67,49 @@ function App() {
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addTerminalLine = useTerminalStore(state => state.addTerminalLine);
 
+  // --- Preview Logic ---
+  const [previewUrl, setPreviewUrl] = useState('');
+  const lastActiveFileIdRef = useRef<string | null>(null);
+
+  // Debounced Blob URL Generation for Preview
+  useEffect(() => {
+    if (!isPreviewOpen) return;
+
+    // Detect if we switched files vs just typing
+    const isFileSwitch = activeFileId !== lastActiveFileIdRef.current;
+    lastActiveFileIdRef.current = activeFileId;
+
+    const generate = () => {
+        try {
+            const html = generatePreviewHtml(files, activeFile);
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            setPreviewUrl(prev => {
+                if (prev) URL.revokeObjectURL(prev);
+                return url;
+            });
+        } catch (e) {
+            console.error("Preview Generation Failed", e);
+        }
+    };
+
+    if (isFileSwitch) {
+        // Immediate update on file switch to avoid showing wrong context
+        generate();
+    } else {
+        // Debounce updates during typing to prevent iframe flickering
+        const timer = setTimeout(generate, 800);
+        return () => clearTimeout(timer);
+    }
+  }, [files, activeFile, activeFileId, isPreviewOpen]);
+
+  // Cleanup Blob URLs
+  useEffect(() => {
+      return () => {
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+      };
+  }, [previewUrl]);
+
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
@@ -256,8 +299,6 @@ function App() {
       } else { addTerminalLine('Execution not supported in browser.', 'warning'); }
   };
 
-  const getPreviewContent = useMemo(() => isPreviewOpen ? generatePreviewHtml(files, activeFile) : '', [files, activeFile, isPreviewOpen]);
-
   return (
     <div 
       className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent"
@@ -310,13 +351,14 @@ function App() {
                             </div>
                             
                             {isPreviewOpen && (
-                                <div className="w-1/2 h-full bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border overflow-hidden">
+                                <div className="w-1/2 h-full bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border overflow-hidden relative">
                                     <iframe 
                                         className="w-full h-full border-none bg-white"
-                                        srcDoc={getPreviewContent}
+                                        src={previewUrl}
                                         title="Live Preview"
                                         sandbox="allow-scripts allow-modals" 
                                     />
+                                    {/* Optional: Add a loading overlay if URL is empty initially, though it usually is fast enough */}
                                 </div>
                             )}
                         </>
