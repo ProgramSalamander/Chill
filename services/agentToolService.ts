@@ -1,4 +1,3 @@
-
 import { useFileTreeStore } from '../stores/fileStore';
 import { useTerminalStore } from '../stores/terminalStore';
 import { ragService } from './ragService';
@@ -12,7 +11,7 @@ import { gitService } from './gitService';
 export const handleAgentAction = async (toolName: string, args: any): Promise<{ result: string; change?: Omit<StagedChange, 'id'> }> => {
   const { addTerminalLine } = useTerminalStore.getState();
   const { files } = useFileTreeStore.getState();
-  const { stagedChanges } = await import('../stores/agentStore').then(m => m.useAgentStore.getState());
+  const { stagedChanges, addPatch } = await import('../stores/agentStore').then(m => m.useAgentStore.getState());
 
   switch (toolName) {
     case 'fs_listFiles':
@@ -58,16 +57,22 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
         return { result: `Error: Cannot write file. A folder already exists at path ${path}` };
       }
 
-      if (existingFile) { // Update existing file
+      if (existingFile) { // Create an inline patch for existing file
+        const lines = existingFile.content.split('\n');
+        addPatch({
+          fileId: existingFile.id,
+          range: {
+            startLineNumber: 1,
+            startColumn: 1,
+            endLineNumber: lines.length,
+            endColumn: (lines[lines.length - 1]?.length || 0) + 1
+          },
+          originalText: existingFile.content,
+          proposedText: content
+        });
+
         return {
-          result: `Success: Staged file update for ${path}`,
-          change: {
-            type: 'update',
-            path,
-            fileId: existingFile.id,
-            oldContent: existingFile.content,
-            newContent: content,
-          }
+          result: `Success: Proposed changes to ${path} as an inline patch. Review in editor.`,
         };
       } else { // Create new file
         return {
@@ -325,15 +330,22 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
             
             if (fixedCode && fixedCode.trim() !== originalContent.trim()) {
                 notify(`Staged auto-fix for ${path}`, 'success');
+                // Instead of update change, use inline patch if possible
+                const lines = originalContent.split('\n');
+                addPatch({
+                  fileId: fileToFix.id,
+                  range: {
+                    startLineNumber: 1,
+                    startColumn: 1,
+                    endLineNumber: lines.length,
+                    endColumn: (lines[lines.length - 1]?.length || 0) + 1
+                  },
+                  originalText: originalContent,
+                  proposedText: fixedCode
+                });
+
                 return {
-                  result: `Success: Staged an automatic fix for ${diagnostics.length} errors in ${path}.`,
-                  change: {
-                    type: 'update',
-                    path,
-                    fileId: fileToFix.id,
-                    oldContent: originalContent,
-                    newContent: fixedCode
-                  }
+                  result: `Success: Analyzed and proposed an automatic fix for ${diagnostics.length} errors in ${path}. Review inline.`,
                 };
             } else if (fixedCode) {
                 return { result: `Success: Analysis complete, but no changes were necessary.` };

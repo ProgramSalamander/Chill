@@ -1,6 +1,5 @@
-
 import { create } from 'zustand';
-import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange } from '../types';
+import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange, AIPatch } from '../types';
 import { aiService, handleAgentAction, getActiveChatConfig, errorService } from '../services';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
@@ -10,6 +9,7 @@ interface AgentState {
   agentSteps: AgentStep[];
   plan: AgentPlanItem[];
   stagedChanges: StagedChange[];
+  patches: AIPatch[];
   agentAwareness: Set<string>;
   agentChatSession: AISession | null;
 
@@ -19,6 +19,10 @@ interface AgentState {
   summarizeTask: () => Promise<void>;
   
   addStagedChange: (change: Omit<StagedChange, 'id'>) => void;
+  addPatch: (patch: Omit<AIPatch, 'id' | 'status'>) => void;
+  acceptPatch: (patchId: string) => void;
+  rejectPatch: (patchId: string) => void;
+  
   applyChange: (id: string) => Promise<void>;
   rejectChange: (id: string) => void;
   applyAllChanges: () => Promise<void>;
@@ -30,6 +34,7 @@ const useAgentStore = create<AgentState>((set, get) => ({
   agentSteps: [],
   plan: [],
   stagedChanges: [],
+  patches: [],
   agentAwareness: new Set(),
   agentChatSession: null,
 
@@ -39,6 +44,7 @@ const useAgentStore = create<AgentState>((set, get) => ({
       agentSteps: [],
       plan: [],
       stagedChanges: [],
+      patches: [],
       agentChatSession: null,
       agentAwareness: new Set(),
     });
@@ -120,7 +126,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
         }]
       }));
 
-      if (get().stagedChanges.length > 0) {
+      if (get().stagedChanges.length > 0 || get().patches.length > 0) {
         set({ status: 'awaiting_changes_review' });
         useUIStore.getState().setActiveSidebarView('changes');
       } else {
@@ -140,6 +146,50 @@ For each turn, I will tell you which step needs to be worked on. You should outp
     set(state => ({
       stagedChanges: [...state.stagedChanges, { ...change, id: Date.now().toString() }]
     }));
+  },
+
+  addPatch: (patch) => {
+    set(state => ({
+      patches: [...state.patches, { ...patch, id: Date.now().toString(), status: 'pending' }]
+    }));
+  },
+
+  acceptPatch: (patchId) => {
+    const patch = get().patches.find(p => p.id === patchId);
+    if (!patch) return;
+    
+    // Applying is done in the editor; store just updates the finality
+    set(state => ({
+      patches: state.patches.map(p => p.id === patchId ? { ...p, status: 'accepted' } : p)
+    }));
+
+    // Actually update the store's file content
+    useFileTreeStore.getState().updateFileContent(patch.proposedText, true, patch.fileId);
+    useFileTreeStore.getState().saveFile(useFileTreeStore.getState().files.find(f => f.id === patch.fileId)!);
+
+    // Remove the patch after a short delay or immediately
+    set(state => ({
+      patches: state.patches.filter(p => p.id !== patchId)
+    }));
+
+    if (get().patches.length === 0 && get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+      set({ status: 'completed' });
+    }
+  },
+
+  rejectPatch: (patchId) => {
+    set(state => ({
+      patches: state.patches.map(p => p.id === patchId ? { ...p, status: 'rejected' } : p)
+    }));
+
+    // Reverting is done in the editor's effect; store just removes it
+    set(state => ({
+      patches: state.patches.filter(p => p.id !== patchId)
+    }));
+
+    if (get().patches.length === 0 && get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+      set({ status: 'completed' });
+    }
   },
 
   applyChange: async (id) => {
@@ -190,7 +240,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
         stagedChanges: state.stagedChanges.filter(c => c.id !== id)
     }));
     
-    if (get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+    if (get().stagedChanges.length === 0 && get().patches.length === 0 && get().status === 'awaiting_changes_review') {
         set({ status: 'completed' });
     }
   },
@@ -200,7 +250,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       stagedChanges: state.stagedChanges.filter(c => c.id !== id)
     }));
 
-    if (get().stagedChanges.length === 0 && get().status === 'awaiting_changes_review') {
+    if (get().stagedChanges.length === 0 && get().patches.length === 0 && get().status === 'awaiting_changes_review') {
         set({ status: 'completed' });
     }
   },
@@ -210,10 +260,14 @@ For each turn, I will tell you which step needs to be worked on. You should outp
     for (const change of changes) {
         await get().applyChange(change.id);
     }
+    const patches = [...get().patches];
+    for (const patch of patches) {
+      get().acceptPatch(patch.id);
+    }
   },
 
   rejectAllChanges: () => {
-    set({ stagedChanges: [], status: 'completed' });
+    set({ stagedChanges: [], patches: [], status: 'completed' });
   }
 }));
 

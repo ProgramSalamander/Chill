@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -23,6 +22,7 @@ import { useFileTreeStore } from './stores/fileStore';
 import { useProjectStore } from './stores/projectStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
+import { useAgentStore } from './stores/agentStore';
 
 import { aiService, initLinters, runLinting, ragService } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
@@ -52,6 +52,7 @@ function App() {
 
   const initChat = useChatStore(state => state.initChat);
   const sendMessage = useChatStore(state => state.sendMessage);
+  const addPatch = useAgentStore(state => state.addPatch);
 
   // --- LOCAL COMPONENT STATE & REFS ---
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -142,9 +143,22 @@ function App() {
           
           const newCode = await aiService.editCode(prefix, selectedText, suffix, instruction, file, useFileTreeStore.getState().files);
           if (newCode) {
-              const updatedContent = prefix + newCode + suffix;
-              updateFileContent(updatedContent);
-              addTerminalLine('Inline Edit Applied', 'success');
+              const proposedContent = prefix + newCode + suffix;
+              
+              // Instead of immediate update, we create a patch
+              addPatch({
+                fileId: file.id,
+                range: {
+                  startLineNumber: range.startLineNumber,
+                  startColumn: 1, // Highlight whole lines for better visibility
+                  endLineNumber: range.endLineNumber,
+                  endColumn: lines[endLine].length + 1
+                },
+                originalText: file.content,
+                proposedText: proposedContent
+              });
+
+              addTerminalLine('AI Proposal Staged Inline', 'success');
           }
       } catch (e) {
           console.error(e);

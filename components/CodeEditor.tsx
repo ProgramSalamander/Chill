@@ -1,8 +1,7 @@
-
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Diagnostic } from '../types';
+import { Diagnostic, AIPatch } from '../types';
 import { InlineInput } from './InlineInput';
 import { vibeDarkTheme, vibeLightTheme } from '../utils/monacoThemes';
 import { getMonacoLanguage } from '../utils/editorUtils';
@@ -11,6 +10,8 @@ import { useSemanticAutocomplete } from './editor/hooks/useSemanticAutocomplete'
 import { useCodeLens } from './editor/hooks/useCodeLens';
 import { useQuickFix } from './editor/hooks/useQuickFix';
 import { useAICommand } from './editor/hooks/useAICommand';
+import { useAgentStore } from '../stores/agentStore';
+import { useFileTreeStore } from '../stores/fileStore';
 
 interface CodeEditorProps {
   code: string;
@@ -32,6 +33,55 @@ interface CodeEditorProps {
   // Inline AI
   onInlineAssist?: (instruction: string, range: any) => Promise<void>;
   onAICommand?: (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => void;
+}
+
+// --- Content Widget for AI Patches ---
+
+class AIPatchWidget implements monaco.editor.IContentWidget {
+  private domNode: HTMLDivElement | null = null;
+
+  constructor(
+    private editor: monaco.editor.IStandaloneCodeEditor,
+    private patch: AIPatch,
+    private onAccept: () => void,
+    private onReject: () => void
+  ) {}
+
+  getId() {
+    return `ai.patch.${this.patch.id}`;
+  }
+
+  getDomNode() {
+    if (!this.domNode) {
+      this.domNode = document.createElement('div');
+      this.domNode.className = 'ai-patch-widget';
+
+      const keep = document.createElement('button');
+      keep.textContent = 'Keep';
+      keep.className = 'btn-keep';
+      keep.onclick = (e) => { e.stopPropagation(); this.onAccept(); };
+
+      const reject = document.createElement('button');
+      reject.textContent = 'Reject';
+      reject.className = 'btn-reject';
+      reject.onclick = (e) => { e.stopPropagation(); this.onReject(); };
+
+      this.domNode.append(keep, reject);
+    }
+    return this.domNode;
+  }
+
+  getPosition() {
+    return {
+      position: {
+        lineNumber: this.patch.range.endLineNumber,
+        column: this.patch.range.endColumn
+      },
+      preference: [
+        monaco.editor.ContentWidgetPositionPreference.BELOW
+      ]
+    };
+  }
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
@@ -62,24 +112,92 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [isProcessingInline, setIsProcessingInline] = useState(false);
   const [savedSelection, setSavedSelection] = useState<any>(null);
 
+  // AI Patches Tracking
+  const patches = useAgentStore(state => state.patches);
+  const acceptPatch = useAgentStore(state => state.acceptPatch);
+  const rejectPatch = useAgentStore(state => state.rejectPatch);
+  const activeFileId = useFileTreeStore(state => state.activeFileId);
+  const activePatches = useMemo(() => patches.filter(p => p.fileId === activeFileId && p.status === 'pending'), [patches, activeFileId]);
+  
+  const decorationIdsRef = useRef<string[]>([]);
+  const widgetsRef = useRef<Map<string, AIPatchWidget>>(new Map());
+
   const mappedLanguage = getMonacoLanguage(language);
 
   // --- Initialize Hooks for Editor Features ---
   
-  // 1. Register the Generic AI Command Runner
   const commandId = useAICommand(editor);
-
-  // 2. Register Inline AI Completions
   useInlineCompletion(monacoInstance, editor, mappedLanguage, onFetchSuggestion);
-
-  // 3. Register Semantic RAG Autocomplete
   useSemanticAutocomplete(monacoInstance, editor, mappedLanguage);
-
-  // 4. Register Code Lenses (Test, Docs, Refactor)
   useCodeLens(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
-
-  // 5. Register Quick Fixes (Lightbulb)
   useQuickFix(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
+
+  // --- AI Patches Effect ---
+  useEffect(() => {
+    if (!editor || !monacoInstance) return;
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    // 1. Cleanup old decorations and widgets
+    decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
+    widgetsRef.current.forEach(widget => editor.removeContentWidget(widget));
+    widgetsRef.current.clear();
+
+    // 2. Apply current patches
+    const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
+
+    activePatches.forEach(patch => {
+      // Step 1: Temporarily apply text if not already matching
+      const currentTextInRange = model.getValueInRange(patch.range);
+      if (currentTextInRange !== patch.proposedText) {
+          editor.executeEdits('ai-vibe', [{
+              range: patch.range,
+              text: patch.proposedText
+          }]);
+      }
+
+      // Step 2: Add visual markers
+      newDecorations.push({
+        range: patch.range,
+        options: {
+          className: 'ai-diff-modified',
+          isWholeLine: false,
+          glyphMarginClassName: 'ai-diff-glyph',
+          overviewRuler: {
+            color: '#a371f7',
+            position: monaco.editor.OverviewRulerLane.Left
+          }
+        }
+      });
+
+      // Step 3: Add Widget
+      const widget = new AIPatchWidget(
+        editor,
+        patch,
+        () => acceptPatch(patch.id),
+        () => {
+            // Revert text before rejecting in store
+            editor.executeEdits('ai-vibe-revert', [{
+                range: patch.range,
+                text: patch.originalText
+            }]);
+            rejectPatch(patch.id);
+        }
+      );
+      editor.addContentWidget(widget);
+      widgetsRef.current.set(patch.id, widget);
+    });
+
+    decorationIdsRef.current = editor.deltaDecorations([], newDecorations);
+
+    return () => {
+        // Final cleanup
+        decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
+        widgetsRef.current.forEach(widget => editor.removeContentWidget(widget));
+        widgetsRef.current.clear();
+    };
+  }, [activePatches, editor, monacoInstance, acceptPatch, rejectPatch]);
 
   // --- Theme Handling ---
   useEffect(() => {

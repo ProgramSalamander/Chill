@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export interface File {
@@ -204,6 +203,20 @@ export interface StagedChange {
   fileId?: string; // for updates and deletes
   oldContent?: string; // for updates and deletes
   newContent?: string; // for creates and updates
+}
+
+export interface AIPatch {
+  id: string;
+  fileId: string;
+  range: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  };
+  originalText: string;
+  proposedText: string;
+  status: 'pending' | 'accepted' | 'rejected';
 }
 
 // --- Pre-Flight Check Types ---
