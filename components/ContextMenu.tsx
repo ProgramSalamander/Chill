@@ -1,30 +1,29 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useUIStore } from '../stores/uiStore';
-import { ContextMenuItem } from '../types';
 
 export const ContextMenu: React.FC = () => {
   const { contextMenu, hideContextMenu } = useUIStore();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
 
-  useEffect(() => {
-    if (contextMenu.visible && menuRef.current) {
-      const menuRect = menuRef.current.getBoundingClientRect();
-      let x = contextMenu.x;
-      let y = contextMenu.y;
+  // We calculate clamping logic inside the render or via a layout effect to avoid "flashes"
+  // However, simple clamping can be done by looking at window dimensions
+  const getClampedPosition = (x: number, y: number) => {
+    const width = 224; // w-56 = 14rem = 224px
+    const height = contextMenu.items.length * 32 + 20; // Rough estimate per item
+    
+    let finalX = x;
+    let finalY = y;
 
-      // Ensure menu stays within viewport
-      if (x + menuRect.width > window.innerWidth) {
-        x = window.innerWidth - menuRect.width - 10;
-      }
-      if (y + menuRect.height > window.innerHeight) {
-        y = window.innerHeight - menuRect.height - 10;
-      }
-
-      setPosition({ x, y });
+    if (x + width > window.innerWidth) {
+      finalX = window.innerWidth - width - 10;
     }
-  }, [contextMenu.visible, contextMenu.x, contextMenu.y]);
+    if (y + height > window.innerHeight) {
+      finalY = window.innerHeight - height - 10;
+    }
+
+    return { x: finalX, y: finalY };
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -35,22 +34,31 @@ export const ContextMenu: React.FC = () => {
     
     if (contextMenu.visible) {
       window.addEventListener('mousedown', handleClick);
-      window.addEventListener('keydown', hideContextMenu);
+      // Close on escape key
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') hideContextMenu();
+      };
+      window.addEventListener('keydown', handleEsc);
+      return () => {
+        window.removeEventListener('mousedown', handleClick);
+        window.removeEventListener('keydown', handleEsc);
+      };
     }
-    
-    return () => {
-      window.removeEventListener('mousedown', handleClick);
-      window.removeEventListener('keydown', hideContextMenu);
-    };
   }, [contextMenu.visible, hideContextMenu]);
 
   if (!contextMenu.visible) return null;
 
+  const { x, y } = getClampedPosition(contextMenu.x, contextMenu.y);
+
   return (
     <div
       ref={menuRef}
+      // Using a key based on coordinates forces React to unmount the old menu and mount a new one.
+      // This ensures the "animate-in" CSS animation starts fresh at the new location
+      // rather than sliding from the previous one.
+      key={`${contextMenu.x}-${contextMenu.y}`}
       className="fixed z-[999] w-56 bg-[#0f0f16]/90 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl py-1.5 animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50"
-      style={{ top: position.y, left: position.x }}
+      style={{ top: y, left: x }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {contextMenu.items.map((item, index) => {
