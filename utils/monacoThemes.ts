@@ -19,7 +19,8 @@ export const vibeDarkTheme: editor.IStandaloneThemeData = {
     { token: 'predefined', foreground: 'e5c07b' },
   ],
   colors: {
-    'editor.background': '#0A0A0F',
+    'editor.background': '#00000000',
+    'editorGutter.background': '#00000000',
     'editor.foreground': '#ABB2BF',
     'editor.inactiveSelectionBackground': '#3a3d41',
     'editor.selectionBackground': '#44475A',
@@ -56,7 +57,8 @@ export const vibeLightTheme: editor.IStandaloneThemeData = {
     { token: 'predefined', foreground: 'c18401' },
   ],
   colors: {
-    'editor.background': '#FCFCFD',
+    'editor.background': '#00000000',
+    'editorGutter.background': '#00000000',
     'editor.foreground': '#1C2130',
     'editor.inactiveSelectionBackground': '#E0E3E9',
     'editor.selectionBackground': '#BDD5F3',
