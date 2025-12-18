@@ -1,5 +1,3 @@
-
-
 import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./configService";
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
@@ -48,8 +46,6 @@ class AIService {
     }
     try {
         const provider = this.getProvider(config);
-        // We don't easily get usage for plan generation since it's a direct prompt usually 
-        // but we could track it if we updated the provider interface to return it
         return await provider.generateAgentPlan({ ...props, config });
     } catch (e: any) {
         errorService.report(e, "AI Service (Planning)");
@@ -57,7 +53,7 @@ class AIService {
     }
   }
   
-  // --- GENERIC TEXT GENERATION (used internally now) ---
+  // --- GENERIC TEXT GENERATION ---
   private async generateText(
     config: AIModelProfile,
     prompt: string,
@@ -104,87 +100,54 @@ class AIService {
     const codeBeforeCursor = code.slice(0, offset);
     const codeAfterCursor = code.slice(offset);
     
-    const linesBefore = codeBeforeCursor.split('\n');
-    const lastLineBefore = linesBefore[linesBefore.length - 1];
-    const firstLineAfter = codeAfterCursor.split('\n')[0];
-
     // Smart Context Construction
-    // Current models (Gemini 1.5/2.5/3 Flash) handle large contexts efficiently.
-    // Strategy: 
-    // 1. If file is small (< 30k chars), send full file.
-    // 2. If file is large, send Header (Imports/Types) + Active Block around cursor.
-    
     const MAX_FULL_CONTEXT = 30000;
     let contextBlock = "";
 
     if (code.length <= MAX_FULL_CONTEXT) {
-        contextBlock = `
-Code before cursor:
----
-${codeBeforeCursor}
----
-
-Code after cursor:
----
-${codeAfterCursor}
----`;
+        contextBlock = `[FILE_CONTEXT]\nFile: ${file.name}\nLanguage: ${language}\n\n${code}`;
     } else {
-        // Large file strategy
-        // Capture imports/defs at top
-        const header = code.substring(0, 2500); 
-        // Capture immediate context (8k before, 3k after)
-        const activeBlockBefore = codeBeforeCursor.slice(-8000); 
-        const activeBlockAfter = codeAfterCursor.slice(0, 3000); 
+        const header = code.substring(0, 3000); 
+        const activeBlockBefore = codeBeforeCursor.slice(-10000); 
+        const activeBlockAfter = codeAfterCursor.slice(0, 4000); 
+        const isHeaderOverlapping = offset < 13000;
         
-        // Avoid duplicating header if cursor is near top
-        const isHeaderOverlapping = offset < 10500; // rough check
-        const effectiveHeader = isHeaderOverlapping ? "" : header;
-
-        contextBlock = `
-${effectiveHeader ? `File Header (Imports/Global Types):\n---\n${effectiveHeader}\n---\n\n... [content skipped] ...\n` : ''}
-
-Code before cursor (active region):
----
-${activeBlockBefore}
----
-
-Code after cursor (active region):
----
-${activeBlockAfter}
----`;
+        contextBlock = `[FILE_CONTEXT]\nFile: ${file.name}\nLanguage: ${language}\n${isHeaderOverlapping ? '' : header + '\n... [content skipped] ...\n'}${activeBlockBefore}${activeBlockAfter}`;
     }
 
-    const prompt = `You are a code completion engine. Your task is to complete the code at the cursor position.
-Respond with ONLY the code snippet that should be inserted. Do not add explanations or markdown formatting.
-Pay close attention to formatting and indentation.
-
+    // FILL-IN-THE-MIDDLE (FIM) PROMPT PATTERN
+    // Using structured markers instead of natural language instructions for raw token prediction speed and accuracy.
+    const prompt = `<|FIM_TASK|>
 Language: ${language}
 File: ${file.name}
-The code on the same line before the cursor is: "${lastLineBefore.trim()}"
-The code on the same line after the cursor is: "${firstLineAfter.trim()}"
 
 ${contextBlock}
 
-Complete the code at the cursor position.`;
+<|FIM_PREFIX|>
+${codeBeforeCursor}
+<|FIM_SUFFIX|>
+${codeAfterCursor}
+<|FIM_MIDDLE|>`;
     
     try {
         const response = await this.generateText(
             config, 
             prompt, 
-            { temperature: 0.2, maxOutputTokens: 164, signal }, 
+            { temperature: 0.1, maxOutputTokens: 256, signal }, 
             'completion'
         );
         
-        if (!response) {
-            return null;
-        }
+        if (!response) return null;
 
         let cleanedResponse = response;
+        
+        // Remove markdown artifacts if the model hallucinated them
         const trimmedResponse = response.trim();
         if (trimmedResponse.startsWith('```') && trimmedResponse.endsWith('```')) {
             cleanedResponse = trimmedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
         }
 
+        // Final sanity check: ensure the completion doesn't simply restate the prefix or suffix
         if (cleanedResponse) {
             const maxLead = Math.min(cleanedResponse.length, codeAfterCursor.length);
             for (let i = maxLead; i > 0; i--) {
@@ -207,10 +170,7 @@ Complete the code at the cursor position.`;
         
         return cleanedResponse ? cleanedResponse : null;
     } catch (e: any) {
-        if (e.name === 'AbortError' || e.message === 'Aborted') {
-            // Intentionally silent
-            return null;
-        }
+        if (e.name === 'AbortError' || e.message === 'Aborted') return null;
         errorService.report(e, "AI Service (Completion)", { silent: true, terminal: false, severity: 'warning' });
         return null;
     }
@@ -231,9 +191,7 @@ Complete the code at the cursor position.`;
     
     try {
         const text = await this.generateText(config, prompt, {}, 'completion');
-        if (!text) {
-          return null;
-        }
+        if (!text) return null;
 
         let cleanedText = text.trim();
         if (cleanedText.startsWith('```')) {
