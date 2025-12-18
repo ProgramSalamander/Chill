@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
@@ -54,6 +53,7 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
 
   getDomNode() {
     if (!this.domNode) {
+      const isNewFile = this.patch.originalText === '';
       this.domNode = document.createElement('div');
       this.domNode.className = 'ai-patch-widget animate-in fade-in slide-in-from-top-2 duration-300';
       this.domNode.style.cssText = `
@@ -61,17 +61,17 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
         gap: 8px;
         background: rgba(15, 15, 22, 0.85);
         backdrop-filter: blur(12px);
-        border: 1px solid rgba(129, 140, 248, 0.3);
+        border: 1px solid ${isNewFile ? 'rgba(34, 197, 94, 0.4)' : 'rgba(129, 140, 248, 0.3)'};
         border-radius: 12px;
         padding: 4px 6px;
-        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(129, 140, 248, 0.1);
+        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px ${isNewFile ? 'rgba(34, 197, 94, 0.1)' : 'rgba(129, 140, 248, 0.1)'};
         pointer-events: auto;
         z-index: 100;
       `;
 
       const info = document.createElement('div');
-      info.style.cssText = 'color: #818cf8; font-size: 9px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; padding: 0 4px; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 2px;';
-      info.textContent = 'AI Proposal';
+      info.style.cssText = `color: ${isNewFile ? '#4ade80' : '#818cf8'}; font-size: 9px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; padding: 0 4px; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 2px;`;
+      info.textContent = isNewFile ? 'AI New Content' : 'AI Proposal';
 
       const keep = document.createElement('button');
       keep.textContent = 'Keep';
@@ -171,6 +171,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     activePatches.forEach(patch => {
       // Step 1: Temporarily apply text if not already matching
       const currentTextInRange = model.getValueInRange(patch.range);
+      const isNewFile = patch.originalText === '';
+
       if (currentTextInRange !== patch.proposedText) {
           editor.executeEdits('ai-vibe', [{
               range: patch.range,
@@ -178,15 +180,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           }]);
       }
 
+      // If it's a new file, the range should ideally cover the whole inserted block
+      const decorationRange = isNewFile 
+          ? model.getFullModelRange() 
+          : patch.range;
+
       // Step 2: Add visual markers
       newDecorations.push({
-        range: patch.range,
+        range: decorationRange,
         options: {
-          className: 'ai-diff-modified',
+          className: isNewFile ? 'ai-diff-added' : 'ai-diff-modified',
           isWholeLine: false,
-          glyphMarginClassName: 'ai-diff-glyph',
+          glyphMarginClassName: isNewFile ? 'ai-diff-glyph-added' : 'ai-diff-glyph',
           overviewRuler: {
-            color: '#a371f7',
+            color: isNewFile ? '#22c55e' : '#a371f7',
             position: monaco.editor.OverviewRulerLane.Left
           }
         }
@@ -200,7 +207,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         () => {
             // Revert text before rejecting in store
             editor.executeEdits('ai-vibe-revert', [{
-                range: patch.range,
+                range: model.getFullModelRange(), // Use full range for new file revert to ensure clean
                 text: patch.originalText
             }]);
             rejectPatch(patch.id);
