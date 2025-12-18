@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { IconFileCode, IconGitBranch, IconZap, IconGitMerge } from '../components/Icons';
 import { SidebarViewConfig } from '../types';
@@ -17,7 +16,7 @@ export const SIDEBAR_VIEWS: SidebarViewConfig[] = [
   },
   {
     id: 'changes',
-    title: 'Staged Changes',
+    title: 'AI Proposals',
     icon: IconGitMerge,
   },
   {

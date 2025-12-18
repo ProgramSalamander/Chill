@@ -17,7 +17,6 @@ import Toaster from './components/Toaster';
 import StatusBar from './components/StatusBar';
 import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
-import MainChangesView from './components/MainChangesView';
 import LandingView from './components/LandingView';
 
 import { useUIStore } from './stores/uiStore';
@@ -230,9 +229,7 @@ function App() {
               </ErrorBoundary>
               <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
                   <ErrorBoundary>
-                    {activeSidebarView === 'changes' ? (
-                        <MainChangesView />
-                    ) : activeFile ? (
+                    {activeFile ? (
                         <div className="flex-1 relative overflow-hidden">
                             <CodeEditor 
                                 key={activeFile.id}

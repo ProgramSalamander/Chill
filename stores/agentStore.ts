@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange, AIPatch } from '../types';
 import { aiService, handleAgentAction, getActiveChatConfig, errorService } from '../services';
@@ -158,16 +159,16 @@ For each turn, I will tell you which step needs to be worked on. You should outp
     const patch = get().patches.find(p => p.id === patchId);
     if (!patch) return;
     
-    // Applying is done in the editor; store just updates the finality
     set(state => ({
       patches: state.patches.map(p => p.id === patchId ? { ...p, status: 'accepted' } : p)
     }));
 
-    // Actually update the store's file content
     useFileTreeStore.getState().updateFileContent(patch.proposedText, true, patch.fileId);
-    useFileTreeStore.getState().saveFile(useFileTreeStore.getState().files.find(f => f.id === patch.fileId)!);
+    const file = useFileTreeStore.getState().files.find(f => f.id === patch.fileId);
+    if (file) {
+        useFileTreeStore.getState().saveFile(file);
+    }
 
-    // Remove the patch after a short delay or immediately
     set(state => ({
       patches: state.patches.filter(p => p.id !== patchId)
     }));
@@ -182,7 +183,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       patches: state.patches.map(p => p.id === patchId ? { ...p, status: 'rejected' } : p)
     }));
 
-    // Reverting is done in the editor's effect; store just removes it
     set(state => ({
       patches: state.patches.filter(p => p.id !== patchId)
     }));
@@ -292,7 +292,7 @@ async function _executeAndContinue(action: AgentPendingAction) {
         useAgentStore.getState().addStagedChange(change);
       }
 
-      if (toolName === 'readFile') {
+      if (toolName === 'fs_readFile') {
           const file = useFileTreeStore.getState().files.find(f => f.name === args.path);
           if (file) {
               useAgentStore.setState(state => ({ agentAwareness: new Set(state.agentAwareness).add(file.id) }));
