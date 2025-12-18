@@ -13,6 +13,7 @@ import { useQuickFix } from './editor/hooks/useQuickFix';
 import { useAICommand } from './editor/hooks/useAICommand';
 import { useAgentStore } from '../stores/agentStore';
 import { useFileTreeStore } from '../stores/fileStore';
+import { ResizablePanel } from './ResizablePanel';
 
 interface CodeEditorProps {
   code: string;
@@ -144,9 +145,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [monacoInstance, setMonacoInstance] = useState<typeof monaco | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
-  const [previewWidthPercent, setPreviewWidthPercent] = useState(50);
-  const isResizingRef = useRef(false);
-
   const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
   const [savedSelection, setSavedSelection] = useState<any>(null);
@@ -171,31 +169,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   useSemanticAutocomplete(monacoInstance, editor, mappedLanguage);
   useCodeLens(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
   useQuickFix(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
-
-  const handleResizeMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizingRef.current) return;
-    const container = document.getElementById('editor-container');
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const newWidth = 100 - (x / rect.width) * 100;
-    setPreviewWidthPercent(Math.max(10, Math.min(newWidth, 90)));
-  }, []);
-
-  const handleResizeMouseUp = useCallback(() => {
-    isResizingRef.current = false;
-    document.body.style.cursor = '';
-    window.removeEventListener('mousemove', handleResizeMouseMove);
-    window.removeEventListener('mouseup', handleResizeMouseUp);
-  }, [handleResizeMouseMove]);
-
-  const handleResizeMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-    document.body.style.cursor = 'col-resize';
-    window.addEventListener('mousemove', handleResizeMouseMove);
-    window.addEventListener('mouseup', handleResizeMouseUp);
-  };
 
   // --- Incremental AI Patches Effect ---
   useEffect(() => {
@@ -366,73 +339,59 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   return (
-    <div id="editor-container" className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
-      <div 
-        className="relative h-full transition-[width] duration-75 ease-out"
-        style={{ width: showPreview ? `${100 - previewWidthPercent}%` : '100%' }}
-      >
-         <InlineInput 
-            position={inlineInputPos} 
-            onClose={() => setInlineInputPos(null)} 
-            onSubmit={handleInlineSubmit}
-            isProcessing={isProcessingInline}
-         />
+    <ResizablePanel
+      className={`rounded-2xl ${className || ''}`}
+      isSideVisible={showPreview}
+      mainContent={
+        <div className="h-full w-full relative">
+           <InlineInput 
+              position={inlineInputPos} 
+              onClose={() => setInlineInputPos(null)} 
+              onSubmit={handleInlineSubmit}
+              isProcessing={isProcessingInline}
+           />
 
-         <Editor
-            height="100%"
-            language={mappedLanguage}
-            value={code}
-            onChange={(value) => onChange(value || '')}
-            onMount={handleEditorDidMount}
-            theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}
-            options={{
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 14,
-                lineHeight: 22,
-                fontLigatures: true,
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                smoothScrolling: true,
-                cursorBlinking: 'smooth',
-                cursorSmoothCaretAnimation: 'on',
-                folding: true,
-                roundedSelection: true,
-                renderLineHighlight: 'all',
-                contextmenu: true,
-                bracketPairColorization: { enabled: true },
-                padding: { top: 20, bottom: 20 },
-                inlineSuggest: { enabled: true },
-                suggest: { showWords: false },
-                codeLens: true,
-                lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
-            }}
-         />
-      </div>
-
-      {showPreview && (
-          <div 
-            onMouseDown={handleResizeMouseDown}
-            className="w-1.5 h-full cursor-col-resize group flex items-center justify-center bg-black/20 hover:bg-vibe-accent transition-colors z-30"
-          >
-              <div className="w-0.5 h-10 bg-white/10 group-hover:bg-white/40 rounded-full" />
-          </div>
-      )}
-
-       {showPreview && (
-          <div 
-            className="h-full flex flex-col bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border"
-            style={{ width: `${previewWidthPercent}%` }}
-          >
-              <iframe 
-                  ref={iframeRef}
-                  className="w-full h-full border-none"
-                  srcDoc={previewContent}
-                  title="Live Preview"
-                  sandbox="allow-scripts allow-modals" 
-              />
-          </div>
-       )}
-    </div>
+           <Editor
+              height="100%"
+              language={mappedLanguage}
+              value={code}
+              onChange={(value) => onChange(value || '')}
+              onMount={handleEditorDidMount}
+              theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}
+              options={{
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontSize: 14,
+                  lineHeight: 22,
+                  fontLigatures: true,
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  smoothScrolling: true,
+                  cursorBlinking: 'smooth',
+                  cursorSmoothCaretAnimation: 'on',
+                  folding: true,
+                  roundedSelection: true,
+                  renderLineHighlight: 'all',
+                  contextmenu: true,
+                  bracketPairColorization: { enabled: true },
+                  padding: { top: 20, bottom: 20 },
+                  inlineSuggest: { enabled: true },
+                  suggest: { showWords: false },
+                  codeLens: true,
+                  lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
+              }}
+           />
+        </div>
+      }
+      sideContent={
+        <iframe 
+            ref={iframeRef}
+            className="w-full h-full border-none"
+            srcDoc={previewContent}
+            title="Live Preview"
+            sandbox="allow-scripts allow-modals" 
+        />
+      }
+    />
   );
 };
 
