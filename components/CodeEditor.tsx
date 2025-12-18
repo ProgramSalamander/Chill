@@ -33,16 +33,48 @@ interface CodeEditorProps {
   onAICommand?: (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => void;
 }
 
-// --- Enhanced AI Patch Widget ---
+// --- React Component for AI Patch Widget ---
+
+const AIPatchComponent: React.FC<{ 
+  patch: AIPatch; 
+  onAccept: () => void; 
+  onReject: () => void; 
+}> = ({ patch, onAccept, onReject }) => {
+  const isNewFile = patch.originalText === '';
+  
+  return (
+    <div className="flex items-center gap-2 p-1.5 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300 ring-1 ring-white/5 select-none pointer-events-auto">
+      <div className={`
+        px-2 text-[10px] font-black uppercase tracking-widest border-r border-white/10 flex items-center h-full
+        ${isNewFile ? 'text-green-400' : 'text-indigo-400'}
+      `}>
+        {isNewFile ? 'AI New' : 'AI Edit'}
+      </div>
+      
+      <button 
+        onClick={(e) => { e.stopPropagation(); onAccept(); }}
+        className="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300 border border-green-500/20 hover:shadow-[0_0_10px_rgba(74,222,128,0.2)] cursor-pointer"
+      >
+        Keep
+      </button>
+      
+      <button 
+        onClick={(e) => { e.stopPropagation(); onReject(); }}
+        className="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 border border-red-500/20 hover:shadow-[0_0_10px_rgba(248,113,113,0.2)] cursor-pointer"
+      >
+        Reject
+      </button>
+    </div>
+  );
+};
+
+// --- Content Widget Class ---
 
 class AIPatchWidget implements monaco.editor.IContentWidget {
-  private domNode: HTMLDivElement | null = null;
-
   constructor(
     private editor: monaco.editor.IStandaloneCodeEditor,
     public patch: AIPatch,
-    private onAccept: () => void,
-    private onReject: () => void
+    private domNode: HTMLDivElement
   ) {}
 
   getId() {
@@ -50,57 +82,6 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
   }
 
   getDomNode() {
-    if (!this.domNode) {
-      const isNewFile = this.patch.originalText === '';
-      this.domNode = document.createElement('div');
-      this.domNode.className = 'ai-patch-widget animate-in fade-in slide-in-from-top-2 duration-300';
-      
-      this.domNode.style.cssText = `
-        display: flex;
-        gap: 6px;
-        background: rgba(15, 15, 24, 0.9);
-        backdrop-filter: blur(16px);
-        border: 1px solid ${isNewFile ? 'rgba(34, 197, 94, 0.4)' : 'rgba(129, 140, 248, 0.4)'};
-        border-radius: 10px;
-        padding: 4px 8px;
-        box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.7);
-        pointer-events: auto;
-        z-index: 100;
-        transform: translateY(4px);
-      `;
-
-      const label = document.createElement('div');
-      label.style.cssText = `
-        color: ${isNewFile ? '#4ade80' : '#818cf8'};
-        font-size: 9px;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        display: flex;
-        align-items: center;
-        padding-right: 6px;
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-      `;
-      label.textContent = isNewFile ? 'AI New' : 'AI Edit';
-
-      const btnStyle = 'padding: 2px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; border: 1px solid transparent;';
-      
-      const keep = document.createElement('button');
-      keep.textContent = 'Keep';
-      keep.style.cssText = btnStyle + 'background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.2);';
-      keep.onclick = (e) => { e.stopPropagation(); this.onAccept(); };
-      keep.onmouseover = () => { keep.style.background = 'rgba(34, 197, 94, 0.3)'; };
-      keep.onmouseout = () => { keep.style.background = 'rgba(34, 197, 94, 0.15)'; };
-
-      const reject = document.createElement('button');
-      reject.textContent = 'Reject';
-      reject.style.cssText = btnStyle + 'background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.2);';
-      reject.onclick = (e) => { e.stopPropagation(); this.onReject(); };
-      reject.onmouseover = () => { reject.style.background = 'rgba(239, 68, 68, 0.3)'; };
-      reject.onmouseout = () => { reject.style.background = 'rgba(239, 68, 68, 0.15)'; };
-
-      this.domNode.append(label, keep, reject);
-    }
     return this.domNode;
   }
 
@@ -145,6 +126,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [isProcessingInline, setIsProcessingInline] = useState(false);
   const [savedSelection, setSavedSelection] = useState<any>(null);
 
+  // State to track DOM nodes for React Portals
+  const [widgetMap, setWidgetMap] = useState<Map<string, HTMLDivElement>>(new Map());
+
   const patches = useAgentStore(state => state.patches);
   const acceptPatch = useAgentStore(state => state.acceptPatch);
   const rejectPatch = useAgentStore(state => state.rejectPatch);
@@ -176,7 +160,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     const id = 'vibe.inline-input';
     const domNode = document.createElement('div');
     domNode.style.zIndex = '50';
-    // Ensure the container doesn't block interactions or affect layout size unexpectedly
     domNode.className = 'pointer-events-auto'; 
     setInlineWidgetDom(domNode);
 
@@ -205,12 +188,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     if (!model) return;
 
     const currentPatchIds = new Set(activePatches.map(p => p.id));
+    let mapChanged = false;
+    const newMap = new Map(widgetMap);
     
     // 1. Remove widgets for patches that no longer exist
     widgetsRef.current.forEach((widget, id) => {
         if (!currentPatchIds.has(id)) {
             editor.removeContentWidget(widget);
             widgetsRef.current.delete(id);
+            newMap.delete(id);
+            mapChanged = true;
         }
     });
 
@@ -246,34 +233,34 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       // 2. Add or update Content Widgets incrementally
       let widget = widgetsRef.current.get(patch.id);
       if (!widget) {
-          widget = new AIPatchWidget(
-            editor,
-            patch,
-            () => acceptPatch(patch.id),
-            () => {
-                editor.executeEdits('ai-vibe-revert', [{
-                    range: model.getFullModelRange(), 
-                    text: patch.originalText
-                }]);
-                rejectPatch(patch.id);
-            }
-          );
+          const domNode = document.createElement('div');
+          // Important: 'pointer-events-auto' allows the React component inside to receive clicks
+          domNode.className = 'pointer-events-auto z-50'; 
+          
+          widget = new AIPatchWidget(editor, patch, domNode);
           editor.addContentWidget(widget);
           widgetsRef.current.set(patch.id, widget);
+          
+          newMap.set(patch.id, domNode);
+          mapChanged = true;
       } else {
           // If range changed, layout it
           const oldPos = widget.getPosition().position;
-          if (oldPos.lineNumber !== patch.range.endLineNumber || oldPos.column !== patch.range.endColumn) {
+          if (oldPos?.lineNumber !== patch.range.endLineNumber || oldPos?.column !== patch.range.endColumn) {
               widget.updatePatch(patch);
               editor.layoutContentWidget(widget);
           }
       }
     });
 
-    // 3. Update Decorations using deltaDecorations (built-in incremental update)
+    // 3. Update Decorations
     decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, newDecorations);
 
-  }, [activePatches, editor, monacoInstance, acceptPatch, rejectPatch]);
+    if (mapChanged) {
+        setWidgetMap(newMap);
+    }
+
+  }, [activePatches, editor, monacoInstance]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -386,6 +373,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
               lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
           }}
        />
+       {/* Inline Input Widget Portal */}
        {inlineWidgetDom && createPortal(
           <InlineInput 
               onClose={() => setInlineAnchor(null)}
@@ -394,6 +382,32 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           />,
           inlineWidgetDom
        )}
+       
+       {/* AI Patch Widgets Portals */}
+       {activePatches.map(patch => {
+           const node = widgetMap.get(patch.id);
+           if (!node) return null;
+           return createPortal(
+               <AIPatchComponent 
+                   patch={patch} 
+                   onAccept={() => acceptPatch(patch.id)} 
+                   onReject={() => {
+                        // Revert text in editor before removing the patch
+                        if (editor) {
+                            const model = editor.getModel();
+                            if (model) {
+                                editor.executeEdits('ai-vibe-revert', [{
+                                    range: model.getFullModelRange(), 
+                                    text: patch.originalText
+                                }]);
+                            }
+                        }
+                        rejectPatch(patch.id);
+                   }} 
+               />, 
+               node
+           );
+       })}
     </div>
   );
 };
