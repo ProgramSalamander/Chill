@@ -108,7 +108,51 @@ class AIService {
     const lastLineBefore = linesBefore[linesBefore.length - 1];
     const firstLineAfter = codeAfterCursor.split('\n')[0];
 
-    const context = codeBeforeCursor.slice(-1000); // 1000 chars before cursor
+    // Smart Context Construction
+    // Current models (Gemini 1.5/2.5/3 Flash) handle large contexts efficiently.
+    // Strategy: 
+    // 1. If file is small (< 30k chars), send full file.
+    // 2. If file is large, send Header (Imports/Types) + Active Block around cursor.
+    
+    const MAX_FULL_CONTEXT = 30000;
+    let contextBlock = "";
+
+    if (code.length <= MAX_FULL_CONTEXT) {
+        contextBlock = `
+Code before cursor:
+---
+${codeBeforeCursor}
+---
+
+Code after cursor:
+---
+${codeAfterCursor}
+---`;
+    } else {
+        // Large file strategy
+        // Capture imports/defs at top
+        const header = code.substring(0, 2500); 
+        // Capture immediate context (8k before, 3k after)
+        const activeBlockBefore = codeBeforeCursor.slice(-8000); 
+        const activeBlockAfter = codeAfterCursor.slice(0, 3000); 
+        
+        // Avoid duplicating header if cursor is near top
+        const isHeaderOverlapping = offset < 10500; // rough check
+        const effectiveHeader = isHeaderOverlapping ? "" : header;
+
+        contextBlock = `
+${effectiveHeader ? `File Header (Imports/Global Types):\n---\n${effectiveHeader}\n---\n\n... [content skipped] ...\n` : ''}
+
+Code before cursor (active region):
+---
+${activeBlockBefore}
+---
+
+Code after cursor (active region):
+---
+${activeBlockAfter}
+---`;
+    }
 
     const prompt = `You are a code completion engine. Your task is to complete the code at the cursor position.
 Respond with ONLY the code snippet that should be inserted. Do not add explanations or markdown formatting.
@@ -119,15 +163,7 @@ File: ${file.name}
 The code on the same line before the cursor is: "${lastLineBefore.trim()}"
 The code on the same line after the cursor is: "${firstLineAfter.trim()}"
 
-Code before cursor (including current line):
----
-${context}
----
-
-Code after cursor (including current line):
----
-${codeAfterCursor.slice(0, 500)}
----
+${contextBlock}
 
 Complete the code at the cursor position.`;
     
@@ -135,7 +171,7 @@ Complete the code at the cursor position.`;
         const response = await this.generateText(
             config, 
             prompt, 
-            { temperature: 0.2, maxOutputTokens: 128, signal }, 
+            { temperature: 0.2, maxOutputTokens: 164, signal }, 
             'completion'
         );
         
@@ -146,7 +182,7 @@ Complete the code at the cursor position.`;
         let cleanedResponse = response;
         const trimmedResponse = response.trim();
         if (trimmedResponse.startsWith('```') && trimmedResponse.endsWith('```')) {
-            cleanedResponse = trimmedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
+            cleanedResponse = trimmedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
         }
 
         if (cleanedResponse) {
@@ -191,7 +227,7 @@ Complete the code at the cursor position.`;
     const config = getActiveCompletionConfig();
     if (!config) return null;
 
-    const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-500)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 500)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
+    const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-2000)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 2000)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
     
     try {
         const text = await this.generateText(config, prompt, {}, 'completion');
