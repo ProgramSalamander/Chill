@@ -1,11 +1,12 @@
 import { useTerminalStore } from '../stores/terminalStore';
 import { notify } from '../stores/notificationStore';
+import { TerminalLine } from '../types';
 
 export interface ErrorReportOptions {
   silent?: boolean;
   terminal?: boolean;
   notifyUser?: boolean;
-  severity?: 'error' | 'warning' | 'info';
+  severity?: 'error' | 'warning' | 'info' | 'success';
 }
 
 /**
@@ -35,11 +36,26 @@ export const errorService = {
     const fullMessage = `${logPrefix}${message}`;
 
     // 1. Console for developer debugging
-    console.error(`Chill Error: ${fullMessage}`, error);
+    // Use appropriate console method based on severity
+    if (severity === 'error') {
+      console.error(`[Vibe Error] ${fullMessage}`, error);
+    } else if (severity === 'warning') {
+      console.warn(`[Vibe Warning] ${fullMessage}`);
+    } else if (severity === 'success') {
+      console.log(`[Vibe Success] ${fullMessage}`);
+    } else {
+      console.info(`[Vibe] ${fullMessage}`);
+    }
 
     // 2. Terminal for in-app flow visibility
     if (terminal) {
-      useTerminalStore.getState().addTerminalLine(fullMessage, severity === 'error' ? 'error' : (severity === 'warning' ? 'warning' : 'info'));
+      // Map severity to terminal line type. Default to info if not explicitly handled.
+      const terminalType: TerminalLine['type'] = 
+        severity === 'error' ? 'error' : 
+        severity === 'warning' ? 'warning' : 
+        severity === 'success' ? 'success' : 'info';
+
+      useTerminalStore.getState().addTerminalLine(fullMessage, terminalType);
     }
 
     // 3. Toaster for critical user attention

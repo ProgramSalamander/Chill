@@ -1,3 +1,4 @@
+
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
@@ -47,13 +48,12 @@ const onAuth = (): undefined => {
 };
 
 const onAuthFailure = async (url: string) => {
-  const { addTerminalLine } = useTerminalStore.getState();
-  addTerminalLine(`Authentication required for ${new URL(url).hostname}.`, 'warning');
+  errorService.report(`Authentication required for ${new URL(url).hostname}.`, 'Git Auth', { severity: 'warning' });
   try {
     const { username, token } = await useGitAuthStore.getState().promptForCredentials();
     return { username, password: token }; 
   } catch (e) {
-    addTerminalLine('Authentication cancelled.', 'info');
+    errorService.report('Authentication cancelled.', 'Git Auth', { notifyUser: false, terminal: true, severity: 'info' });
     throw new Error('Authentication cancelled by user.');
   }
 };
@@ -83,14 +83,14 @@ export const gitService = {
                     await pfs.unlink(`/${file}`);
                 }
              } catch (e) {
-                errorService.report(e, "Git FS Clear", { silent: true, severity: 'warning' });
+                errorService.report(e, "Git FS Clear (File)", { silent: true, severity: 'warning' });
              }
           }
           try {
               await gitService.deleteRecursive('/.git');
           } catch(e) {}
       } catch (e) {
-          // ignore
+        errorService.report(e, "Git FS Clear", { silent: true, severity: 'warning' });
       }
   },
 
@@ -107,14 +107,16 @@ export const gitService = {
               }
           }
           await pfs.rmdir(path);
-      } catch(e) {}
+      } catch(e) {
+        errorService.report(e, `Git Recursive Delete: ${path}`, { silent: true, severity: 'warning' });
+      }
   },
 
   init: async () => {
     try {
         await git.init({ fs, dir: '/' });
     } catch (e: any) {
-        errorService.report(e, "Git Init");
+        errorService.report(e, "Git Init Operation");
     }
   },
 
@@ -158,7 +160,6 @@ export const gitService = {
         }
         await pfs.writeFile(`/${filepath}`, content, 'utf8');
     } catch (e: any) {
-        // Fix: Removed 'context' property from ErrorReportOptions as it is not supported and merged it into the context string parameter.
         errorService.report(e, `Git FS Write: ${filepath}`);
     }
   },
@@ -198,7 +199,7 @@ export const gitService = {
             return { filepath, head, workdir, stage, status };
         });
     } catch (e: any) {
-        errorService.report(e, "Git Status");
+        errorService.report(e, "Git Status Matrix");
         return [];
     }
   },
@@ -228,7 +229,7 @@ export const gitService = {
         return await git.log({ fs, dir: '/' });
     } catch (e: any) {
         if (e.code === 'NotFoundError') return [];
-        errorService.report(e, "Git Log", { silent: true, terminal: false, severity: 'warning' });
+        errorService.report(e, "Git Log Operation", { silent: true, terminal: false, severity: 'warning' });
         return [];
     }
   },
@@ -282,6 +283,7 @@ export const gitService = {
       const files: File[] = [];
       
       const walk = async (dir: string, parentId: string | null) => {
+        try {
           const entries = await pfs.readdir(dir);
           for (const entry of entries) {
               if (entry === '.git') continue;
@@ -321,6 +323,9 @@ export const gitService = {
                    });
               }
           }
+        } catch (e: any) {
+          errorService.report(e, `Git FS Read Dir: ${dir}`, { silent: true, severity: 'warning' });
+        }
       };
 
       await walk('/', null);

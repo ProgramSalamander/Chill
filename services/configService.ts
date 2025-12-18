@@ -1,7 +1,6 @@
 
-
 import { AIConfig, AIModelProfile } from '../types';
-import { useTerminalStore } from '../stores/terminalStore';
+import { errorService } from './errorService';
 
 const generateId = () => Math.random().toString(36).slice(2, 11);
 
@@ -77,8 +76,7 @@ export const getAIConfig = (): AIConfig => {
       return _configCache!;
     }
   } catch (e: any) {
-    console.error("Failed to load AI config", e);
-    useTerminalStore.getState().addTerminalLine(`Failed to load AI config, using defaults. Error: ${e.message}`, 'warning');
+    errorService.report(e, "AI Config Load", { severity: 'warning' });
   }
   
   _configCache = { ...DEFAULT_CONFIG };

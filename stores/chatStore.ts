@@ -1,11 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Message, MessageRole, AISession } from '../types';
-import { aiService } from '../services/aiService';
+import { aiService, errorService } from '../services';
 import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
-import { useTerminalStore } from './terminalStore';
 import { getActiveChatConfig, getAIConfig } from '../services/configService';
 
 interface ChatState {
@@ -44,8 +43,9 @@ export const useChatStore = create<ChatState>()(
       activeChatProfileId: null,
 
       initChat: () => {
-        let { activeChatProfileId } = get();
-        const { messages } = get();
+        const state = get();
+        let { activeChatProfileId, chatSession } = state;
+        const { messages } = state;
     
         if (!activeChatProfileId) {
           const activeConfig = getActiveChatConfig();
@@ -55,22 +55,30 @@ export const useChatStore = create<ChatState>()(
         const profile = getAIConfig().profiles.find(p => p.id === activeChatProfileId);
     
         if (!profile) {
-          useTerminalStore.getState().addTerminalLine('No active AI model configured.', 'error');
+          errorService.report('No active AI model configured. Check your settings.', 'AI Chat Init', { severity: 'warning' });
           set({ chatSession: null, activeChatProfileId: null });
           return;
         }
+
+        // If we already have a session for this profile, don't re-init 
+        // to avoid duplicate logging and unnecessary API setup
+        const isSwitching = activeChatProfileId !== state.activeChatProfileId || !chatSession;
     
         const history = messages.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
-        const session = aiService.createChatSession({
-          systemInstruction: SYSTEM_INSTRUCTION,
-          history,
-          config: profile
-        });
-        set({ chatSession: session, activeChatProfileId: profile.id });
+        try {
+          const session = aiService.createChatSession({
+            systemInstruction: SYSTEM_INSTRUCTION,
+            history,
+            config: profile
+          });
+          set({ chatSession: session, activeChatProfileId: profile.id });
 
-        // Only log on first-time init or model switch
-        if (messages.length === 0) {
-            useTerminalStore.getState().addTerminalLine(`AI connected [${profile.name}]`, 'info');
+          // Only log on actual profile switch or first-time load, and only if history is clean
+          if (isSwitching && messages.length === 0) {
+            errorService.report(`AI connected [${profile.name}]`, 'AI Chat', { notifyUser: false, terminal: true, severity: 'info' });
+          }
+        } catch (e: any) {
+          errorService.report(e, "AI Chat Session Creation");
         }
       },
 
@@ -93,7 +101,6 @@ export const useChatStore = create<ChatState>()(
           get().initChat();
           chatSession = get().chatSession;
           if (!chatSession) {
-            useTerminalStore.getState().addTerminalLine('AI is not configured. Please check settings.', 'error');
             set({ isGenerating: false });
             return;
           }
@@ -103,7 +110,6 @@ export const useChatStore = create<ChatState>()(
         set(state => ({ messages: [...state.messages, userMsg], isGenerating: true, isStopping: false }));
 
         try {
-          // FIX: The `activeFile` property does not exist on the file store state. It must be derived from `files` and `activeFileId`.
           const { files, activeFileId } = useFileTreeStore.getState();
           const activeFile = files.find(f => f.id === activeFileId) || null;
           const { contextScope } = get();
@@ -150,8 +156,7 @@ export const useChatStore = create<ChatState>()(
           }));
 
         } catch (error: any) { 
-            useTerminalStore.getState().addTerminalLine(`AI Error: ${error.message}`, 'error'); 
-            console.error(error);
+            errorService.report(error, "AI Chat Send Message");
         } finally { 
           set({ isGenerating: false, isStopping: false });
         }

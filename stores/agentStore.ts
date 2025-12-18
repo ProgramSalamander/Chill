@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, StagedChange } from '../types';
-import { aiService, handleAgentAction, getActiveChatConfig } from '../services';
+import { aiService, handleAgentAction, getActiveChatConfig, errorService } from '../services';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
 
@@ -89,7 +89,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       await processNextStep();
 
     } catch (e: any) {
-      console.error(e);
+      errorService.report(e, "Agent Start (Planning)");
       set(state => ({
         agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'error', text: `Planning failed: ${e.message}`, timestamp: Date.now() }],
         status: 'failed',
@@ -128,7 +128,7 @@ For each turn, I will tell you which step needs to be worked on. You should outp
       }
 
     } catch(e) {
-      console.error("Summary generation failed", e);
+      errorService.report(e, "Agent Summary Generation", { severity: 'warning' });
       set(state => ({
         agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'response', text: "All steps completed successfully.", timestamp: Date.now() }],
         status: 'completed'
@@ -148,38 +148,42 @@ For each turn, I will tell you which step needs to be worked on. You should outp
 
     const { createNode, updateFileContent, deleteNode } = useFileTreeStore.getState();
 
-    switch (change.type) {
-      case 'create':
-        if (change.newContent !== undefined) {
-           const pathSegments = change.path.split('/').filter(p => p);
-           const name = pathSegments.pop() || 'untitled';
-           
-           let currentParentId: string | null = null;
-           for(const segment of pathSegments) {
-               const currentFiles = useFileTreeStore.getState().files;
-               const existingFolder = currentFiles.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
-               if(existingFolder) {
-                   currentParentId = existingFolder.id;
-               } else {
-                   const newFolder = await createNode('folder', currentParentId, segment);
-                   if(!newFolder) throw new Error(`Failed to create parent folder ${segment}`);
-                   currentParentId = newFolder.id;
-               }
-           }
-           await createNode('file', currentParentId, name, change.newContent);
-        }
-        break;
-      case 'update':
-        if (change.fileId && change.newContent !== undefined) {
-          updateFileContent(change.newContent, true, change.fileId);
-        }
-        break;
-      case 'delete':
-        const fileToDelete = useFileTreeStore.getState().files.find(f => f.id === change.fileId);
-        if (fileToDelete) {
-          await deleteNode(fileToDelete);
-        }
-        break;
+    try {
+      switch (change.type) {
+        case 'create':
+          if (change.newContent !== undefined) {
+             const pathSegments = change.path.split('/').filter(p => p);
+             const name = pathSegments.pop() || 'untitled';
+             
+             let currentParentId: string | null = null;
+             for(const segment of pathSegments) {
+                 const currentFiles = useFileTreeStore.getState().files;
+                 const existingFolder = currentFiles.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
+                 if(existingFolder) {
+                     currentParentId = existingFolder.id;
+                 } else {
+                     const newFolder = await createNode('folder', currentParentId, segment);
+                     if(!newFolder) throw new Error(`Failed to create parent folder ${segment}`);
+                     currentParentId = newFolder.id;
+                 }
+             }
+             await createNode('file', currentParentId, name, change.newContent);
+          }
+          break;
+        case 'update':
+          if (change.fileId && change.newContent !== undefined) {
+            updateFileContent(change.newContent, true, change.fileId);
+          }
+          break;
+        case 'delete':
+          const fileToDelete = useFileTreeStore.getState().files.find(f => f.id === change.fileId);
+          if (fileToDelete) {
+            await deleteNode(fileToDelete);
+          }
+          break;
+      }
+    } catch (e: any) {
+      errorService.report(e, "Agent Apply Change");
     }
     
     set(state => ({
@@ -241,7 +245,7 @@ async function _executeAndContinue(action: AgentPendingAction) {
           }
       }
     } catch (e: any) {
-      result = `Error executing ${toolName}: ${e.message}`;
+      result = errorService.report(e, `Agent Execute Tool: ${toolName}`, { silent: true });
       handleFailedStep(result);
       return;
     }
@@ -263,8 +267,8 @@ async function _executeAndContinue(action: AgentPendingAction) {
       const response = await agentChatSession.sendMessage({ message: "", toolResponses: toolResponse });
       handleAgentResponse(response);
     } catch (e: any) {
-      console.error(e);
-      handleFailedStep(`Agent failed after action: ${e.message}`);
+      const msg = errorService.report(e, "Agent Handle Response");
+      handleFailedStep(`Agent failed after action: ${msg}`);
     }
 }
 
@@ -306,8 +310,8 @@ async function processNextStep() {
     const response = await agentChatSession.sendMessage({ message: prompt });
     handleAgentResponse(response);
   } catch (e: any) {
-    console.error(e);
-    handleFailedStep(`Agent failed to decide next action: ${e.message}`);
+    const msg = errorService.report(e, "Agent Step Decision");
+    handleFailedStep(`Agent failed to decide next action: ${msg}`);
   }
 }
 
