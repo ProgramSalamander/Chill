@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -214,17 +215,18 @@ function App() {
     }
   }, [activeFile, saveFile]);
   
-  const handleFetchSuggestion = useCallback(async (code: string, offset: number): Promise<string | null> => {
+  const handleFetchSuggestion = useCallback(async (code: string, offset: number, signal?: AbortSignal): Promise<string | null> => {
     const currentFile = useFileTreeStore.getState().files.find(f => f.id === useFileTreeStore.getState().activeFileId);
     if (!currentFile || useChatStore.getState().isGenerating || useUIStore.getState().indexingStatus === 'indexing') {
         return null;
     }
 
     try {
-        const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files);
+        const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files, signal);
         return sugg || null;
     } catch (e) {
-        console.error("[App] Suggestion fetch failed:", e);
+        // console.error("[App] Suggestion fetch failed:", e);
+        // Silent failure for aborted requests or standard errors during typing
         return null;
     }
   }, []);

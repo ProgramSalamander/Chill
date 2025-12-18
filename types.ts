@@ -156,6 +156,7 @@ export interface AIProviderAdapter {
     options?: {
       temperature?: number;
       maxOutputTokens?: number;
+      signal?: AbortSignal;
     };
   }): Promise<{ text: string, usage?: AIUsageMetadata }>;
 

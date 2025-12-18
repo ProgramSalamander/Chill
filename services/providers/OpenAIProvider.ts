@@ -1,3 +1,4 @@
+
 import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIUsageMetadata, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
 import { AGENT_TOOLS_OPENAI, getApiKey } from "./base";
 
@@ -151,7 +152,7 @@ export class OpenAIProvider implements AIProviderAdapter {
   }
 
   // Fix: Updated return type to include AIUsageMetadata to satisfy AIProviderAdapter interface
-  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
+  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; signal?: AbortSignal; } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for OpenAI provider.");
 
@@ -167,6 +168,7 @@ export class OpenAIProvider implements AIProviderAdapter {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify(body),
+        signal: props.options?.signal
     });
     if (!res.ok) throw new Error(`OpenAI API error: ${await res.text()}`);
     const data = await res.json();

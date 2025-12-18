@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, GenerateContentResponse, Part, Type } from "@google/genai";
 import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem, AIUsageMetadata } from "../../types";
 import { AGENT_TOOLS_GEMINI, getApiKey } from "./base";
@@ -102,12 +103,12 @@ export class GeminiProvider implements AIProviderAdapter {
     return new GeminiSession(props.systemInstruction, props.history, props.isAgent, props.config);
   }
 
-  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
+  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; signal?: AbortSignal } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for Gemini.");
     
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
+    const responsePromise = ai.models.generateContent({
         model: props.config.modelId,
         contents: props.prompt,
         config: {
@@ -116,6 +117,29 @@ export class GeminiProvider implements AIProviderAdapter {
         }
     });
 
+    if (props.options?.signal) {
+        const signal = props.options.signal;
+        if (signal.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
+        }
+        // Since the SDK doesn't natively support signal, we race it
+        return Promise.race([
+            responsePromise.then(response => {
+                const usage: AIUsageMetadata | undefined = response.usageMetadata ? {
+                    promptTokenCount: response.usageMetadata.promptTokenCount,
+                    candidatesTokenCount: response.usageMetadata.candidatesTokenCount,
+                    totalTokenCount: response.usageMetadata.totalTokenCount,
+                    thinkingTokenCount: (response.usageMetadata as any).thinkingTokenCount
+                } : undefined;
+                return { text: response.text || '', usage };
+            }),
+            new Promise<never>((_, reject) => {
+                signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+            })
+        ]);
+    }
+
+    const response = await responsePromise;
     const usage: AIUsageMetadata | undefined = response.usageMetadata ? {
         promptTokenCount: response.usageMetadata.promptTokenCount,
         candidatesTokenCount: response.usageMetadata.candidatesTokenCount,

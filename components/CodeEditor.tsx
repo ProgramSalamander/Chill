@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
@@ -24,7 +25,7 @@ interface CodeEditorProps {
   cursorOffset?: number;
   onCursorChange?: (position: number) => void;
   onSelectionChange?: (selection: string) => void;
-  onFetchSuggestion: (code: string, offset: number) => Promise<string | null>;
+  onFetchSuggestion: (code: string, offset: number, signal?: AbortSignal) => Promise<string | null>;
   onUndo?: () => void;
   onRedo?: () => void;
   onSave?: () => void;

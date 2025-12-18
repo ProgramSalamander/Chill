@@ -1,4 +1,5 @@
 
+
 import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./configService";
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
@@ -63,6 +64,7 @@ class AIService {
     options: {
       temperature?: number;
       maxOutputTokens?: number;
+      signal?: AbortSignal;
     } = {},
     type: 'chat' | 'agent' | 'completion' | 'planning' = 'completion'
   ): Promise<string> {
@@ -93,7 +95,8 @@ class AIService {
     offset: number, 
     language: string, 
     file: File, 
-    allFiles: File[]
+    allFiles: File[],
+    signal?: AbortSignal
   ): Promise<string | null> {
     const config = getActiveCompletionConfig();
     if (!config) return null;
@@ -129,7 +132,12 @@ ${codeAfterCursor.slice(0, 500)}
 Complete the code at the cursor position.`;
     
     try {
-        const response = await this.generateText(config, prompt, { temperature: 0.2, maxOutputTokens: 128 }, 'completion');
+        const response = await this.generateText(
+            config, 
+            prompt, 
+            { temperature: 0.2, maxOutputTokens: 128, signal }, 
+            'completion'
+        );
         
         if (!response) {
             return null;
@@ -163,6 +171,10 @@ Complete the code at the cursor position.`;
         
         return cleanedResponse ? cleanedResponse : null;
     } catch (e: any) {
+        if (e.name === 'AbortError' || e.message === 'Aborted') {
+            // Intentionally silent
+            return null;
+        }
         errorService.report(e, "AI Service (Completion)", { silent: true, terminal: false, severity: 'warning' });
         return null;
     }
