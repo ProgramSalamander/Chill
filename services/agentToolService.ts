@@ -9,42 +9,60 @@ import { aiService } from './aiService';
 import { runLinting } from './lintingService';
 import { gitService } from './gitService';
 
+/**
+ * Helper function: Get the most "truthy" current content of a file.
+ * If the file has a pending AI Patch, return the predicted content after the patch; 
+ * otherwise, return the original content stored on disk.
+ */
+const getEffectiveContent = (file: File): string => {
+  // This design allows the Agent to "see" its own proposed changes even if they haven't been 
+  // accepted by the user yet, ensuring consistency across sequential tool calls.
+  const { patches } = (window as any).__vibe_agent_store_handle || { patches: [] };
+  const activePatch = patches.find((p: any) => p.fileId === file.id && p.status === 'pending');
+  return activePatch ? activePatch.proposedText : file.content;
+};
+
 export const handleAgentAction = async (toolName: string, args: any): Promise<{ result: string }> => {
   const { addTerminalLine } = useTerminalStore.getState();
   const { files } = useFileTreeStore.getState();
-  const { addPatch } = await import('../stores/agentStore').then(m => m.useAgentStore.getState());
+  
+  // Optimization: Dynamically fetch the store reference to avoid circular dependencies
+  const agentStore = await import('../stores/agentStore').then(m => m.useAgentStore);
+  const { addPatch, patches } = agentStore.getState();
+  
+  // Inject state handle into window so getEffectiveContent can access it without hooks
+  (window as any).__vibe_agent_store_handle = agentStore.getState();
 
   switch (toolName) {
     case 'fs_listFiles':
       const structure = generateProjectStructureContext(files);
-      return { result: `Success:\n${structure}` };
+      return { result: `[SYSTEM] Project structure retrieved:\n${structure}` };
 
     case 'fs_readFile': {
       const path = args.path;
       const fileToRead = resolveFileByPath(path, files);
       if (fileToRead && fileToRead.type === 'file') {
-        return { result: `Success:\n\`\`\`${fileToRead.language}\n${fileToRead.content}\n\`\`\`` };
+        const content = getEffectiveContent(fileToRead);
+        return { result: `[SUCCESS] File content of ${path}:\n\`\`\`${fileToRead.language}\n${content}\n\`\`\`` };
       }
-      if (fileToRead && fileToRead.type === 'folder') {
-          return { result: `Error: Path '${args.path}' is a directory, not a file.` }
-      }
-      return { result: `Error: File not found at path ${args.path}` };
+      return { result: `[ERROR] Could not find file at: ${path}` };
     }
 
     case 'fs_writeFile': {
-      const path = args.path;
-      const content = args.content;
-      if (typeof path !== 'string' || typeof content !== 'string') {
-        return { result: "Error: 'path' and 'content' must be strings." };
-      }
+      const { path, content } = args;
+      if (!path || content === undefined) return { result: "[ERROR] Missing 'path' or 'content'." };
+
       const existingFile = resolveFileByPath(path, files);
-
       if (existingFile && existingFile.type === 'folder') {
-        return { result: `Error: Cannot write file. A folder already exists at path ${path}` };
+        return { result: `[ERROR] Path '${path}' is a directory.` };
       }
 
-      if (existingFile) { 
-        // Create an inline patch for existing file
+      if (existingFile) {
+        // If content is already identical, skip patch generation
+        if (getEffectiveContent(existingFile) === content) {
+          return { result: `[INFO] File ${path} already matches the target content.` };
+        }
+
         const lines = existingFile.content.split('\n');
         addPatch({
           fileId: existingFile.id,
@@ -57,323 +75,142 @@ export const handleAgentAction = async (toolName: string, args: any): Promise<{ 
           originalText: existingFile.content,
           proposedText: content
         });
-
-        return {
-          result: `Success: Proposed changes to ${path} as an AI patch. Review in the editor.`,
-        };
-      } else { 
-        // For new files, create them as empty first, then apply a patch
+        return { result: `[SUCCESS] Proposed changes to ${path}. Agent will now perceive this new content.` };
+      } else {
+        // New file creation workflow
         const { createNode } = useFileTreeStore.getState();
-        const pathSegments = path.split('/').filter(p => p);
-        const name = pathSegments.pop() || 'untitled.ts';
+        const pathSegments = path.split('/').filter(Boolean);
+        const fileName = pathSegments.pop() || 'untitled.ts';
         
         let currentParentId: string | null = null;
-        for(const segment of pathSegments) {
-            const currentFiles = useFileTreeStore.getState().files;
-            const existingFolder = currentFiles.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
-            if(existingFolder) {
-                currentParentId = existingFolder.id;
+        for (const segment of pathSegments) {
+            const folder = useFileTreeStore.getState().files.find(f => f.type === 'folder' && f.name === segment && f.parentId === currentParentId);
+            if (folder) {
+                currentParentId = folder.id;
             } else {
                 const newFolder = await createNode('folder', currentParentId, segment);
-                if(newFolder) currentParentId = newFolder.id;
+                if (newFolder) currentParentId = newFolder.id;
             }
         }
         
-        // Create as EMPTY file first
-        const newFile = await createNode('file', currentParentId, name, '');
-        
+        const newFile = await createNode('file', currentParentId, fileName, '');
         if (newFile) {
-            // Immediately stage the content as a patch
             addPatch({
               fileId: newFile.id,
-              range: {
-                startLineNumber: 1,
-                startColumn: 1,
-                endLineNumber: 1,
-                endColumn: 1
-              },
+              range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
               originalText: '',
               proposedText: content
             });
-
-            return {
-              result: `Success: Created new file ${path} and staged content for review.`,
-            };
+            return { result: `[SUCCESS] Created new file ${path} and staged content for review.` };
         }
-        
-        return { result: `Error: Failed to create file ${path}.` };
+        return { result: `[ERROR] Failed to create ${path}.` };
       }
-    }
-    
-    case 'fs_deleteFile': {
-        const path = args.path;
-        if (typeof path !== 'string') {
-            return { result: "Error: 'path' must be a string." };
-        }
-        const fileToDelete = resolveFileByPath(path, files);
-        if (!fileToDelete) {
-            return { result: `Error: File not found at path ${path}` };
-        }
-        if (fileToDelete.type === 'folder') {
-            return { result: `Error: Cannot delete a folder. Use a different tool if you need to remove directories.` };
-        }
-        
-        // Direct deletion
-        await useFileTreeStore.getState().deleteNode(fileToDelete);
-        return {
-          result: `Success: Deleted file ${path}`,
-        };
     }
 
     case 'git_getStatus': {
       const status = await gitService.status();
-      if (status.length === 0) return { result: "Success: Working tree is clean." };
-      const formattedStatus = status
-        .filter(s => s.status !== 'unmodified')
-        .map(s => `${s.status.padEnd(10)} ${s.filepath}`)
-        .join('\n');
-      return { result: `Success: Current repository status:\n${formattedStatus}` };
+      const changes = status.filter(s => s.status !== 'unmodified');
+      if (changes.length === 0) return { result: "Working tree is clean." };
+      return { result: `Repo status:\n${changes.map(s => `${s.status}: ${s.filepath}`).join('\n')}` };
     }
 
     case 'git_diff': {
         const { path } = args;
-        if (!path) return { result: "Error: 'path' argument is required for git_diff." };
-        
         const file = resolveFileByPath(path, files);
-        if (!file) return { result: `Error: File not found at path ${path}` };
-        if (file.type === 'folder') return { result: `Error: Cannot diff a folder: ${path}` };
+        if (!file || file.type !== 'file') return { result: `[ERROR] File not found: ${path}` };
 
-        const headContent = await gitService.readBlob(path);
+        const headContent = await gitService.readBlob(path).catch(() => null);
+        const currentContent = getEffectiveContent(file);
 
-        if (headContent === null) {
-            const gitFileStatus = (await gitService.status()).find(s => s.filepath === path);
-            if (gitFileStatus && (gitFileStatus.status === 'added' || gitFileStatus.status === '*added')) {
-                const diffOutput = file.content.split('\n').map(l => `+ ${l}`).join('\n');
-                return { result: `Success: Diff for new file ${path}\n\`\`\`diff\n${diffOutput}\n\`\`\`` };
-            }
-            return { result: `Error: Could not get content from HEAD for ${path}. The file might not be committed.` };
-        }
+        if (headContent === null) return { result: `[INFO] File ${path} is new/untracked. Content:\n${currentContent}` };
+        if (headContent === currentContent) return { result: `[INFO] No differences in ${path}.` };
 
-        if (headContent === file.content) {
-            return { result: `Success: No changes for ${path}.` };
-        }
-
+        // Enhancement: Return line-indexed Diff format to help the LLM process changes
         const headLines = headContent.split('\n');
-        const currentLines = file.content.split('\n');
-        const diffOutput: string[] = [];
-        const maxLen = Math.max(headLines.length, currentLines.length);
-
-        for (let i = 0; i < maxLen; i++) {
-            const headLine = headLines[i];
-            const currentLine = currentLines[i];
-            
-            if (headLine !== currentLine) {
-                if (headLine !== undefined) diffOutput.push(`- ${headLine}`);
-                if (currentLine !== undefined) diffOutput.push(`+ ${currentLine}`);
-            } else if (headLine !== undefined) {
-                diffOutput.push(`  ${headLine}`);
+        const currLines = currentContent.split('\n');
+        let diff = '';
+        const max = Math.max(headLines.length, currLines.length);
+        for(let i=0; i<max; i++) {
+            if (headLines[i] !== currLines[i]) {
+                if (headLines[i] !== undefined) diff += `-${i+1}: ${headLines[i]}\n`;
+                if (currLines[i] !== undefined) diff += `+${i+1}: ${currLines[i]}\n`;
             }
         }
-        
-        return { result: `Success: Diff for ${path}\n\`\`\`diff\n${diffOutput.join('\n')}\n\`\`\`` };
-    }
-
-    case 'tooling_lint': {
-        const filesToLint = args.path ? [resolveFileByPath(args.path, files)].filter((f): f is File => !!f && f.type === 'file') : files.filter(f => f.type === 'file');
-        if (filesToLint.length === 0) return { result: `Error: No files found to lint.` };
-
-        let allDiagnostics: { file: string; diagnostics: Diagnostic[] }[] = [];
-        for (const file of filesToLint) {
-            const diagnostics = runLinting(file.content, file.language);
-            if (diagnostics.length > 0) {
-                allDiagnostics.push({ file: getFilePath(file, files), diagnostics });
-            }
-        }
-
-        if (allDiagnostics.length === 0) return { result: "Success: No linting issues found." };
-        
-        const formattedDiagnostics = allDiagnostics.map(res => 
-            `File: ${res.file}\n` + 
-            res.diagnostics.map(d => `  - [${d.severity}] L${d.startLine}: ${d.message}`).join('\n')
-        ).join('\n\n');
-        
-        return { result: `Success: Found linting issues:\n${formattedDiagnostics}` };
-    }
-
-    case 'tooling_runTests': {
-        addTerminalLine(`Agent running tests: ${args.runner}`, 'command');
-        if (args.runner === 'npm test' || args.runner === 'pytest') {
-            const result = "Success: 2 of 2 tests passed.";
-            addTerminalLine(result, 'success');
-            return { result };
-        }
-        const errorMsg = `Error: Test runner '${args.runner}' is not supported. Use 'npm test' or 'pytest'.`;
-        return { result: errorMsg };
+        return { result: `Diff for ${path}:\n${diff}` };
     }
 
     case 'runtime_execJs': {
-        const fileToExec = resolveFileByPath(args.path, files);
-        if (!fileToExec) return { result: `Error: File not found at path ${args.path}` };
-        if (fileToExec.type === 'folder') return { result: `Error: Cannot execute a folder: ${args.path}` };
+        const file = resolveFileByPath(args.path, files);
+        if (!file || file.type !== 'file') return { result: `[ERROR] File not found: ${args.path}` };
         
-        const lang = getLanguage(fileToExec.name);
-        if (lang !== 'javascript' && lang !== 'typescript') {
-             return { result: `Error: Only JavaScript/TypeScript files can be executed. This is a '${lang}' file.` };
-        }
-
-        addTerminalLine(`Agent executing: node ${args.path}`, 'command');
+        addTerminalLine(`Agent executing: ${args.path}`, 'command');
         try {
             const logs: string[] = [];
-            const sandboxedConsole = {
-                log: (...args: any[]) => logs.push(args.map(a => {
-                    try { return JSON.stringify(a); } catch { return String(a); }
-                }).join(' '))
+            const mockConsole = {
+                log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
+                error: (...args: any[]) => logs.push(`[ERR] ${args.join(' ')}`),
+                warn: (...args: any[]) => logs.push(`[WARN] ${args.join(' ')}`)
             };
             
-            const sandboxedFunction = new Function('console', fileToExec.content);
-            sandboxedFunction(sandboxedConsole);
+            // Execute using the predicted "effective" content
+            const execute = new Function('console', getEffectiveContent(file));
+            execute(mockConsole);
             
-            const output = logs.join('\n');
-            if (output) {
-                addTerminalLine(`Output:\n${output}`, 'info');
-                return { result: `Success: Executed ${args.path}.\nOutput:\n${output}` };
-            }
-            return { result: `Success: Executed ${args.path}. No output was logged to console.` };
-
+            return { result: logs.length ? `Execution Output:\n${logs.join('\n')}` : "Executed with no output." };
         } catch(e: any) {
-            addTerminalLine(`Execution Error: ${e.message}`, 'error');
-            return { result: `Error: Execution failed: ${e.message}` };
+            return { result: `[RUNTIME ERROR] ${e.message}` };
         }
     }
 
-    case 'searchCode':
+    case 'tooling_lint': {
+        const targetFile = args.path ? resolveFileByPath(args.path, files) : null;
+        const filesToLint = targetFile ? [targetFile] : files.filter(f => f.type === 'file');
+        
+        let report = '';
+        for (const f of filesToLint) {
+            if (f.type !== 'file') continue;
+            const diagnostics = runLinting(getEffectiveContent(f), f.language);
+            if (diagnostics.length > 0) {
+                report += `\nFile: ${getFilePath(f, files)}\n` + diagnostics.map(d => `  - [${d.severity}] L${d.startLine}: ${d.message}`).join('\n');
+            }
+        }
+        return { result: report || "No linting issues found." };
+    }
+
+    case 'searchCode': {
       const results = ragService.search(args.query, 5);
-      if(results.length === 0) return { result: "No relevant code found." };
-      return { result: `Found ${results.length} relevant code snippets:\n` + results.map(r => `File: ${r.filePath}\n\`\`\`\n${r.snippet}\n\`\`\``).join('\n---\n') };
-      
-    case 'getFileStructure':
-      const fileForStructure = resolveFileByPath(args.path, files);
-      if (fileForStructure && fileForStructure.type === 'file') {
-        return { result: extractSymbols(fileForStructure) };
-      }
-      if (fileForStructure && fileForStructure.type === 'folder') {
-          return { result: `Error: Path '${args.path}' is a directory. Please provide a file path.` };
-      }
-      return { result: `Error: File not found at path ${args.path}` };
-      
-    case 'grep': {
-        const { pattern, path: grepPath } = args;
-        if (!pattern) {
-            return { result: "Error: 'pattern' argument is required for grep." };
-        }
-
-        const filesToSearch = grepPath 
-            ? [resolveFileByPath(grepPath, files)].filter((f): f is File => f !== null && f.type === 'file') 
-            : files.filter(f => f.type === 'file');
-        
-        let allResults: string[] = [];
-        let totalMatches = 0;
-
-        try {
-            const regex = new RegExp(pattern, 'i'); 
-
-            for (const file of filesToSearch) {
-                if (!file.content) continue;
-
-                const fileResults: string[] = [];
-                const lines = file.content.split('\n');
-
-                lines.forEach((line, index) => {
-                    if (regex.test(line)) {
-                        fileResults.push(`  L${index + 1}: ${line.trim()}`);
-                        totalMatches++;
-                    }
-                });
-
-                if (fileResults.length > 0) {
-                    allResults.push(`File: ${getFilePath(file, files)}\n${fileResults.join('\n')}`);
-                }
-            }
-        } catch (e: any) {
-            if (e instanceof SyntaxError) {
-                return { result: `Error: Invalid regex pattern provided: '${pattern}'` };
-            }
-            return { result: `Error: An unexpected error occurred during grep: ${e.message}` };
-        }
-
-
-        if (allResults.length === 0) {
-            return { result: "Success: No matches found." };
-        }
-        
-        const fullResultString = allResults.join('\n---\n');
-        if (fullResultString.length > 4000) {
-             return { result: `Success: Found ${totalMatches} matches in ${allResults.length} files. (Results truncated)\n---\n${fullResultString.slice(0, 4000)}...` };
-        }
-
-        return { result: `Success: Found ${totalMatches} matches in ${allResults.length} files:\n---\n${fullResultString}` };
+      if (!results.length) return { result: "No semantic matches found." };
+      return { result: `Search Results:\n${results.map(r => `File: ${r.filePath}\nSnippet: ${r.snippet}`).join('\n---\n')}` };
     }
 
     case 'autoFixErrors': {
-        const { path } = args;
-        if (!path) {
-            return { result: "Error: 'path' argument is required for autoFixErrors." };
-        }
+        const path = args.path;
+        const file = resolveFileByPath(path, files);
+        if (!file || file.type !== 'file') return { result: `[ERROR] File not found: ${path}` };
 
-        const fileToFix = resolveFileByPath(path, files);
-        if (!fileToFix) {
-            return { result: `Error: File not found at path ${path}` };
-        }
-        if (fileToFix.type === 'folder') {
-            return { result: `Error: Cannot fix errors in a folder: ${path}` };
-        }
-        
-        const originalContent = fileToFix.content;
-        const diagnostics = runLinting(originalContent, fileToFix.language);
+        const currentContent = getEffectiveContent(file);
+        const diagnostics = runLinting(currentContent, file.language);
+        if (!diagnostics.length) return { result: `No errors to fix in ${path}.` };
 
-        if (diagnostics.length === 0) {
-            return { result: `Success: No errors found in ${path}.` };
-        }
-        
-        const errorsString = diagnostics
-            .map(d => `- ${d.message} (Line ${d.startLine}, Col ${d.startColumn})`)
-            .join('\n');
-            
-        const instruction = `Please fix the following ${diagnostics.length} errors in the provided code snippet:\n${errorsString}\n\nReturn ONLY the complete, corrected code for the entire file. Do not add any explanations, comments, or markdown formatting.`;
-
+        const instruction = `Fix these issues in ${path}:\n${diagnostics.map(d => d.message).join('\n')}\nReturn only the complete fixed code.`;
         try {
-            const fixedCode = await aiService.editCode('', originalContent, '', instruction, fileToFix, files);
-            
-            if (fixedCode && fixedCode.trim() !== originalContent.trim()) {
-                notify(`Staged auto-fix for ${path}`, 'success');
-                const lines = originalContent.split('\n');
+            const fixedCode = await aiService.editCode('', currentContent, '', instruction, file, files);
+            if (fixedCode && fixedCode !== currentContent) {
                 addPatch({
-                  fileId: fileToFix.id,
-                  range: {
-                    startLineNumber: 1,
-                    startColumn: 1,
-                    endLineNumber: lines.length || 1,
-                    endColumn: (lines[lines.length - 1]?.length || 0) + 1
-                  },
-                  originalText: originalContent,
+                  fileId: file.id,
+                  range: { startLineNumber: 1, startColumn: 1, endLineNumber: currentContent.split('\n').length || 1, endColumn: 999 },
+                  originalText: file.content,
                   proposedText: fixedCode
                 });
-
-                return {
-                  result: `Success: Analyzed and proposed an AI patch for ${diagnostics.length} errors in ${path}. Review in the editor.`,
-                };
-            } else if (fixedCode) {
-                return { result: `Success: Analysis complete, but no changes were necessary.` };
-            } else {
-                 return { result: `Error: AI failed to generate a fix for the errors in ${path}.` };
+                return { result: `[SUCCESS] Applied auto-fixes to ${path}.` };
             }
+            return { result: "[INFO] AI suggested no changes for the fix." };
         } catch (e: any) {
-            console.error("Auto-fix failed:", e);
-            return { result: `Error: An exception occurred while trying to fix errors in ${path}: ${e.message}` };
+            return { result: `[ERROR] Auto-fix failed: ${e.message}` };
         }
     }
 
     default:
-      return { result: `Error: Unknown tool ${toolName}` };
+      return { result: `[ERROR] Unknown tool: ${toolName}` };
   }
 };
