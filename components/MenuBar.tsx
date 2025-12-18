@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   IconPlus, 
@@ -23,9 +24,9 @@ const MenuBar: React.FC = () => {
   const toggleTheme = useUIStore(state => state.toggleTheme);
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
+  const setIsNewProjectModalOpen = useUIStore(state => state.setIsNewProjectModalOpen);
   const activeProject = useProjectStore(state => state.activeProject);
   const recentProjects = useProjectStore(state => state.recentProjects);
-  const handleNewProject = useProjectStore(state => state.handleNewProject);
   const handleLoadProject = useProjectStore(state => state.handleLoadProject);
   const setProjectToDelete = useProjectStore(state => state.setProjectToDelete);
   const saveAllFiles = useFileTreeStore(state => state.saveAllFiles);
@@ -73,7 +74,7 @@ const MenuBar: React.FC = () => {
             </button>
             {activeMenu === 'projects' && (
                 <div className="absolute top-[calc(100%+4px)] left-0 w-64 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                    <button onClick={() => { handleNewProject(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                    <button onClick={() => { setIsNewProjectModalOpen(true); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                         <IconPlus size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> 
                         <span>New Project</span>
                     </button>

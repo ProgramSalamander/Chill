@@ -17,7 +17,7 @@ interface ProjectState {
   setProjectToDelete: (project: ProjectMeta | null) => void;
   confirmDeleteProject: () => Promise<void>;
   loadInitialProject: () => Promise<void>;
-  handleNewProject: (name?: string) => Promise<ProjectMeta | void>;
+  handleNewProject: (name: string) => Promise<ProjectMeta | void>;
   handleLoadProject: (project: ProjectMeta) => Promise<void>;
   saveCurrentProject: () => void;
   clearActiveProject: () => void;
@@ -88,17 +88,16 @@ export const useProjectStore = create<ProjectState>()(
         }
       },
 
-      handleNewProject: async (name?: string): Promise<ProjectMeta | void> => {
-        let projectName = name;
-        if (!projectName) {
-          projectName = window.prompt("Enter project name:", "Untitled Project");
-          if (!projectName) return;
+      handleNewProject: async (name: string): Promise<ProjectMeta | void> => {
+        if (!name || !name.trim()) {
+           errorService.report("Project name is required.", "Project", { severity: 'warning' });
+           return;
         }
 
         try {
           get().saveCurrentProject();
 
-          const newMeta = projectService.createProject(projectName);
+          const newMeta = projectService.createProject(name.trim());
           projectService.saveProject([], newMeta);
           
           set({ 
@@ -111,7 +110,7 @@ export const useProjectStore = create<ProjectState>()(
 
           useFileTreeStore.getState().resetFiles();
           useChatStore.getState().clearChat();
-          errorService.report(`New project created: ${projectName}`, 'Project', { notifyUser: false, terminal: true, severity: 'success' });
+          errorService.report(`New project created: ${name}`, 'Project', { notifyUser: false, terminal: true, severity: 'success' });
           return newMeta;
         } catch (e: any) {
           errorService.report(e, "New Project Creation");

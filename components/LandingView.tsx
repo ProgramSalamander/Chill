@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
@@ -5,8 +6,9 @@ import { IconPlus, IconGitBranch, IconFolder, IconClock, IconSparkles, IconTrash
 import Tooltip from './Tooltip';
 
 const LandingView: React.FC = () => {
-  const { recentProjects, handleNewProject, handleLoadProject, setProjectToDelete } = useProjectStore();
+  const { recentProjects, handleLoadProject, setProjectToDelete } = useProjectStore();
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
+  const setIsNewProjectModalOpen = useUIStore(state => state.setIsNewProjectModalOpen);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-700">
@@ -31,7 +33,7 @@ const LandingView: React.FC = () => {
         {/* Primary Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
           <button 
-            onClick={() => handleNewProject()}
+            onClick={() => setIsNewProjectModalOpen(true)}
             className="group relative p-8 rounded-3xl bg-vibe-800 border border-vibe-border hover:border-vibe-accent/50 hover:bg-vibe-accent/5 transition-all duration-300 text-left overflow-hidden shadow-sm"
           >
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">

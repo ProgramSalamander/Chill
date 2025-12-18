@@ -20,6 +20,7 @@ interface UIState {
   isCommandPaletteOpen: boolean;
   isPreviewOpen: boolean;
   isCloneModalOpen: boolean;
+  isNewProjectModalOpen: boolean;
   
   // AI Feature Settings
   inlineCompletionsEnabled: boolean;
@@ -37,6 +38,7 @@ interface UIState {
   setIsCommandPaletteOpen: (isOpen: boolean) => void;
   setIsPreviewOpen: (isOpen: boolean) => void;
   setIsCloneModalOpen: (isOpen: boolean) => void;
+  setIsNewProjectModalOpen: (isOpen: boolean) => void;
   setIndexingStatus: (status: IndexingStatus) => void;
   
   setInlineCompletionsEnabled: (enabled: boolean) => void;
@@ -103,6 +105,7 @@ export const useUIStore = create<UIState>()(
       isCommandPaletteOpen: false,
       isPreviewOpen: false,
       isCloneModalOpen: false,
+      isNewProjectModalOpen: false,
       indexingStatus: 'idle',
       
       inlineCompletionsEnabled: true,
@@ -119,6 +122,7 @@ export const useUIStore = create<UIState>()(
       setIsCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       setIsPreviewOpen: (isOpen) => set({ isPreviewOpen: isOpen }),
       setIsCloneModalOpen: (isOpen) => set({ isCloneModalOpen: isOpen }),
+      setIsNewProjectModalOpen: (isOpen) => set({ isNewProjectModalOpen: isOpen }),
       setIndexingStatus: (status) => set({ indexingStatus: status }),
       
       setInlineCompletionsEnabled: (enabled) => set({ inlineCompletionsEnabled: enabled }),

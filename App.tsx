@@ -4,6 +4,7 @@ import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
 import Terminal from './components/Terminal';
 import SettingsModal from './components/SettingsModal';
+import NewProjectModal from './components/NewProjectModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import DeleteProjectConfirmModal from './components/DeleteProjectConfirmModal';
 import CommandPalette from './components/CommandPalette';
@@ -281,6 +282,7 @@ function App() {
       <StatusBar />
       <Toaster />
       <SettingsModal />
+      <NewProjectModal />
       <DeleteConfirmModal />
       <DeleteProjectConfirmModal />
       <CloneModal />
