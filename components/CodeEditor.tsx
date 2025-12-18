@@ -41,7 +41,7 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
 
   constructor(
     private editor: monaco.editor.IStandaloneCodeEditor,
-    private patch: AIPatch,
+    public patch: AIPatch,
     private onAccept: () => void,
     private onReject: () => void
   ) {}
@@ -56,7 +56,6 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
       this.domNode = document.createElement('div');
       this.domNode.className = 'ai-patch-widget animate-in fade-in slide-in-from-top-2 duration-300';
       
-      // Inline styles for glassmorphism and vibe
       this.domNode.style.cssText = `
         display: flex;
         gap: 6px;
@@ -117,6 +116,10 @@ class AIPatchWidget implements monaco.editor.IContentWidget {
       ]
     };
   }
+
+  updatePatch(newPatch: AIPatch) {
+      this.patch = newPatch;
+  }
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ 
@@ -141,16 +144,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [monacoInstance, setMonacoInstance] = useState<typeof monaco | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
-  // Resizing Preview
   const [previewWidthPercent, setPreviewWidthPercent] = useState(50);
   const isResizingRef = useRef(false);
 
-  // Inline Input State
   const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
   const [savedSelection, setSavedSelection] = useState<any>(null);
 
-  // AI Patches Tracking
   const patches = useAgentStore(state => state.patches);
   const acceptPatch = useAgentStore(state => state.acceptPatch);
   const rejectPatch = useAgentStore(state => state.rejectPatch);
@@ -166,14 +166,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   const mappedLanguage = getMonacoLanguage(language);
 
-  // Hooks for IDE features
   const commandId = useAICommand(editor);
   useInlineCompletion(monacoInstance, editor, mappedLanguage, onFetchSuggestion);
   useSemanticAutocomplete(monacoInstance, editor, mappedLanguage);
   useCodeLens(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
   useQuickFix(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
 
-  // --- Resizing Logic for Split View ---
   const handleResizeMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizingRef.current) return;
     const container = document.getElementById('editor-container');
@@ -199,17 +197,22 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     window.addEventListener('mouseup', handleResizeMouseUp);
   };
 
-  // --- AI Patches Effect ---
+  // --- Incremental AI Patches Effect ---
   useEffect(() => {
     if (!editor || !monacoInstance) return;
 
     const model = editor.getModel();
     if (!model) return;
 
-    // Cleanup
-    decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
-    widgetsRef.current.forEach(widget => editor.removeContentWidget(widget));
-    widgetsRef.current.clear();
+    const currentPatchIds = new Set(activePatches.map(p => p.id));
+    
+    // 1. Remove widgets for patches that no longer exist
+    widgetsRef.current.forEach((widget, id) => {
+        if (!currentPatchIds.has(id)) {
+            editor.removeContentWidget(widget);
+            widgetsRef.current.delete(id);
+        }
+    });
 
     const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
 
@@ -217,7 +220,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       const currentTextInRange = model.getValueInRange(patch.range);
       const isNewFile = patch.originalText === '';
 
-      // Auto-apply text for previewing the patch
+      // Preview patch text
       if (currentTextInRange !== patch.proposedText) {
           editor.executeEdits('ai-vibe', [{
               range: patch.range,
@@ -240,30 +243,47 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
       });
 
-      const widget = new AIPatchWidget(
-        editor,
-        patch,
-        () => acceptPatch(patch.id),
-        () => {
-            editor.executeEdits('ai-vibe-revert', [{
-                range: model.getFullModelRange(), 
-                text: patch.originalText
-            }]);
-            rejectPatch(patch.id);
-        }
-      );
-      editor.addContentWidget(widget);
-      widgetsRef.current.set(patch.id, widget);
+      // 2. Add or update Content Widgets incrementally
+      let widget = widgetsRef.current.get(patch.id);
+      if (!widget) {
+          widget = new AIPatchWidget(
+            editor,
+            patch,
+            () => acceptPatch(patch.id),
+            () => {
+                editor.executeEdits('ai-vibe-revert', [{
+                    range: model.getFullModelRange(), 
+                    text: patch.originalText
+                }]);
+                rejectPatch(patch.id);
+            }
+          );
+          editor.addContentWidget(widget);
+          widgetsRef.current.set(patch.id, widget);
+      } else {
+          // If range changed, layout it
+          const oldPos = widget.getPosition().position;
+          if (oldPos.lineNumber !== patch.range.endLineNumber || oldPos.column !== patch.range.endColumn) {
+              widget.updatePatch(patch);
+              editor.layoutContentWidget(widget);
+          }
+      }
     });
 
-    decorationIdsRef.current = editor.deltaDecorations([], newDecorations);
+    // 3. Update Decorations using deltaDecorations (built-in incremental update)
+    decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, newDecorations);
 
-    return () => {
-        decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, []);
-        widgetsRef.current.forEach(widget => editor.removeContentWidget(widget));
-        widgetsRef.current.clear();
-    };
   }, [activePatches, editor, monacoInstance, acceptPatch, rejectPatch]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+        if (editor) {
+            widgetsRef.current.forEach(w => editor.removeContentWidget(w));
+            widgetsRef.current.clear();
+        }
+    };
+  }, [editor]);
 
   // --- Theme & Diagnostics ---
   useEffect(() => {
@@ -296,18 +316,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     monacoInst.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
     monacoInst.editor.defineTheme('vibe-light-theme', vibeLightTheme);
     
-    // Keybindings
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyZ, () => onUndo?.());
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyMod.Shift | monacoInst.KeyCode.KeyZ, () => onRedo?.());
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyS, () => onSave?.());
+    // Fix: Use imported monaco constants instead of instance-based ones for stable type inference.
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => onUndo?.());
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => onRedo?.());
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSave?.());
 
-    // Precise Inline AI Positioning
-    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyK, () => {
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
         const position = editorInstance.getPosition();
         if (position) {
             const scrolledPos = editorInstance.getScrolledVisiblePosition(position);
             const selection = editorInstance.getSelection();
-            const lineHeight = editorInstance.getOption(monacoInst.editor.EditorOption.lineHeight);
+            // Fix: Use imported monaco.editor.EditorOption to ensure correct type for option lookup.
+            const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
             
             if (scrolledPos) {
                 setInlineInputPos({ 
@@ -347,7 +367,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <div id="editor-container" className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
-      {/* Editor Pane */}
       <div 
         className="relative h-full transition-[width] duration-75 ease-out"
         style={{ width: showPreview ? `${100 - previewWidthPercent}%` : '100%' }}
@@ -390,7 +409,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
          />
       </div>
 
-      {/* Split Resizer */}
       {showPreview && (
           <div 
             onMouseDown={handleResizeMouseDown}
@@ -400,7 +418,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           </div>
       )}
 
-       {/* Live Preview Pane */}
        {showPreview && (
           <div 
             className="h-full flex flex-col bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border"
