@@ -140,11 +140,28 @@ For each turn, I will tell you which step needs to be worked on. You should outp
   },
   
   addPatch: (patch) => {
-    set(state => ({
-      patches: [...state.patches, { ...patch, id: generatePatchId(), status: 'pending' }]
-    }));
-    // Note: We no longer auto-switch files here to prevent UI jitter during multi-file agent tasks.
-    // The File Explorer will show a badge for files with patches.
+    set(state => {
+      // MERGE LOGIC: If a pending patch for this file already exists, update it instead of creating a new one.
+      const existingPatchIndex = state.patches.findIndex(p => p.fileId === patch.fileId && p.status === 'pending');
+      
+      if (existingPatchIndex !== -1) {
+        const updatedPatches = [...state.patches];
+        const existing = updatedPatches[existingPatchIndex];
+        
+        updatedPatches[existingPatchIndex] = {
+          ...existing,
+          proposedText: patch.proposedText,
+          // Update range to match the most recent proposal for this file
+          range: patch.range, 
+        };
+        
+        return { patches: updatedPatches };
+      }
+
+      return {
+        patches: [...state.patches, { ...patch, id: generatePatchId(), status: 'pending' }]
+      };
+    });
   },
 
   acceptPatch: (patchId) => {
