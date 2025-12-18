@@ -1,10 +1,16 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { Diagnostic } from '../types';
 import { InlineInput } from './InlineInput';
-import { ragService } from '../services/ragService';
 import { vibeDarkTheme, vibeLightTheme } from '../utils/monacoThemes';
+import { getMonacoLanguage } from '../utils/editorUtils';
+import { useInlineCompletion } from './editor/hooks/useInlineCompletion';
+import { useSemanticAutocomplete } from './editor/hooks/useSemanticAutocomplete';
+import { useCodeLens } from './editor/hooks/useCodeLens';
+import { useQuickFix } from './editor/hooks/useQuickFix';
+import { useAICommand } from './editor/hooks/useAICommand';
 
 interface CodeEditorProps {
   code: string;
@@ -46,231 +52,89 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onInlineAssist,
   onAICommand
 }) => {
-  const editorRef = useRef<any>(null);
-  const monacoRef = useRef<any>(null);
+  // State for editor instances
+  const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const [monacoInstance, setMonacoInstance] = useState<typeof monaco | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  
-  // Disposables ref to clean up providers
-  const disposablesRef = useRef<any[]>([]);
   
   // Inline Input State
   const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
   const [savedSelection, setSavedSelection] = useState<any>(null);
 
-  // Map app languages to Monaco languages
-  const getMonacoLanguage = (lang: string) => {
-    if (lang === 'js') return 'javascript';
-    if (lang === 'ts') return 'typescript';
-    if (lang === 'jsx') return 'javascript'; // Monaco handles JSX in JS
-    if (lang === 'tsx') return 'typescript'; // Monaco handles TSX in TS
-    return lang;
-  };
+  const mappedLanguage = getMonacoLanguage(language);
 
+  // --- Initialize Hooks for Editor Features ---
+  
+  // 1. Register the Generic AI Command Runner
+  const commandId = useAICommand(editor);
+
+  // 2. Register Inline AI Completions
+  useInlineCompletion(monacoInstance, editor, mappedLanguage, onFetchSuggestion);
+
+  // 3. Register Semantic RAG Autocomplete
+  useSemanticAutocomplete(monacoInstance, editor, mappedLanguage);
+
+  // 4. Register Code Lenses (Test, Docs, Refactor)
+  useCodeLens(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
+
+  // 5. Register Quick Fixes (Lightbulb)
+  useQuickFix(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
+
+  // --- Theme Handling ---
   useEffect(() => {
-    if (monacoRef.current) {
-      monacoRef.current.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
+    if (monacoInstance) {
+      monacoInstance.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
     }
-  }, [theme]);
+  }, [theme, monacoInstance]);
 
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+  // --- Diagnostics Handling ---
+  useEffect(() => {
+    if (!editor || !monacoInstance) return;
+    const model = editor.getModel();
+    
+    if (model && diagnostics) {
+        const markers = diagnostics.map(d => ({
+            severity: d.severity === 'error' ? monacoInstance.MarkerSeverity.Error : monacoInstance.MarkerSeverity.Warning,
+            message: d.message,
+            startLineNumber: d.startLine,
+            startColumn: d.startColumn,
+            endLineNumber: d.endLine,
+            endColumn: d.endColumn,
+            source: 'Vibe Lint'
+        }));
+        monacoInstance.editor.setModelMarkers(model, 'owner', markers);
+    }
+  }, [diagnostics, editor, monacoInstance]);
 
-    // Clear previous disposables
-    disposablesRef.current.forEach(d => d.dispose());
-    disposablesRef.current = [];
+  const handleEditorDidMount: OnMount = (editorInstance, monacoInst) => {
+    setEditor(editorInstance);
+    setMonacoInstance(monacoInst);
 
     // --- Define Custom Themes ---
-    monaco.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
-    monaco.editor.defineTheme('vibe-light-theme', vibeLightTheme);
-    monaco.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
+    monacoInst.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
+    monacoInst.editor.defineTheme('vibe-light-theme', vibeLightTheme);
+    monacoInst.editor.setTheme(theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme');
     
-    // --- 1. Inline Completions Provider (AI) ---
-    const inlineProvider = monaco.languages.registerInlineCompletionsProvider(getMonacoLanguage(language), {
-      debounceDelayMs: 400,
-      provideInlineCompletions: async (model, position, context, token) => {
-        console.log('[CodeEditor] Inline completion triggered at', position, 'context:', context.triggerKind);
-        
-        if (token.isCancellationRequested) {
-            return { items: [] };
-        }
-
-        const code = model.getValue();
-        const offset = model.getOffsetAt(position);
-        try {
-            const suggestionText = await onFetchSuggestion(code, offset);
-            console.log('[CodeEditor] Received suggestion:', suggestionText);
-            if (suggestionText && !token.isCancellationRequested) {
-                return {
-                    items: [{
-                        insertText: suggestionText,
-                        range: {
-                            startLineNumber: position.lineNumber,
-                            startColumn: position.column,
-                            endLineNumber: position.lineNumber,
-                            endColumn: position.column,
-                        },
-                        completeBracketPairs: true,
-                    }],
-                    enableForwardStability: true,
-                    suppressSuggestions: true,
-                };
-            }
-        } catch (e) {
-          console.error("[CodeEditor] Error fetching inline suggestion:", e);
-        }
-        return { items: [] };
-      },
-      disposeInlineCompletions: (completions, reason) => {},
-    });
-    disposablesRef.current.push(inlineProvider);
-
-    // --- 2. Semantic Autocomplete Provider (RAG) ---
-    const completionProvider = monaco.languages.registerCompletionItemProvider(getMonacoLanguage(language), {
-        triggerCharacters: ['.', ' ', '(', '{'],
-        provideCompletionItems: async (model, position) => {
-            const wordUntil = model.getWordUntilPosition(position);
-            const range = {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: wordUntil.startColumn,
-                endColumn: wordUntil.endColumn
-            };
-
-            const textUntil = model.getValueInRange({
-                startLineNumber: position.lineNumber, 
-                startColumn: 1, 
-                endLineNumber: position.lineNumber, 
-                endColumn: position.column
-            });
-            
-            // Only search if we have enough context
-            if (textUntil.trim().length < 4) return { suggestions: [] };
-
-            const results = ragService.search(textUntil, 3);
-            
-            const suggestions = results.map(r => ({
-                label: { 
-                    label: `✨ ${r.snippet.slice(0, 30).replace(/\n/g, ' ')}...`, 
-                    description: `from ${r.filePath}` 
-                },
-                kind: monaco.languages.CompletionItemKind.Snippet,
-                insertText: r.snippet,
-                documentation: `Matched Code from ${r.filePath}:\n\n${r.snippet}`,
-                range: range,
-                sortText: '000_' + r.score // Prioritize these
-            }));
-
-            return { suggestions };
-        }
-    });
-    disposablesRef.current.push(completionProvider);
-
-    // --- 3. AI Code Lenses ---
-    const commandId = editor.addCommand(0, (accessor: any, callback: any) => {
-        if (callback) callback();
-    }, '');
-
-    const lensProvider = monaco.languages.registerCodeLensProvider(getMonacoLanguage(language), {
-        provideCodeLenses: (model) => {
-            const lenses = [];
-            const content = model.getValue();
-            
-            // Regex to find functions and classes
-            const regex = /(?:export\s+)?(?:async\s+)?(?:function\s+([a-zA-Z0-9_]+)|class\s+([a-zA-Z0-9_]+)|const\s+([a-zA-Z0-9_]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_]+)\s*=>)/g;
-            
-            let match;
-            while ((match = regex.exec(content)) !== null) {
-                const startPos = model.getPositionAt(match.index);
-                const endPos = model.getPositionAt(match.index + match[0].length);
-                const range = {
-                    startLineNumber: startPos.lineNumber,
-                    startColumn: startPos.column,
-                    endLineNumber: endPos.lineNumber,
-                    endColumn: endPos.column
-                };
-
-                // Generate Test
-                lenses.push({
-                    range,
-                    id: "test",
-                    command: {
-                        id: commandId!,
-                        title: "$(beaker) Generate Test",
-                        arguments: [() => onAICommand && onAICommand('test', { range, code: match[0] })]
-                    }
-                });
-
-                // Add Docs
-                lenses.push({
-                    range,
-                    id: "docs",
-                    command: {
-                        id: commandId!,
-                        title: "$(book) Add Docs",
-                        arguments: [() => onAICommand && onAICommand('docs', { range, code: match[0] })]
-                    }
-                });
-
-                // Refactor
-                lenses.push({
-                    range,
-                    id: "refactor",
-                    command: {
-                        id: commandId!,
-                        title: "$(wand) Refactor",
-                        arguments: [() => onAICommand && onAICommand('refactor', { range, code: match[0] })]
-                    }
-                });
-            }
-            return { lenses, dispose: () => {} };
-        }
-    });
-    disposablesRef.current.push(lensProvider);
-
-    // --- 4. Inline Quick Fix (Lightbulb) ---
-    const codeActionProvider = monaco.languages.registerCodeActionProvider(getMonacoLanguage(language), {
-        provideCodeActions: (model, range, context) => {
-            if (context.markers.length === 0) return { actions: [], dispose: () => {} };
-
-            const actions = context.markers.map(marker => ({
-                title: `✨ Fix with Vibe AI: ${marker.message}`,
-                diagnostics: [marker],
-                kind: "quickfix",
-                isPreferred: true,
-                command: {
-                    id: commandId!,
-                    title: "Fix with Vibe AI",
-                    arguments: [() => onAICommand && onAICommand('fix', { error: marker.message, range: marker, code: model.getValueInRange(marker) })]
-                }
-            }));
-
-            return { actions, dispose: () => {} };
-        }
-    });
-    disposablesRef.current.push(codeActionProvider);
-
-
-    // Keybindings
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+    // --- Keybindings ---
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyZ, () => {
         if (onUndo) onUndo();
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyMod.Shift | monacoInst.KeyCode.KeyZ, () => {
         if (onRedo) onRedo();
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyS, () => {
         if (onSave) onSave();
     });
 
     // Cmd+K for Inline AI
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
-        const position = editor.getPosition();
+    editorInstance.addCommand(monacoInst.KeyMod.CtrlCmd | monacoInst.KeyCode.KeyK, () => {
+        const position = editorInstance.getPosition();
         if (position) {
-            const scrolledPos = editor.getScrolledVisiblePosition(position);
-            const selection = editor.getSelection();
+            const scrolledPos = editorInstance.getScrolledVisiblePosition(position);
+            const selection = editorInstance.getSelection();
             if (scrolledPos) {
                 setInlineInputPos({ 
                     top: scrolledPos.top, 
@@ -282,26 +146,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         }
     });
 
-    // Event Listeners
-    editor.onDidChangeCursorPosition((e: any) => {
-      const offset = editor.getModel()?.getOffsetAt(e.position) || 0;
+    // --- Event Listeners ---
+    editorInstance.onDidChangeCursorPosition((e: any) => {
+      const offset = editorInstance.getModel()?.getOffsetAt(e.position) || 0;
       if (onCursorChange) onCursorChange(offset);
     });
 
-    editor.onDidChangeCursorSelection((e: any) => {
-        const selection = editor.getModel()?.getValueInRange(e.selection);
+    editorInstance.onDidChangeCursorSelection((e: any) => {
+        const selection = editorInstance.getModel()?.getValueInRange(e.selection);
         if (onSelectionChange) onSelectionChange(selection || '');
     });
   };
   
-  // Cleanup providers on unmount
-  useEffect(() => {
-    return () => {
-      disposablesRef.current.forEach(d => d.dispose());
-      providerRef.current?.dispose();
-    }
-  }, []);
-
   const handleInlineSubmit = async (text: string) => {
       if (!onInlineAssist || !savedSelection) return;
       setIsProcessingInline(true);
@@ -312,32 +168,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           console.error(e);
       } finally {
           setIsProcessingInline(false);
-          editorRef.current?.focus();
+          editor?.focus();
       }
   };
-
-  // --- Diagnostics ---
-  useEffect(() => {
-    if (!editorRef.current || !monacoRef.current) return;
-    const monaco = monacoRef.current;
-    const model = editorRef.current.getModel();
-    
-    if (model && diagnostics) {
-        const markers = diagnostics.map(d => ({
-            severity: d.severity === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
-            message: d.message,
-            startLineNumber: d.startLine,
-            startColumn: d.startColumn,
-            endLineNumber: d.endLine,
-            endColumn: d.endColumn,
-            source: 'Vibe Lint'
-        }));
-        monaco.editor.setModelMarkers(model, 'owner', markers);
-    }
-  }, [diagnostics]);
-
-  // Keep ref for disposable cleanup of standard inline completion if needed
-  const providerRef = useRef<any>(null);
 
   return (
     <div className={`flex h-full w-full overflow-hidden rounded-2xl ${className || ''}`}>
@@ -353,7 +186,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
          <Editor
             height="100%"
-            language={getMonacoLanguage(language)}
+            language={mappedLanguage}
             value={code}
             onChange={(value) => onChange(value || '')}
             onMount={handleEditorDidMount}
