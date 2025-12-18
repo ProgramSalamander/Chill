@@ -31,17 +31,30 @@ export const useInlineCompletion = (
 
         const offset = model.getOffsetAt(position);
         const textBeforeCursor = model.getValue().slice(0, offset);
+        
+        // --- 0. Trigger Optimization (Cost & Noise Reduction) ---
+        const lineContent = model.getLineContent(position.lineNumber);
+        const linePrefix = lineContent.substring(0, position.column - 1);
+        
+        /**
+         * triggerKind 0 = Invoke (Automatic as you type)
+         * triggerKind 1 = Trigger (Explicitly requested via hotkey)
+         */
+        if (context.triggerKind === 0) {
+            // Optimization: Don't trigger if line is empty or has fewer than 3 characters
+            // This drastically reduces API usage and quota drain.
+            if (linePrefix.trim().length < 3) {
+                return { items: [] };
+            }
+        }
 
         // --- 1. Client-Side Cache Check (Sticky Ghost Text) ---
         // If the user typed something that matches the beginning of the previous suggestion,
         // we can just "reveal" more of the hidden suggestion without an API call.
         if (cacheRef.current && textBeforeCursor.startsWith(cacheRef.current.prefix)) {
-            // "delta" is what the user typed since the suggestion was fetched
             const delta = textBeforeCursor.slice(cacheRef.current.prefix.length);
             
-            // Check if the old suggestion text actually starts with what the user typed
             if (cacheRef.current.suggestion.startsWith(delta)) {
-                // Return the *remaining* part of the suggestion
                 const remaining = cacheRef.current.suggestion.slice(delta.length);
                 if (remaining) {
                     return {
@@ -55,7 +68,7 @@ export const useInlineCompletion = (
                             },
                         }],
                         enableForwardStability: true,
-                        suppressSuggestions: true,
+                        suppressSuggestions: false,
                     };
                 }
             }
@@ -70,7 +83,6 @@ export const useInlineCompletion = (
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        // Wrap fetch in a Promise to wait for idle time if needed
         return new Promise((resolve) => {
             const work = async () => {
                 if (token.isCancellationRequested || abortController.signal.aborted) {
@@ -84,7 +96,6 @@ export const useInlineCompletion = (
                     const suggestionText = await onFetchSuggestion(code, offset, abortController.signal);
                     
                     if (suggestionText && !token.isCancellationRequested && !abortController.signal.aborted) {
-                        // Update cache for sticky behavior on next keystroke
                         cacheRef.current = {
                             prefix: textBeforeCursor,
                             suggestion: suggestionText
@@ -102,7 +113,7 @@ export const useInlineCompletion = (
                                 completeBracketPairs: true,
                             }],
                             enableForwardStability: true,
-                            suppressSuggestions: true,
+                            suppressSuggestions: false,
                         });
                         return;
                     }
@@ -110,12 +121,10 @@ export const useInlineCompletion = (
                   // Silent fail
                 }
                 
-                // If failed or empty, clear cache to avoid stuck bad suggestions
                 cacheRef.current = null;
                 resolve({ items: [] });
             };
 
-            // Use requestIdleCallback to avoid blocking main thread during rapid typing
             if ('requestIdleCallback' in window) {
                 (window as any).requestIdleCallback(work, { timeout: 200 });
             } else {
