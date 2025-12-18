@@ -155,7 +155,7 @@ const Sidebar: React.FC = () => {
   return (
     <div className="flex gap-0 h-full">
         {/* Activity Bar */}
-        <div className="w-14 flex flex-col items-center py-4 gap-4 z-40 rounded-2xl glass-panel shadow-lg shrink-0 h-full mr-3">
+        <div className="w-14 flex flex-col items-center py-4 gap-4 z-40 rounded-2xl glass-panel shadow-lg shrink-0 h-full mr-3 border-vibe-border">
             <div 
               className="w-full flex flex-col items-center gap-4 relative" 
               onDragLeave={() => setDragOverId(null)}
@@ -183,16 +183,16 @@ const Sidebar: React.FC = () => {
                       onContextMenu={e => handleContextMenu(e, view)}
                       onClick={() => setActiveSidebarView(isActive ? null : view.id)}
                       className={`p-3 rounded-xl transition-all duration-300 relative group w-[44px] h-[44px] flex items-center justify-center cursor-pointer
-                        ${isActive ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:text-white hover:bg-white/10'}
+                        ${isActive ? 'bg-vibe-accent/20 text-vibe-accent dark:text-white' : 'text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/10'}
                         ${isDragged ? 'opacity-30 scale-90' : 'opacity-100 scale-100'}
-                        ${isDragOver ? 'bg-white/10' : ''}
+                        ${isDragOver ? 'bg-black/5 dark:bg-white/10' : ''}
                       `}
                       id={`sidebar-${view.id}-button`}
                     >
                       <div className="relative z-10">
                         <view.icon size={20} strokeWidth={1.5} />
                         {hasGitBadge && (
-                          <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-vibe-900 shadow-sm animate-pulse"></div>
+                          <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-vibe-900 shadow-sm animate-pulse"></div>
                         )}
                         {hasChangesBadge && (
                           <div className="absolute top-0 right-0 w-4 h-4 bg-blue-500 rounded-full border-2 border-vibe-900 text-[9px] flex items-center justify-center text-white font-bold shadow-md">
@@ -209,18 +209,18 @@ const Sidebar: React.FC = () => {
             <Tooltip content="Command Palette" shortcut="⌘P">
               <button 
                 onClick={() => setIsCommandPaletteOpen(true)}
-                className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:scale-105"
+                className="p-3 rounded-xl text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-300 hover:scale-105"
               >
                 <IconSearch size={20} strokeWidth={1.5} />
               </button>
             </Tooltip>
             
-            <div className="w-8 h-[1px] bg-white/10 my-1"></div>
+            <div className="w-8 h-[1px] bg-vibe-border my-1"></div>
             
             <Tooltip content="Settings">
               <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="p-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all duration-300 hover:rotate-90"
+                className="p-3 rounded-xl text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-300 hover:rotate-90"
               >
                 <IconSettings size={20} strokeWidth={1.5} />
               </button>
@@ -230,27 +230,27 @@ const Sidebar: React.FC = () => {
               <Tooltip content="Manage Views" position="top">
                 <button
                   onClick={() => setHiddenMenuOpen(p => !p)}
-                  className={`p-2 rounded-full transition-colors ${hiddenMenuOpen ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-white'}`}
+                  className={`p-2 rounded-full transition-colors ${hiddenMenuOpen ? 'bg-black/5 dark:bg-white/10 text-vibe-text-main' : 'text-vibe-text-muted hover:text-vibe-text-main'}`}
                 >
                   <IconMore size={16} />
                 </button>
               </Tooltip>
               {hiddenMenuOpen && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50">
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-vibe-text-muted uppercase tracking-wider">
                     Hidden Views
                   </div>
                   {hiddenViews.length > 0 ? hiddenViews.map(view => (
                     <button 
                       key={view.id}
                       onClick={() => handleShow(view.id)}
-                      className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg"
+                      className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-vibe-accent/20 hover:text-vibe-text-main flex items-center gap-3 transition-colors mx-1 rounded-lg"
                     >
-                      <IconEye size={14} className="text-slate-500 group-hover:text-vibe-glow" />
+                      <IconEye size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" />
                       <span>{view.title.split('(')[0].trim()}</span>
                     </button>
                   )) : (
-                    <div className="px-3 py-2 text-xs text-slate-600 italic">None</div>
+                    <div className="px-3 py-2 text-xs text-vibe-text-muted italic">None</div>
                   )}
                 </div>
               )}
@@ -260,13 +260,13 @@ const Sidebar: React.FC = () => {
               <div 
                 ref={contextMenuRef}
                 style={{ top: contextMenu.y, left: contextMenu.x + 10 }}
-                className="fixed z-50 w-32 bg-[#0f0f16]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50"
+                className="fixed z-50 w-32 bg-vibe-800/95 backdrop-blur-xl border border-vibe-border rounded-xl shadow-2xl py-1.5 flex flex-col animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/50"
               >
                 <button 
                   onClick={handleHide}
-                  className="group px-3 py-2 text-xs text-left text-slate-300 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors mx-1 rounded-lg"
+                  className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 flex items-center gap-3 transition-colors mx-1 rounded-lg"
                 >
-                  <IconEyeOff size={14} className="text-slate-500 group-hover:text-red-400" />
+                  <IconEyeOff size={14} className="text-vibe-text-muted group-hover:text-red-500" />
                   <span>Hide</span>
                 </button>
               </div>
@@ -278,7 +278,7 @@ const Sidebar: React.FC = () => {
             <div className="flex animate-in slide-in-from-left-4 duration-300">
                 <div 
                   style={{ width: `${sidebarWidth}px` }}
-                  className="glass-panel rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl shrink-0"
+                  className="glass-panel rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl shrink-0 border-vibe-border"
                 >
                    {activeSidebarView === 'explorer' && <FileExplorer />}
                    {activeSidebarView === 'git' && <GitPanel />}

@@ -26,7 +26,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
 
   return (
-    <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20">
+    <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20 border-vibe-border">
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[calc(100%-250px)]">
           {openFileIds.map(id => {
               const file = files.find(f => f.id === id);
@@ -39,8 +39,8 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
                   className={`
                       group flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer border transition-all min-w-[140px] max-w-[220px]
                       ${isActive 
-                          ? 'bg-vibe-accent/20 border-vibe-accent/30 text-white shadow-[0_0_10px_rgba(99,102,241,0.2)]' 
-                          : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:text-slate-300'}
+                          ? 'bg-vibe-accent/20 border-vibe-accent/30 text-vibe-text-main shadow-[0_0_10px_rgba(99,102,241,0.1)]' 
+                          : 'bg-black/5 dark:bg-white/5 border-transparent text-vibe-text-soft hover:bg-black/10 dark:hover:bg-white/10 hover:text-vibe-text-main'}
                   `}
               >
                   <span className={`${isActive ? 'text-vibe-glow' : 'opacity-50'}`}>
@@ -50,7 +50,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
                   {file.isModified && <div className="w-1.5 h-1.5 rounded-full bg-vibe-accent animate-pulse"></div>}
                   <button 
                       onClick={(e) => { e.stopPropagation(); closeFile(id); }}
-                      className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/20 rounded-md ${isActive ? 'text-slate-300 hover:text-white' : ''}`}
+                      className={`opacity-0 group-hover:opacity-100 p-0.5 hover:bg-black/10 dark:hover:bg-white/20 rounded-md ${isActive ? 'text-vibe-text-soft hover:text-vibe-text-main' : ''}`}
                   >
                       <IconClose size={12} />
                   </button>
@@ -63,7 +63,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
           <Tooltip content={isPreviewOpen ? "Hide Preview" : "Show Live Preview"} position="bottom">
             <button 
                 onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/5'}`}
             >
                 {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
                 <span className="hidden sm:inline">Preview</span>
@@ -73,7 +73,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
             <button 
                 onClick={onRunCode}
                 disabled={!hasActiveFile}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
             >
                 <IconPlay size={14} />
                 <span className="hidden sm:inline">Run</span>
@@ -82,7 +82,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
           <Tooltip content={isAIOpen ? "Close AI Panel" : "Open AI Panel"} position="bottom">
             <button 
                 onClick={() => setIsAIOpen(!isAIOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.15)]' : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-semibold border ${isAIOpen ? 'bg-vibe-glow/20 text-vibe-glow border-vibe-glow/30 shadow-[0_0_15px_rgba(199,210,254,0.1)]' : 'bg-black/5 dark:bg-white/5 text-vibe-text-soft border-transparent hover:text-vibe-text-main hover:bg-black/10 dark:hover:bg-white/10'}`}
             >
                 <IconSparkles size={14} />
                 <span className="hidden sm:inline">AI</span>

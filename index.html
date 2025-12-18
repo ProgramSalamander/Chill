@@ -8,22 +8,27 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js" defer></script>
     <style>
       /* --- THEME CSS VARIABLES --- */
       :root {
-        --bg-primary: 248 249 250;
+        --bg-primary: 248 250 252;
         --bg-secondary: 255 255 255;
-        --bg-tertiary: 241 243 245;
-        --text-primary: 33 37 41;
-        --text-secondary: 73 80 87;
-        --text-tertiary: 173 181 189;
+        --bg-tertiary: 241 245 249;
+        --text-primary: 15 23 42;
+        --text-secondary: 71 85 105;
+        --text-tertiary: 148 163 184;
         --vibe-accent: 79 70 229; /* indigo-600 */
         --vibe-glow: 99 102 241; /* indigo-500 */
         --vibe-glass-rgb: 255, 255, 255;
-        --vibe-glass-alpha: 0.6;
+        --vibe-glass-alpha: 0.8;
         --vibe-border-rgb: 0, 0, 0;
-        --vibe-border-alpha: 0.05;
+        --vibe-border-alpha: 0.1;
         --selection-bg-rgb: 99, 102, 241;
         --selection-text-rgb: 255, 255, 255;
       }
@@ -67,6 +72,7 @@
         overflow: hidden;
         font-feature-settings: "cv02", "cv03", "cv04", "cv11";
         font-family: 'Inter', sans-serif;
+        transition: background-color 0.3s ease, color 0.3s ease;
       }
 
       .aurora-bg {
@@ -77,11 +83,11 @@
         height: 200vh;
         z-index: -2;
         background: 
-          radial-gradient(at 10% 10%, rgba(129, 140, 248, 0.15) 0px, transparent 50%),
-          radial-gradient(at 90% 10%, rgba(236, 72, 153, 0.12) 0px, transparent 50%),
-          radial-gradient(at 90% 90%, rgba(56, 189, 248, 0.12) 0px, transparent 50%),
-          radial-gradient(at 10% 90%, rgba(168, 85, 247, 0.12) 0px, transparent 50%),
-          radial-gradient(at 50% 50%, rgba(79, 70, 229, 0.05) 0px, transparent 40%);
+          radial-gradient(at 10% 10%, rgba(129, 140, 248, 0.1) 0px, transparent 50%),
+          radial-gradient(at 90% 10%, rgba(236, 72, 153, 0.08) 0px, transparent 50%),
+          radial-gradient(at 90% 90%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
+          radial-gradient(at 10% 90%, rgba(168, 85, 247, 0.08) 0px, transparent 50%),
+          radial-gradient(at 50% 50%, rgba(79, 70, 229, 0.04) 0px, transparent 40%);
         filter: blur(100px);
         opacity: 0.6;
         animation: aurora-drift 60s ease-in-out infinite alternate;
@@ -94,6 +100,12 @@
       }
       .dark .aurora-bg {
         opacity: 0.8;
+        background: 
+          radial-gradient(at 10% 10%, rgba(129, 140, 248, 0.15) 0px, transparent 50%),
+          radial-gradient(at 90% 10%, rgba(236, 72, 153, 0.12) 0px, transparent 50%),
+          radial-gradient(at 90% 90%, rgba(56, 189, 248, 0.12) 0px, transparent 50%),
+          radial-gradient(at 10% 90%, rgba(168, 85, 247, 0.12) 0px, transparent 50%),
+          radial-gradient(at 50% 50%, rgba(79, 70, 229, 0.05) 0px, transparent 40%);
       }
 
       .noise-overlay {
@@ -113,8 +125,11 @@
         backdrop-filter: blur(32px) saturate(200%);
         -webkit-backdrop-filter: blur(32px) saturate(200%);
         border: 1px solid rgba(var(--vibe-border-rgb), var(--vibe-border-alpha));
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
         border-radius: 1.25rem;
+      }
+      .dark .glass-panel {
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
       }
       
       .vibe-card {
@@ -127,6 +142,9 @@
         background: rgba(var(--vibe-glass-rgb), calc(var(--vibe-glass-alpha) * 0.7));
         border-color: rgba(var(--vibe-accent), 0.3);
         transform: translateY(-2px);
+        box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
+      }
+      .dark .vibe-card:hover {
         box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
       }
 
@@ -143,8 +161,8 @@
 
       /* AI DIFF STYLES */
       .ai-diff-modified {
-        background-color: rgba(163, 113, 247, 0.1);
-        border-bottom: 1px dashed rgba(163, 113, 247, 0.4);
+        background-color: rgba(163, 113, 247, 0.08);
+        border-bottom: 1px dashed rgba(163, 113, 247, 0.3);
       }
 
       .ai-diff-glyph {
@@ -154,14 +172,18 @@
       .ai-patch-widget {
         display: flex;
         gap: 6px;
-        background: rgba(15, 15, 22, 0.95);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(var(--bg-secondary), 0.95);
+        border: 1px solid rgba(var(--vibe-border-rgb), var(--vibe-border-alpha));
         border-radius: 8px;
         padding: 4px 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         backdrop-filter: blur(12px);
         z-index: 100;
         pointer-events: auto;
+      }
+      .dark .ai-patch-widget {
+        background: rgba(15, 15, 22, 0.95);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
       }
 
       .ai-patch-widget button {
@@ -177,26 +199,30 @@
 
       .ai-patch-widget .btn-keep {
         background: rgba(34, 197, 94, 0.15);
-        color: #4ade80;
+        color: #16a34a;
         border: 1px solid rgba(34, 197, 94, 0.3);
+      }
+      .dark .ai-patch-widget .btn-keep {
+        color: #4ade80;
       }
 
       .ai-patch-widget .btn-keep:hover {
         background: rgba(34, 197, 94, 0.3);
         transform: translateY(-1px);
-        box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
       }
 
       .ai-patch-widget .btn-reject {
         background: rgba(239, 68, 68, 0.15);
-        color: #f87171;
+        color: #dc2626;
         border: 1px solid rgba(239, 68, 68, 0.3);
+      }
+      .dark .ai-patch-widget .btn-reject {
+        color: #f87171;
       }
 
       .ai-patch-widget .btn-reject:hover {
         background: rgba(239, 68, 68, 0.3);
         transform: translateY(-1px);
-        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
       }
     </style>
     <script>
@@ -217,6 +243,9 @@
                 glow: 'rgb(var(--vibe-glow) / <alpha-value>)',
                 glass: 'rgba(var(--vibe-glass-rgb), var(--vibe-glass-alpha))',
                 border: 'rgba(var(--vibe-border-rgb), var(--vibe-border-alpha))',
+                'text-main': 'rgb(var(--text-primary) / <alpha-value>)',
+                'text-soft': 'rgb(var(--text-secondary) / <alpha-value>)',
+                'text-muted': 'rgb(var(--text-tertiary) / <alpha-value>)',
               }
             },
             animation: {

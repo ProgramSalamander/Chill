@@ -116,7 +116,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
       <div 
         className={`
           group flex items-center gap-2 py-1.5 px-3 cursor-pointer transition-all relative rounded-lg mx-1
-          ${activeFileId === node.id ? 'bg-vibe-accent/20 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}
+          ${activeFileId === node.id ? 'bg-vibe-accent/20 text-vibe-text-main' : 'text-vibe-text-soft hover:bg-black/5 dark:hover:bg-white/5 hover:text-vibe-text-main'}
           ${isAware && activeFileId !== node.id ? 'bg-vibe-glow/5 border border-vibe-glow/10 shadow-[0_0_10px_rgba(199,210,254,0.05)]' : ''}
         `}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
@@ -136,7 +136,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
           )}
         </span>
 
-        <span className={`flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (isModified ? 'text-amber-400' : (isAdded ? 'text-green-400' : 'text-slate-500'))}`}>
+        <span className={`flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (isModified ? 'text-amber-500' : (isAdded ? 'text-green-600 dark:text-green-400' : 'text-vibe-text-muted'))}`}>
           {node.type === 'folder' ? (
              node.isOpen ? <IconFolderOpen size={16} /> : <IconFolder size={16} />
           ) : (
@@ -156,12 +156,12 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                         if (e.key === 'Escape') setIsEditing(false);
                     }}
                     onBlur={handleSaveEdit}
-                    className="bg-black/60 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-white w-full outline-none shadow-lg"
+                    className="bg-vibe-800 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-vibe-text-main w-full outline-none shadow-lg"
                 />
             </div>
         ) : (
             <>
-              <span className={`truncate text-sm flex-1 min-w-0 ${node.isModified ? 'italic' : ''} ${isModified ? 'text-amber-200' : (isAdded ? 'text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
+              <span className={`truncate text-sm flex-1 min-w-0 ${node.isModified ? 'italic' : ''} ${isModified ? 'text-amber-600 dark:text-amber-200' : (isAdded ? 'text-green-600 dark:text-green-200' : '')} ${isAware ? 'font-medium text-vibe-glow' : ''}`}>
                   {node.name}
               </span>
 
@@ -171,10 +171,10 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                   )}
 
                   {isModified && (
-                      <span className="text-[9px] font-bold text-amber-400 font-mono bg-amber-400/10 px-1 rounded" title="Modified">M</span>
+                      <span className="text-[9px] font-bold text-amber-500 font-mono bg-amber-500/10 px-1 rounded" title="Modified">M</span>
                   )}
                   {isAdded && (
-                      <span className="text-[9px] font-bold text-green-400 font-mono bg-green-400/10 px-1 rounded" title="Added (Untracked)">U</span>
+                      <span className="text-[9px] font-bold text-green-600 dark:text-green-400 font-mono bg-green-500/10 px-1 rounded" title="Added (Untracked)">U</span>
                   )}
                   
                   {isAware && !isModified && !isAdded && (
@@ -186,7 +186,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 
         {!isEditing && (
             <div className={`
-                flex items-center gap-1 ml-auto bg-black/60 rounded px-1 backdrop-blur-sm
+                flex items-center gap-1 ml-auto bg-vibe-800 border border-vibe-border rounded px-1 backdrop-blur-sm shadow-sm
                 ${showActions ? 'opacity-100 scale-100' : 'opacity-0 scale-90'} 
                 transition-all duration-200
             `}>
@@ -194,14 +194,14 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                     <>
                         <button 
                             onClick={(e) => startCreate(e, 'file')} 
-                            className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-green-400 transition-colors"
+                            className="p-1 hover:bg-black/5 dark:hover:bg-white/20 rounded text-vibe-text-muted hover:text-green-500 transition-colors"
                             title="New File"
                         >
                             <IconFilePlus size={12} />
                         </button>
                         <button 
                             onClick={(e) => startCreate(e, 'folder')} 
-                            className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-green-400 transition-colors"
+                            className="p-1 hover:bg-black/5 dark:hover:bg-white/20 rounded text-vibe-text-muted hover:text-green-500 transition-colors"
                             title="New Folder"
                         >
                             <IconFolderPlus size={12} />
@@ -210,14 +210,14 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                 )}
                 <button 
                     onClick={handleStartEdit} 
-                    className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-blue-400 transition-colors"
+                    className="p-1 hover:bg-black/5 dark:hover:bg-white/20 rounded text-vibe-text-muted hover:text-blue-500 transition-colors"
                     title="Rename"
                 >
                     <IconEdit size={12} />
                 </button>
                 <button 
                     onClick={(e) => { e.stopPropagation(); setFileToDelete(node); }} 
-                    className="p-1 hover:bg-white/20 rounded text-slate-400 hover:text-red-400 transition-colors"
+                    className="p-1 hover:bg-black/5 dark:hover:bg-white/20 rounded text-vibe-text-muted hover:text-red-500 transition-colors"
                     title="Delete"
                 >
                     <IconTrash size={12} />
@@ -231,7 +231,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
              className="flex items-center gap-2 py-1 px-2 animate-in fade-in slide-in-from-top-1 my-1"
              style={{ paddingLeft: `${(depth + 1) * 16 + 28}px` }}
           >
-             <span className="text-slate-500">
+             <span className="text-vibe-text-muted">
                 {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
              </span>
              <div className="flex items-center flex-1 gap-1">
@@ -245,10 +245,10 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                         if (e.key === 'Escape') setIsCreating(null);
                     }}
                     placeholder={`Name ${isCreating}...`}
-                    className="bg-black/60 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-white w-full outline-none shadow-lg"
+                    className="bg-vibe-800 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-vibe-text-main w-full outline-none shadow-lg"
                  />
-                 <button onClick={saveCreate} className="text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
-                 <button onClick={() => setIsCreating(null)} className="text-red-400 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
+                 <button onClick={saveCreate} className="text-green-600 dark:text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
+                 <button onClick={() => setIsCreating(null)} className="text-red-500 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
              </div>
           </div>
       )}
@@ -256,7 +256,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
       {node.type === 'folder' && node.isOpen && (
         <div className="relative">
           <div 
-             className="absolute left-0 top-0 bottom-0 w-px bg-white/10"
+             className="absolute left-0 top-0 bottom-0 w-px bg-vibe-border"
              style={{ left: `${depth * 16 + 18}px` }}
           />
           <div className="flex flex-col">
@@ -269,7 +269,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
             ))}
             {children.length === 0 && !isCreating && (
                 <div 
-                  className="py-1 text-[10px] text-slate-600 italic select-none"
+                  className="py-1 text-[10px] text-vibe-text-muted italic select-none"
                   style={{ paddingLeft: `${(depth + 1) * 16 + 28}px` }}
                 >
                     Empty
@@ -304,13 +304,13 @@ const FileExplorer: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full">
-            <div className="p-4 text-xs font-bold text-slate-500 uppercase flex justify-between items-center tracking-wider border-b border-white/5 shrink-0">
+            <div className="p-4 text-xs font-bold text-vibe-text-muted uppercase flex justify-between items-center tracking-wider border-b border-vibe-border shrink-0">
                 <span>Explorer</span>
-                <div className="flex items-center gap-2 text-slate-400">
-                    <button onClick={() => handleStartCreate('file')} className="hover:text-white transition-colors" title="New File">
+                <div className="flex items-center gap-2 text-vibe-text-muted">
+                    <button onClick={() => handleStartCreate('file')} className="hover:text-vibe-text-main transition-colors" title="New File">
                         <IconFilePlus size={14} />
                     </button>
-                    <button onClick={() => handleStartCreate('folder')} className="hover:text-white transition-colors" title="New Folder">
+                    <button onClick={() => handleStartCreate('folder')} className="hover:text-vibe-text-main transition-colors" title="New Folder">
                         <IconFolderPlus size={14} />
                     </button>
                 </div>
@@ -318,7 +318,7 @@ const FileExplorer: React.FC = () => {
             {files.length === 0 && !isCreating ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
                     <IconFolderOpen size={32} />
-                    <p className="text-xs">No files yet</p>
+                    <p className="text-xs text-vibe-text-soft">No files yet</p>
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
@@ -327,7 +327,7 @@ const FileExplorer: React.FC = () => {
                             className="flex items-center gap-2 py-1 px-3 animate-in fade-in slide-in-from-top-1 my-1 mx-1"
                             style={{ paddingLeft: `12px` }}
                         >
-                            <span className="text-slate-500">
+                            <span className="text-vibe-text-muted">
                                 {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
                             </span>
                             <div className="flex items-center flex-1 gap-1">
@@ -342,10 +342,10 @@ const FileExplorer: React.FC = () => {
                                     }}
                                     onBlur={handleSaveCreate}
                                     placeholder={`Name your ${isCreating}...`}
-                                    className="bg-black/60 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-white w-full outline-none shadow-lg"
+                                    className="bg-vibe-800 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-vibe-text-main w-full outline-none shadow-lg"
                                 />
-                                <button onClick={handleSaveCreate} className="text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
-                                <button onClick={() => setIsCreating(null)} className="text-red-400 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
+                                <button onClick={handleSaveCreate} className="text-green-600 dark:text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
+                                <button onClick={() => setIsCreating(null)} className="text-red-500 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
                             </div>
                         </div>
                     )}
