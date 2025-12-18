@@ -2,6 +2,7 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+import { createPortal } from 'react-dom';
 import { Diagnostic, AIPatch } from '../types';
 import { InlineInput } from './InlineInput';
 import { vibeDarkTheme, vibeLightTheme } from '../utils/monacoThemes';
@@ -139,7 +140,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [monacoInstance, setMonacoInstance] = useState<typeof monaco | null>(null);
   
-  const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
+  const [inlineAnchor, setInlineAnchor] = useState<monaco.IPosition | null>(null);
+  const [inlineWidgetDom, setInlineWidgetDom] = useState<HTMLDivElement | null>(null);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
   const [savedSelection, setSavedSelection] = useState<any>(null);
 
@@ -163,6 +165,37 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   useSemanticAutocomplete(monacoInstance, editor, mappedLanguage);
   useCodeLens(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
   useQuickFix(monacoInstance, editor, mappedLanguage, commandId, onAICommand);
+
+  // --- Inline Input Widget Logic ---
+  useEffect(() => {
+    if (!editor || !inlineAnchor) {
+        setInlineWidgetDom(null);
+        return;
+    }
+    
+    const id = 'vibe.inline-input';
+    const domNode = document.createElement('div');
+    domNode.style.zIndex = '50';
+    // Ensure the container doesn't block interactions or affect layout size unexpectedly
+    domNode.className = 'pointer-events-auto'; 
+    setInlineWidgetDom(domNode);
+
+    const widget: monaco.editor.IContentWidget = {
+        getId: () => id,
+        getDomNode: () => domNode,
+        getPosition: () => ({
+            position: inlineAnchor,
+            preference: [monaco.editor.ContentWidgetPositionPreference.BELOW]
+        })
+    };
+
+    editor.addContentWidget(widget);
+    editor.layoutContentWidget(widget);
+
+    return () => {
+        editor.removeContentWidget(widget);
+    };
+  }, [editor, inlineAnchor]);
 
   // --- Incremental AI Patches Effect ---
   useEffect(() => {
@@ -283,27 +316,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     monacoInst.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
     monacoInst.editor.defineTheme('vibe-light-theme', vibeLightTheme);
     
-    // Fix: Use imported monaco constants instead of instance-based ones for stable type inference.
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => onUndo?.());
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => onRedo?.());
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSave?.());
 
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
         const position = editorInstance.getPosition();
+        const selection = editorInstance.getSelection();
+        
         if (position) {
-            const scrolledPos = editorInstance.getScrolledVisiblePosition(position);
-            const selection = editorInstance.getSelection();
-            // Fix: Use imported monaco.editor.EditorOption to ensure correct type for option lookup.
-            const lineHeight = editorInstance.getOption(monaco.editor.EditorOption.lineHeight);
-            
-            if (scrolledPos) {
-                setInlineInputPos({ 
-                    top: scrolledPos.top, 
-                    left: scrolledPos.left, 
-                    lineHeight: lineHeight
-                });
-                setSavedSelection(selection);
-            }
+            setInlineAnchor(position);
+            setSavedSelection(selection);
         }
     });
 
@@ -323,7 +346,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       setIsProcessingInline(true);
       try {
           await onInlineAssist(text, savedSelection);
-          setInlineInputPos(null);
+          setInlineAnchor(null);
       } catch (e) {
           console.error(e);
       } finally {
@@ -334,13 +357,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
   return (
     <div className={`h-full w-full relative ${className || ''}`}>
-       <InlineInput 
-          position={inlineInputPos} 
-          onClose={() => setInlineInputPos(null)} 
-          onSubmit={handleInlineSubmit}
-          isProcessing={isProcessingInline}
-       />
-
        <Editor
           height="100%"
           language={mappedLanguage}
@@ -370,6 +386,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
               lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
           }}
        />
+       {inlineWidgetDom && createPortal(
+          <InlineInput 
+              onClose={() => setInlineAnchor(null)}
+              onSubmit={handleInlineSubmit}
+              isProcessing={isProcessingInline}
+          />,
+          inlineWidgetDom
+       )}
     </div>
   );
 };

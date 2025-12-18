@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { IconSparkles, IconZap } from './Icons';
 
 interface InlineInputProps {
-  position: { top: number; left: number; lineHeight: number } | null;
+  position?: { top: number; left: number; lineHeight: number } | null;
   onClose: () => void;
   onSubmit: (text: string) => void;
   isProcessing: boolean;
@@ -14,10 +14,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({ position, onClose, onS
 
   useEffect(() => {
     // Focus on mount
-    if (position) {
-        setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [position]);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -28,15 +26,18 @@ export const InlineInput: React.FC<InlineInputProps> = ({ position, onClose, onS
     }
   };
 
-  if (!position) return null;
+  const style: React.CSSProperties = position ? {
+    top: position.top + position.lineHeight + 4,
+    left: Math.max(20, Math.min(position.left, window.innerWidth - 450))
+  } : {};
 
   return (
     <div 
-      className="absolute z-50 flex flex-col gap-1 w-[400px] animate-in fade-in zoom-in-95 duration-200 origin-top-left"
-      style={{ 
-        top: position.top + position.lineHeight + 4, 
-        left: Math.max(20, Math.min(position.left, window.innerWidth - 450)) // Clamp to screen
-      }}
+      className={`
+        z-50 flex flex-col gap-1 w-[400px] animate-in fade-in zoom-in-95 duration-200 origin-top-left
+        ${position ? 'absolute' : ''}
+      `}
+      style={style}
     >
         <div className="flex items-center gap-2 p-1 pl-3 bg-[#0f0f16]/90 backdrop-blur-xl border border-vibe-accent/30 rounded-full shadow-[0_0_30px_rgba(99,102,241,0.25)] ring-1 ring-white/10">
             <IconSparkles size={16} className={`text-vibe-accent flex-shrink-0 ${isProcessing ? 'animate-spin-slow' : ''}`} />
