@@ -1,8 +1,7 @@
-import { GoogleGenAI, GenerateContentResponse, Part, Type } from "@google/genai";
-import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
-import { AGENT_TOOLS_GEMINI, getApiKey } from "./base";
 
-// --- Gemini Session Implementation ---
+import { GoogleGenAI, GenerateContentResponse, Part, Type } from "@google/genai";
+import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem, AIUsageMetadata } from "../../types";
+import { AGENT_TOOLS_GEMINI, getApiKey } from "./base";
 
 class GeminiSession implements AISession {
   private chat: any;
@@ -51,17 +50,25 @@ class GeminiSession implements AISession {
     return this.parseResponse(response);
   }
 
-  async sendMessageStream(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AsyncIterable<{ text: string }>> {
+  async sendMessageStream(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AsyncIterable<{ text: string, usage?: AIUsageMetadata }>> {
     if (props.toolResponses) {
         const response = await this.sendMessage(props);
-        return (async function* () { yield { text: response.text }; })();
+        return (async function* () { yield { text: response.text, usage: response.usage }; })();
     }
 
     const resultStream = await this.chat.sendMessageStream({ message: props.message });
     
     return (async function* () {
       for await (const chunk of resultStream) {
-        yield { text: chunk.text || '' };
+        yield { 
+            text: chunk.text || '',
+            usage: chunk.usageMetadata ? {
+                promptTokenCount: chunk.usageMetadata.promptTokenCount,
+                candidatesTokenCount: chunk.usageMetadata.candidatesTokenCount,
+                totalTokenCount: chunk.usageMetadata.totalTokenCount,
+                thinkingTokenCount: (chunk.usageMetadata as any).thinkingTokenCount
+            } : undefined
+        };
       }
     })();
   }
@@ -74,9 +81,17 @@ class GeminiSession implements AISession {
       args: fc.args
     }));
 
+    const usage: AIUsageMetadata | undefined = response.usageMetadata ? {
+        promptTokenCount: response.usageMetadata.promptTokenCount,
+        candidatesTokenCount: response.usageMetadata.candidatesTokenCount,
+        totalTokenCount: response.usageMetadata.totalTokenCount,
+        thinkingTokenCount: (response.usageMetadata as any).thinkingTokenCount
+    } : undefined;
+
     return {
       text,
-      toolCalls: functionCalls
+      toolCalls: functionCalls,
+      usage
     };
   }
 }
@@ -87,7 +102,7 @@ export class GeminiProvider implements AIProviderAdapter {
     return new GeminiSession(props.systemInstruction, props.history, props.isAgent, props.config);
   }
 
-  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<string> {
+  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for Gemini.");
     
@@ -100,7 +115,15 @@ export class GeminiProvider implements AIProviderAdapter {
             maxOutputTokens: props.options?.maxOutputTokens,
         }
     });
-    return response.text || '';
+
+    const usage: AIUsageMetadata | undefined = response.usageMetadata ? {
+        promptTokenCount: response.usageMetadata.promptTokenCount,
+        candidatesTokenCount: response.usageMetadata.candidatesTokenCount,
+        totalTokenCount: response.usageMetadata.totalTokenCount,
+        thinkingTokenCount: (response.usageMetadata as any).thinkingTokenCount
+    } : undefined;
+
+    return { text: response.text || '', usage };
   }
 
   async generateAgentPlan(props: { goal: string; context: string; config: AIModelProfile; }): Promise<AgentPlanItem[]> {

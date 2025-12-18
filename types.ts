@@ -126,11 +126,19 @@ export interface AIToolResponse {
 export interface AIResponse {
   text: string;
   toolCalls?: AIToolCall[];
+  usage?: AIUsageMetadata;
+}
+
+export interface AIUsageMetadata {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+  thinkingTokenCount?: number;
 }
 
 export interface AISession {
   sendMessage: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AIResponse>;
-  sendMessageStream: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AsyncIterable<{ text: string }>>;
+  sendMessageStream: (props: { message: string, toolResponses?: AIToolResponse[] }) => Promise<AsyncIterable<{ text: string, usage?: AIUsageMetadata }>>;
 }
 
 export interface AIProviderAdapter {
@@ -148,7 +156,7 @@ export interface AIProviderAdapter {
       temperature?: number;
       maxOutputTokens?: number;
     };
-  }): Promise<string>;
+  }): Promise<{ text: string, usage?: AIUsageMetadata }>;
 
   generateAgentPlan(props: {
     goal: string;

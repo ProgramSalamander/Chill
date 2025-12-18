@@ -6,6 +6,7 @@ import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
 import ExtensionsPanel from './ExtensionsPanel';
 import ChangesReviewPanel from './ChangesReviewPanel';
+import UsagePanel from './UsagePanel';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
@@ -285,6 +286,7 @@ const Sidebar: React.FC = () => {
                    {activeSidebarView === 'git' && <GitPanel />}
                    {activeSidebarView === 'extensions' && <ExtensionsPanel />}
                    {activeSidebarView === 'changes' && <ChangesReviewPanel />}
+                   {activeSidebarView === 'usage' && <UsagePanel />}
                 </div>
                 <div
                     onMouseDown={handleMouseDown}

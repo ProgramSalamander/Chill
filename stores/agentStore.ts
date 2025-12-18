@@ -4,6 +4,7 @@ import { AgentStep, AgentStatus, AgentPlanItem, AgentPendingAction, AISession, A
 import { aiService, handleAgentAction, getActiveChatConfig, errorService } from '../services';
 import { useFileTreeStore } from './fileStore';
 import { useUIStore } from './uiStore';
+import { useUsageStore } from './usageStore';
 
 interface AgentState {
   status: AgentStatus;
@@ -104,7 +105,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
         }));
       }
     } else {
-      // Continuation / Follow-up Turn
       set(state => ({
         status: 'thinking',
         agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'user', text: goal, timestamp: Date.now() }]
@@ -167,7 +167,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
   
   addPatch: (patch) => {
     set(state => {
-      // MERGE LOGIC: If a pending patch for this file already exists, update it instead of creating a new one.
       const existingPatchIndex = state.patches.findIndex(p => p.fileId === patch.fileId && p.status === 'pending');
       
       if (existingPatchIndex !== -1) {
@@ -177,7 +176,6 @@ For each turn, I will tell you which step needs to be worked on. You should outp
         updatedPatches[existingPatchIndex] = {
           ...existing,
           proposedText: patch.proposedText,
-          // Update range to match the most recent proposal for this file
           range: patch.range, 
         };
         
@@ -284,6 +282,14 @@ async function _executeAndContinue(action: AgentPendingAction) {
     
     try {
       const response = await agentChatSession.sendMessage({ message: "", toolResponses: toolResponse });
+      
+      if (response.usage) {
+          const config = getActiveChatConfig();
+          if (config) {
+              useUsageStore.getState().recordUsage(config.modelId, config.provider, response.usage, 'agent');
+          }
+      }
+
       handleAgentResponse(response);
     } catch (e: any) {
       const msg = errorService.report(e, "Agent Handle Response");
@@ -327,6 +333,14 @@ async function processNextStep() {
 
   try {
     const response = await agentChatSession.sendMessage({ message: prompt });
+    
+    if (response.usage) {
+        const config = getActiveChatConfig();
+        if (config) {
+            useUsageStore.getState().recordUsage(config.modelId, config.provider, response.usage, 'agent');
+        }
+    }
+
     handleAgentResponse(response);
   } catch (e: any) {
     const msg = errorService.report(e, "Agent Step Decision");
@@ -358,11 +372,8 @@ async function handleAgentResponse(response: any) {
       useAgentStore.setState({ plan: newPlan });
       processNextStep();
     } else {
-      // If we got a final response without tool calls and without an active plan step, 
-      // it might be a multi-turn response summary or final thought.
       const { status } = useAgentStore.getState();
       if (status === 'thinking' || status === 'executing') {
-         // Check if we should conclude or just wait for next user turn
          setAgentStatusAfterTurn();
       }
     }

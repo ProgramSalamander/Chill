@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { IconFileCode, IconGitBranch, IconZap, IconSparkles } from '../components/Icons';
+import { IconFileCode, IconGitBranch, IconZap, IconSparkles, IconActivity } from '../components/Icons';
 import { SidebarViewConfig } from '../types';
 
 export const SIDEBAR_VIEWS: SidebarViewConfig[] = [
@@ -18,6 +18,11 @@ export const SIDEBAR_VIEWS: SidebarViewConfig[] = [
     id: 'changes',
     title: 'AI Proposals',
     icon: IconSparkles,
+  },
+  {
+      id: 'usage',
+      title: 'Usage Analytics',
+      icon: IconActivity
   },
   {
     id: 'extensions',

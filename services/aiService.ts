@@ -1,8 +1,10 @@
+
 import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./configService";
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
-import { AIModelProfile, Message, AgentPlanItem, AISession, AIProviderAdapter, File } from "../types";
+import { AIModelProfile, Message, AgentPlanItem, AISession, AIProviderAdapter, File, AIUsageMetadata } from "../types";
 import { errorService } from "./errorService";
+import { useUsageStore } from "../stores/usageStore";
 
 class AIService {
   private getProvider(config: AIModelProfile): AIProviderAdapter {
@@ -10,6 +12,12 @@ class AIService {
       return new OpenAIProvider();
     }
     return new GeminiProvider();
+  }
+
+  private track(config: AIModelProfile, usage?: AIUsageMetadata, type: 'chat' | 'agent' | 'completion' | 'planning' = 'completion') {
+    if (usage) {
+        useUsageStore.getState().recordUsage(config.modelId, config.provider, usage, type);
+    }
   }
 
   // --- CHAT SESSION ---
@@ -39,6 +47,8 @@ class AIService {
     }
     try {
         const provider = this.getProvider(config);
+        // We don't easily get usage for plan generation since it's a direct prompt usually 
+        // but we could track it if we updated the provider interface to return it
         return await provider.generateAgentPlan({ ...props, config });
     } catch (e: any) {
         errorService.report(e, "AI Service (Planning)");
@@ -47,16 +57,19 @@ class AIService {
   }
   
   // --- GENERIC TEXT GENERATION (used internally now) ---
-  private generateText(
+  private async generateText(
     config: AIModelProfile,
     prompt: string,
     options: {
       temperature?: number;
       maxOutputTokens?: number;
-    } = {}
+    } = {},
+    type: 'chat' | 'agent' | 'completion' | 'planning' = 'completion'
   ): Promise<string> {
     const provider = this.getProvider(config);
-    return provider.generateText({ prompt, config, options });
+    const result = await provider.generateText({ prompt, config, options });
+    this.track(config, result.usage, type);
+    return result.text;
   }
 
   // --- SPECIFIC AI TASKS ---
@@ -67,7 +80,7 @@ class AIService {
 
     const prompt = `Generate a concise, conventional commit message (max 50 chars) for these changes:\n${diff.slice(0, 2000)}`;
     try {
-        const response = await this.generateText(config, prompt);
+        const response = await this.generateText(config, prompt, {}, 'completion');
         return response.trim() || "Update files";
     } catch (e: any) {
         errorService.report(e, "AI Service (Commit Message)", { silent: true, severity: 'warning' });
@@ -116,7 +129,7 @@ ${codeAfterCursor.slice(0, 500)}
 Complete the code at the cursor position.`;
     
     try {
-        const response = await this.generateText(config, prompt, { temperature: 0.2, maxOutputTokens: 128 });
+        const response = await this.generateText(config, prompt, { temperature: 0.2, maxOutputTokens: 128 }, 'completion');
         
         if (!response) {
             return null;
@@ -150,7 +163,6 @@ Complete the code at the cursor position.`;
         
         return cleanedResponse ? cleanedResponse : null;
     } catch (e: any) {
-        // Code completion failures should be silent to not interrupt typing flow
         errorService.report(e, "AI Service (Completion)", { silent: true, terminal: false, severity: 'warning' });
         return null;
     }
@@ -170,7 +182,7 @@ Complete the code at the cursor position.`;
     const prompt = `Instruction: ${instruction}\n\nFile: ${file.name}\nLanguage: ${file.language}\n\nCode Context:\n${prefix.slice(-500)}\n[START SELECTION]\n${selection}\n[END SELECTION]\n${suffix.slice(0, 500)}\n\nRewrite the [SELECTION] based on the instruction. Return ONLY the new code for the selection.`;
     
     try {
-        const text = await this.generateText(config, prompt);
+        const text = await this.generateText(config, prompt, {}, 'completion');
         if (!text) {
           return null;
         }

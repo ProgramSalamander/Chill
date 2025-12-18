@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Message, MessageRole, AISession } from '../types';
@@ -6,6 +7,7 @@ import { ragService } from '../services/ragService';
 import { getFilePath } from '../utils/fileUtils';
 import { useFileTreeStore } from './fileStore';
 import { getActiveChatConfig, getAIConfig } from '../services/configService';
+import { useUsageStore } from './usageStore';
 
 interface ChatState {
   messages: Message[];
@@ -60,8 +62,6 @@ export const useChatStore = create<ChatState>()(
           return;
         }
 
-        // If we already have a session for this profile, don't re-init 
-        // to avoid duplicate logging and unnecessary API setup
         const isSwitching = activeChatProfileId !== state.activeChatProfileId || !chatSession;
     
         const history = messages.filter(m => m.role === MessageRole.USER || m.role === MessageRole.MODEL);
@@ -73,7 +73,6 @@ export const useChatStore = create<ChatState>()(
           });
           set({ chatSession: session, activeChatProfileId: profile.id });
 
-          // Only log on actual profile switch or first-time load, and only if history is clean
           if (isSwitching && messages.length === 0) {
             errorService.report(`AI connected [${profile.name}]`, 'AI Chat', { notifyUser: false, terminal: true, severity: 'info' });
           }
@@ -86,7 +85,6 @@ export const useChatStore = create<ChatState>()(
         const { activeChatProfileId } = get();
         if (profileId === activeChatProfileId) return;
       
-        // Reset chat history and set new profile, then re-initialize
         set({ messages: [], activeChatProfileId: profileId, chatSession: null });
         get().initChat();
       },
@@ -96,7 +94,7 @@ export const useChatStore = create<ChatState>()(
       },
 
       sendMessage: async (text, contextFileIds) => {
-        let { chatSession } = get();
+        let { chatSession, activeChatProfileId } = get();
         if (!chatSession) {
           get().initChat();
           chatSession = get().chatSession;
@@ -106,6 +104,9 @@ export const useChatStore = create<ChatState>()(
           }
         }
         
+        const profile = getAIConfig().profiles.find(p => p.id === activeChatProfileId);
+        if (!profile) return;
+
         const userMsg: Message = { id: Date.now().toString(), role: MessageRole.USER, text, timestamp: Date.now() };
         set(state => ({ messages: [...state.messages, userMsg], isGenerating: true, isStopping: false }));
 
@@ -134,6 +135,8 @@ export const useChatStore = create<ChatState>()(
           set(state => ({ messages: [...state.messages, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }] }));
           
           let fullText = '';
+          let lastUsage = undefined;
+
           for await (const chunk of stream) {
             if (get().isStopping) {
               break;
@@ -144,6 +147,11 @@ export const useChatStore = create<ChatState>()(
                   messages: state.messages.map(m => m.id === responseId ? { ...m, text: fullText } : m)
                 }));
             }
+            if (chunk.usage) lastUsage = chunk.usage;
+          }
+
+          if (lastUsage) {
+              useUsageStore.getState().recordUsage(profile.modelId, profile.provider, lastUsage, 'chat');
           }
 
           const wasStopped = get().isStopping;
@@ -165,7 +173,7 @@ export const useChatStore = create<ChatState>()(
       setMessages: (messages) => set({ messages }),
       clearChat: () => {
         set({ messages: [] });
-        get().initChat(); // Re-initialize chat session with empty history
+        get().initChat();
       },
       setContextScope: (scope) => set({ contextScope: scope }),
     }),

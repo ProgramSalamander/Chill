@@ -1,4 +1,4 @@
-import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
+import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIUsageMetadata, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
 import { AGENT_TOOLS_OPENAI, getApiKey } from "./base";
 
 const toOpenAIMessages = (messages: Message[]) => {
@@ -39,6 +39,7 @@ class OpenAISession implements AISession {
         });
     }
 
+    // Fix: Updated to return usage metadata in AIResponse to match interface
     async sendMessage(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AIResponse> {
         const messages: any[] = [
             { role: 'system', content: this.systemInstruction },
@@ -74,7 +75,14 @@ class OpenAISession implements AISession {
         if (props.message) this.history.push({ id: Date.now().toString(), role: MessageRole.USER, text: props.message, timestamp: Date.now() });
         this.history.push({ id: (Date.now() + 1).toString(), role: MessageRole.MODEL, text: responseMsg.content || 'Tool call', timestamp: Date.now() });
 
-        const aiResponse: AIResponse = { text: responseMsg.content || '' };
+        // Fix: Map OpenAI usage to AIUsageMetadata
+        const usage: AIUsageMetadata | undefined = data.usage ? {
+            promptTokenCount: data.usage.prompt_tokens,
+            candidatesTokenCount: data.usage.completion_tokens,
+            totalTokenCount: data.usage.total_tokens
+        } : undefined;
+
+        const aiResponse: AIResponse = { text: responseMsg.content || '', usage };
         if (responseMsg.tool_calls) {
             aiResponse.toolCalls = responseMsg.tool_calls.map((tc: any) => ({
                 id: tc.id,
@@ -86,14 +94,16 @@ class OpenAISession implements AISession {
         return aiResponse;
     }
 
-    async sendMessageStream(props: { message: string }): Promise<AsyncIterable<{ text: string }>> {
+    // Fix: Updated signature to match AISession interface and included stream_options for usage tracking
+    async sendMessageStream(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AsyncIterable<{ text: string, usage?: AIUsageMetadata }>> {
         const messages: any[] = [
             { role: 'system', content: this.systemInstruction },
             ...toOpenAIMessages(this.history),
             { role: 'user', content: props.message }
         ];
 
-        const body = { messages, stream: true };
+        // Enable usage in stream chunks
+        const body = { messages, stream: true, stream_options: { include_usage: true } };
         const res = await this.performFetch(body);
         if (!res.ok) throw new Error(`OpenAI API stream error: ${await res.text()}`);
 
@@ -116,6 +126,17 @@ class OpenAISession implements AISession {
                             if (delta) {
                                 yield { text: delta };
                             }
+                            // Handle usage metadata in the last chunk
+                            if (parsed.usage) {
+                                yield { 
+                                    text: '',
+                                    usage: {
+                                        promptTokenCount: parsed.usage.prompt_tokens,
+                                        candidatesTokenCount: parsed.usage.completion_tokens,
+                                        totalTokenCount: parsed.usage.total_tokens
+                                    }
+                                };
+                            }
                         } catch (e) { /* ignore parse errors on incomplete chunks */ }
                     }
                 }
@@ -129,7 +150,8 @@ export class OpenAIProvider implements AIProviderAdapter {
     return new OpenAISession(props.systemInstruction, props.history, props.isAgent, props.config);
   }
 
-  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<string> {
+  // Fix: Updated return type to include AIUsageMetadata to satisfy AIProviderAdapter interface
+  async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for OpenAI provider.");
 
@@ -148,7 +170,14 @@ export class OpenAIProvider implements AIProviderAdapter {
     });
     if (!res.ok) throw new Error(`OpenAI API error: ${await res.text()}`);
     const data = await res.json();
-    return data.choices[0].message.content || '';
+    
+    const usage: AIUsageMetadata | undefined = data.usage ? {
+        promptTokenCount: data.usage.prompt_tokens,
+        candidatesTokenCount: data.usage.completion_tokens,
+        totalTokenCount: data.usage.total_tokens
+    } : undefined;
+
+    return { text: data.choices[0].message.content || '', usage };
   }
 
   async generateAgentPlan(props: { goal: string; context: string; config: AIModelProfile; }): Promise<AgentPlanItem[]> {
