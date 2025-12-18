@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { File } from '../types';
@@ -19,6 +20,7 @@ interface FileTreeState {
   resetFiles: () => void;
   createNode: (type: 'file' | 'folder', parentId: string | null, name: string, initialContent?: string) => Promise<File | null>;
   renameNode: (id: string, newName: string) => Promise<void>;
+  moveNode: (nodeId: string, newParentId: string | null) => void;
   deleteNode: (file: File) => Promise<string[]>;
   updateFileContent: (content: string, forceHistory?: boolean, targetId?: string) => void;
   saveFile: (file: File) => Promise<boolean>;
@@ -103,6 +105,21 @@ export const useFileTreeStore = create<FileTreeState>()(
           files: state.files.map(f => f.id === id ? { ...f, name: newName, language: f.type === 'file' ? getLanguage(newName) : f.language } : f)
         }));
         useTerminalStore.getState().addTerminalLine(`Renamed to ${newName}`, 'info');
+      },
+
+      moveNode: (nodeId, newParentId) => {
+        const { files } = get();
+        
+        // Circular check: ensure newParentId is not a child of nodeId
+        let current = files.find(f => f.id === newParentId);
+        while (current) {
+            if (current.id === nodeId) return; // Cannot move folder into itself
+            current = files.find(f => f.id === current?.parentId);
+        }
+
+        set(state => ({
+            files: state.files.map(f => f.id === nodeId ? { ...f, parentId: newParentId } : f)
+        }));
       },
 
       deleteNode: async (file) => {

@@ -59,7 +59,8 @@ import {
   Square,
   ArrowUp,
   KeyRound,
-  Download
+  Download,
+  Image
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -123,3 +124,4 @@ export const IconSquare = (props: any) => <Square {...props} />;
 export const IconArrowUp = (props: any) => <ArrowUp {...props} />;
 export const IconKeyRound = (props: any) => <KeyRound {...props} />;
 export const IconDownload = (props: any) => <Download {...props} />;
+export const IconImage = (props: any) => <Image {...props} />;

@@ -14,7 +14,10 @@ import {
   IconBrain,
   IconSparkles,
   IconCopy,
-  IconArrowRight
+  IconArrowRight,
+  IconImage,
+  IconFileText,
+  IconTerminal
 } from './Icons';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -28,6 +31,41 @@ interface FileTreeNodeProps {
   depth: number;
 }
 
+// --- Icon Helper ---
+const getFileIcon = (name: string, isOpen: boolean = false, type: 'file' | 'folder') => {
+    if (type === 'folder') {
+        return isOpen ? <IconFolderOpen size={16} className="text-yellow-400" /> : <IconFolder size={16} className="text-yellow-400" />;
+    }
+
+    const ext = name.split('.').pop()?.toLowerCase();
+    switch (ext) {
+        case 'ts':
+        case 'tsx':
+            return <IconFileCode size={16} className="text-blue-400" />;
+        case 'js':
+        case 'jsx':
+            return <IconFileCode size={16} className="text-yellow-300" />;
+        case 'html':
+            return <IconFileCode size={16} className="text-orange-500" />;
+        case 'css':
+        case 'scss':
+            return <IconFileCode size={16} className="text-blue-300" />;
+        case 'json':
+            return <IconFileText size={16} className="text-green-400" />;
+        case 'py':
+            return <IconTerminal size={16} className="text-blue-500" />;
+        case 'md':
+            return <IconFileText size={16} className="text-slate-300" />;
+        case 'png':
+        case 'jpg':
+        case 'jpeg':
+        case 'svg':
+            return <IconImage size={16} className="text-purple-400" />;
+        default:
+            return <IconFileCode size={16} className="text-slate-400" />;
+    }
+};
+
 const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const files = useFileTreeStore(state => state.files);
   const activeFileId = useFileTreeStore(state => state.activeFileId);
@@ -36,6 +74,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const renameNode = useFileTreeStore(state => state.renameNode);
   const createNode = useFileTreeStore(state => state.createNode);
   const toggleFolder = useFileTreeStore(state => state.toggleFolder);
+  const moveNode = useFileTreeStore(state => state.moveNode);
   const agentAwareness = useAgentStore(state => state.agentAwareness);
   const patches = useAgentStore(state => state.patches);
   const showContextMenu = useUIStore(state => state.showContextMenu);
@@ -49,6 +88,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   
   const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
   const [newChildName, setNewChildName] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const children = useMemo(() => 
     files.filter(f => f.parentId === nodeId).sort((a, b) => {
@@ -59,7 +99,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 
   if (nodeId === null) {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col select-none">
         {children.map(child => (
           <FileTreeNode 
             key={child.id} 
@@ -145,14 +185,74 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
     showContextMenu(e.clientX, e.clientY, items as any);
   };
 
+  // --- Drag & Drop Handlers ---
+  const handleDragStart = (e: React.DragEvent) => {
+      e.stopPropagation();
+      e.dataTransfer.setData('application/json', JSON.stringify({ nodeId: node.id }));
+      e.dataTransfer.effectAllowed = 'move';
+      
+      // Visual feedback
+      const dragPreview = document.createElement('div');
+      dragPreview.innerText = node.name;
+      dragPreview.style.background = '#4F46E5';
+      dragPreview.style.color = 'white';
+      dragPreview.style.padding = '4px 8px';
+      dragPreview.style.borderRadius = '4px';
+      dragPreview.style.position = 'absolute';
+      dragPreview.style.top = '-1000px';
+      document.body.appendChild(dragPreview);
+      e.dataTransfer.setDragImage(dragPreview, 0, 0);
+      setTimeout(() => document.body.removeChild(dragPreview), 0);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (node.type === 'folder' && !isDragOver) setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+      
+      try {
+          const data = JSON.parse(e.dataTransfer.getData('application/json'));
+          if (data.nodeId && data.nodeId !== node.id) {
+              const targetId = node.type === 'folder' ? node.id : node.parentId;
+              // Don't move if dropped on itself or its current parent
+              const draggedNode = files.find(f => f.id === data.nodeId);
+              if (draggedNode && draggedNode.parentId !== targetId) {
+                  moveNode(data.nodeId, targetId);
+                  // Open folder if dropped into it
+                  if (node.type === 'folder' && !node.isOpen) toggleFolder(node.id);
+              }
+          }
+      } catch (err) {
+          console.error("Drop failed", err);
+      }
+  };
+
   return (
-    <div className="select-none relative">
+    <div className="relative">
       <div 
+        draggable={!isEditing}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={`
           group flex items-center gap-2 py-1.5 px-3 cursor-pointer transition-all relative rounded-lg mx-1
           ${activeFileId === node.id ? 'bg-vibe-accent/20 text-vibe-text-main' : 'text-vibe-text-soft hover:bg-black/5 dark:hover:bg-white/5 hover:text-vibe-text-main'}
           ${isAware && activeFileId !== node.id ? 'bg-vibe-glow/5 border border-vibe-glow/10' : ''}
           ${hasPatch ? 'ring-1 ring-vibe-accent/20' : ''}
+          ${isDragOver ? 'bg-vibe-accent/30 ring-2 ring-vibe-accent scale-[1.02] shadow-lg z-10' : ''}
         `}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => selectFile(node)}
@@ -173,11 +273,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
         </span>
 
         <span className={`flex-shrink-0 ${activeFileId === node.id ? 'text-vibe-glow' : (hasPatch ? 'text-vibe-accent' : (isModified ? 'text-amber-500' : (isAdded ? 'text-green-600 dark:text-green-400' : 'text-vibe-text-muted')))}`}>
-          {node.type === 'folder' ? (
-             node.isOpen ? <IconFolderOpen size={16} /> : <IconFolder size={16} />
-          ) : (
-             <IconFileCode size={16} />
-          )}
+          {getFileIcon(node.name, node.isOpen, node.type)}
         </span>
 
         {isEditing ? (
@@ -228,7 +324,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 
         {!isEditing && (
             <div className={`
-                flex items-center gap-1 ml-auto bg-vibe-800 border border-vibe-border rounded px-1 backdrop-blur-sm shadow-sm
+                flex items-center gap-1 ml-auto bg-vibe-800 border border-vibe-border rounded px-1 backdrop-blur-sm shadow-sm z-20
                 ${showActions ? 'opacity-100 scale-100' : 'opacity-0 scale-90'} 
                 transition-all duration-200
             `}>
@@ -327,10 +423,12 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 const FileExplorer: React.FC = () => {
     const files = useFileTreeStore(state => state.files);
     const createNode = useFileTreeStore(state => state.createNode);
+    const moveNode = useFileTreeStore(state => state.moveNode);
     const showContextMenu = useUIStore(state => state.showContextMenu);
     
     const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
     const [newNodeName, setNewNodeName] = useState('');
+    const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
     const handleStartCreate = (type: 'file' | 'folder') => {
         setIsCreating(type);
@@ -359,6 +457,28 @@ const FileExplorer: React.FC = () => {
       ]);
     };
 
+    // Root Level Drop Handlers
+    const handleRootDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOverRoot(true);
+    };
+
+    const handleRootDragLeave = () => {
+        setIsDragOverRoot(false);
+    };
+
+    const handleRootDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOverRoot(false);
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+            if (data.nodeId) {
+                // Moving to root
+                moveNode(data.nodeId, null);
+            }
+        } catch (err) {}
+    };
+
     return (
         <div className="flex flex-col h-full" onContextMenu={handleExplorerContextMenu}>
             <div className="p-4 text-xs font-bold text-vibe-text-muted uppercase flex justify-between items-center tracking-wider border-b border-vibe-border shrink-0">
@@ -372,43 +492,51 @@ const FileExplorer: React.FC = () => {
                     </button>
                 </div>
             </div>
-            {files.length === 0 && !isCreating ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3">
-                    <IconFolderOpen size={32} />
-                    <p className="text-xs text-vibe-text-soft">No files yet</p>
-                </div>
-            ) : (
-                <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
-                    {isCreating && (
-                        <div 
-                            className="flex items-center gap-2 py-1 px-3 animate-in fade-in slide-in-from-top-1 my-1 mx-1"
-                            style={{ paddingLeft: `12px` }}
-                        >
-                            <span className="text-vibe-text-muted">
-                                {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
-                            </span>
-                            <div className="flex items-center flex-1 gap-1">
-                                <input 
-                                    autoFocus
-                                    type="text"
-                                    value={newNodeName}
-                                    onChange={e => setNewNodeName(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') handleSaveCreate();
-                                        if (e.key === 'Escape') { setIsCreating(null); setNewNodeName(''); }
-                                    }}
-                                    onBlur={handleSaveCreate}
-                                    placeholder={`Name your ${isCreating}...`}
-                                    className="bg-vibe-800 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-vibe-text-main w-full outline-none shadow-lg"
-                                />
-                                <button onClick={handleSaveCreate} className="text-green-600 dark:text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
-                                <button onClick={() => setIsCreating(null)} className="text-red-500 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
+            <div 
+                className={`flex-1 overflow-y-auto py-2 custom-scrollbar relative ${isDragOverRoot ? 'bg-vibe-accent/10' : ''}`}
+                onDragOver={handleRootDragOver}
+                onDragLeave={handleRootDragLeave}
+                onDrop={handleRootDrop}
+            >
+                {files.length === 0 && !isCreating ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50 space-y-3 h-full">
+                        <IconFolderOpen size={32} />
+                        <p className="text-xs text-vibe-text-soft">No files yet</p>
+                    </div>
+                ) : (
+                    <>
+                        {isCreating && (
+                            <div 
+                                className="flex items-center gap-2 py-1 px-3 animate-in fade-in slide-in-from-top-1 my-1 mx-1"
+                                style={{ paddingLeft: `12px` }}
+                            >
+                                <span className="text-vibe-text-muted">
+                                    {isCreating === 'folder' ? <IconFolder size={16} /> : <IconFileCode size={16} />}
+                                </span>
+                                <div className="flex items-center flex-1 gap-1">
+                                    <input 
+                                        autoFocus
+                                        type="text"
+                                        value={newNodeName}
+                                        onChange={e => setNewNodeName(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') handleSaveCreate();
+                                            if (e.key === 'Escape') { setIsCreating(null); setNewNodeName(''); }
+                                        }}
+                                        onBlur={handleSaveCreate}
+                                        placeholder={`Name your ${isCreating}...`}
+                                        className="bg-vibe-800 border border-vibe-glow/50 rounded px-1.5 py-0.5 text-xs text-vibe-text-main w-full outline-none shadow-lg"
+                                    />
+                                    <button onClick={handleSaveCreate} className="text-green-600 dark:text-green-400 hover:bg-green-400/10 p-1 rounded"><IconCheck size={12}/></button>
+                                    <button onClick={() => setIsCreating(null)} className="text-red-500 hover:bg-red-400/10 p-1 rounded"><IconClose size={12}/></button>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    <FileTreeNode nodeId={null} depth={-1} />
-                </div>
-            )}
+                        )}
+                        <FileTreeNode nodeId={null} depth={-1} />
+                        <div className="h-20" /> {/* Spacer for easier dragging to root at bottom */}
+                    </>
+                )}
+            </div>
         </div>
     );
 };
