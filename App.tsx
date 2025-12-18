@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -109,7 +108,7 @@ function App() {
   const handleGlobalContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     showContextMenu(e.clientX, e.clientY, [
-      { id: 'cmd', label: 'Command Palette', icon: <IconCommand size={14}/>, shortcut: '⌘P', onClick: () => setIsCommandPaletteOpen(true) },
+      { id: 'cmd', label: 'Spotlight', icon: <IconCommand size={14}/>, shortcut: '⌘P', onClick: () => setIsCommandPaletteOpen(true) },
       { id: 'ai-help', label: 'Ask AI Assistant', icon: <IconBrain size={14}/>, shortcut: '⌘L', onClick: () => setIsAIOpen(true) },
       { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
       { id: 'format', label: 'Format Document', icon: <IconZap size={14}/>, shortcut: '⇧⌥F', onClick: () => addTerminalLine("Formatting not implemented", "info") },

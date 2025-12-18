@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   IconSearch, 
@@ -149,7 +148,7 @@ const CommandPalette: React.FC = () => {
              ref={inputRef}
              type="text"
              className="flex-1 bg-transparent border-none outline-none text-slate-200 placeholder-slate-600 font-sans text-sm"
-             placeholder="Type a command or search files..."
+             placeholder="Spotlight search..."
              value={query}
              onChange={e => setQuery(e.target.value)}
              onKeyDown={handleKeyDown}
@@ -221,7 +220,7 @@ const CommandPalette: React.FC = () => {
               <span className="flex items-center gap-1"><span className="text-vibe-glow">↑↓</span> to navigate</span>
               <span className="flex items-center gap-1"><span className="text-vibe-glow">↵</span> to select</span>
             </span>
-            <span className="opacity-50">Vibe Search Engine</span>
+            <span className="opacity-50">Spotlight Engine</span>
         </div>
       </div>
     </div>

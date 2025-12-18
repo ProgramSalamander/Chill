@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen, IconZap } from './Icons';
 import { SidebarView } from '../types';
@@ -208,7 +207,7 @@ const Sidebar: React.FC = () => {
               })}
             </div>
 
-            <Tooltip content="Command Palette" shortcut="⌘P">
+            <Tooltip content="Spotlight" shortcut="⌘P">
               <button 
                 onClick={() => setIsCommandPaletteOpen(true)}
                 className="p-3 rounded-xl text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-300 hover:scale-105"

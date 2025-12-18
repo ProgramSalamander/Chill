@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   IconPlus, 
@@ -168,7 +167,7 @@ const MenuBar: React.FC = () => {
                     </button>
                     <div className="h-[1px] bg-white/5 my-1 mx-2" />
                     <button onClick={() => { setIsCommandPaletteOpen(true); closeMenu(); }} className={itemClass}>
-                        <div className={iconLabelClass}><IconSearch size={14} /> <span>Search Anywhere</span></div>
+                        <div className={iconLabelClass}><IconSearch size={14} /> <span>Spotlight</span></div>
                         <span className="text-[10px] opacity-40 font-mono">⌘P</span>
                     </button>
                 </div>
