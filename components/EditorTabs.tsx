@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles } from './Icons';
+import { IconFileCode, IconClose, IconEye, IconEyeOff, IconPlay, IconSparkles, IconRefresh, IconArrowRight, IconTrash } from './Icons';
 import Tooltip from './Tooltip';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useUIStore } from '../stores/uiStore';
@@ -24,6 +25,36 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
   const setIsPreviewOpen = useUIStore(state => state.setIsPreviewOpen);
   const isAIOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
+  const showContextMenu = useUIStore(state => state.showContextMenu);
+
+  const handleTabContextMenu = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    showContextMenu(e.clientX, e.clientY, [
+      { id: 'close', label: 'Close', icon: <IconClose size={14}/>, onClick: () => closeFile(id) },
+      { id: 'close-others', label: 'Close Others', icon: <IconRefresh size={14}/>, onClick: () => {
+          openFileIds.forEach(fid => { if (fid !== id) closeFile(fid); });
+      }},
+      { id: 'close-all', label: 'Close All', icon: <IconRefresh size={14}/>, onClick: () => {
+          openFileIds.forEach(fid => closeFile(fid));
+      }},
+      { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
+      { id: 'reveal', label: 'Reveal in Explorer', icon: <IconArrowRight size={14}/>, onClick: () => {
+          const file = files.find(f => f.id === id);
+          if (file) {
+              useUIStore.getState().setActiveSidebarView('explorer');
+          }
+      }},
+      { id: 'sep2', label: '', variant: 'separator', onClick: () => {} },
+      { id: 'delete', label: 'Delete File', variant: 'danger', icon: <IconTrash size={14}/>, onClick: () => {
+          const file = files.find(f => f.id === id);
+          if (file) {
+              useFileTreeStore.getState().setFileToDelete(file);
+          }
+      }},
+    ]);
+  };
 
   return (
     <div className="h-14 flex items-center justify-between glass-panel rounded-2xl px-3 select-none z-20 border-vibe-border">
@@ -36,6 +67,7 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
               <div 
                   key={id}
                   onClick={() => { setActiveFileId(id); onClearSelection(); }}
+                  onContextMenu={(e) => handleTabContextMenu(e, id)}
                   className={`
                       group flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer border transition-all min-w-[140px] max-w-[220px]
                       ${isActive 

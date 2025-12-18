@@ -18,6 +18,7 @@ import StatusBar from './components/StatusBar';
 import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
 import LandingView from './components/LandingView';
+import { ContextMenu } from './components/ContextMenu';
 
 import { useUIStore } from './stores/uiStore';
 import { useFileTreeStore } from './stores/fileStore';
@@ -28,10 +29,9 @@ import { useAgentStore } from './stores/agentStore';
 
 import { aiService, runLinting } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
-import { IconSparkles } from './components/Icons';
+import { IconSparkles, IconCommand, IconLayout, IconSettings, IconZap } from './components/Icons';
 
 function App() {
-  // --- STATE FROM ZUSTAND STORES ---
   const theme = useUIStore(state => state.theme);
   const activeSidebarView = useUIStore(state => state.activeSidebarView);
   
@@ -52,27 +52,25 @@ function App() {
   const isAIOpen = useUIStore(state => state.isAIOpen);
   const setIsAIOpen = useUIStore(state => state.setIsAIOpen);
   const isPreviewOpen = useUIStore(state => state.isPreviewOpen);
+  const showContextMenu = useUIStore(state => state.showContextMenu);
+  const setIsCommandPaletteOpen = useUIStore(state => state.setIsCommandPaletteOpen);
+  const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
 
   const initChat = useChatStore(state => state.initChat);
   const sendMessage = useChatStore(state => state.sendMessage);
   const addPatch = useAgentStore(state => state.addPatch);
 
-  // --- LOCAL COMPONENT STATE & REFS ---
   const [cursorPosition, setCursorPosition] = useState(0);
   const [selectedCode, setSelectedCode] = useState<string>('');
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addTerminalLine = useTerminalStore(state => state.addTerminalLine);
 
-  // --- EFFECTS ---
-
-  // Apply theme to HTML element
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
   }, [theme]);
 
-  // Initialize services and load project on startup
   useEffect(() => {
     const startApp = async () => {
       initChat();
@@ -81,7 +79,6 @@ function App() {
     startApp();
   }, [initChat, loadInitialProject]);
   
-  // Debounced Linting Effect
   useEffect(() => {
     if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
     if (!activeFile) {
@@ -96,7 +93,6 @@ function App() {
     }, 750);
   }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);
 
-  // Before Unload Listener
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -110,7 +106,19 @@ function App() {
     };
   }, []);
 
-  // --- HANDLERS ---
+  const handleGlobalContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    showContextMenu(e.clientX, e.clientY, [
+      { id: 'cmd', label: 'Command Palette', icon: <IconCommand size={14}/>, shortcut: '⌘P', onClick: () => setIsCommandPaletteOpen(true) },
+      { id: 'ai-help', label: 'Ask AI Assistant', icon: <IconSparkles size={14}/>, shortcut: '⌘L', onClick: () => setIsAIOpen(true) },
+      { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
+      { id: 'format', label: 'Format Document', icon: <IconZap size={14}/>, shortcut: '⇧⌥F', onClick: () => addTerminalLine("Formatting not implemented", "info") },
+      { id: 'sidebar', label: 'Toggle Sidebar', icon: <IconLayout size={14}/>, shortcut: '⌘B', onClick: () => useUIStore.getState().setActiveSidebarView(useUIStore.getState().activeSidebarView ? null : 'explorer') },
+      { id: 'sep2', label: '', variant: 'separator', onClick: () => {} },
+      { id: 'settings', label: 'Settings', icon: <IconSettings size={14}/>, shortcut: '⌘,', onClick: () => setIsSettingsOpen(true) },
+    ]);
+  }, [showContextMenu, setIsCommandPaletteOpen, setIsAIOpen, setIsSettingsOpen, addTerminalLine]);
+
   const handleSaveFile = useCallback(() => {
     if (activeFile) {
       saveFile(activeFile);
@@ -207,7 +215,10 @@ function App() {
   const getPreviewContent = useMemo(() => isPreviewOpen ? generatePreviewHtml(files, activeFile) : '', [files, activeFile, isPreviewOpen]);
 
   return (
-    <div className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent">
+    <div 
+      className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent"
+      onContextMenu={handleGlobalContextMenu}
+    >
       <MenuBar />
       
       {!activeProject ? (
@@ -285,6 +296,7 @@ function App() {
       <CloneModal />
       <GitAuthModal />
       <CommandPalette />
+      <ContextMenu />
     </div>
   );
 }

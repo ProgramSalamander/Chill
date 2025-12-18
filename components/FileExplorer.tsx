@@ -12,11 +12,15 @@ import {
   IconCheck,
   IconClose,
   IconBrain,
-  IconSparkles
+  IconSparkles,
+  IconCopy,
+  IconArrowRight
 } from './Icons';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useGitStore } from '../stores/gitStore';
+import { useUIStore } from '../stores/uiStore';
+import { useChatStore } from '../stores/chatStore';
 import { getFilePath } from '../utils/fileUtils';
 
 interface FileTreeNodeProps {
@@ -34,6 +38,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const toggleFolder = useFileTreeStore(state => state.toggleFolder);
   const agentAwareness = useAgentStore(state => state.agentAwareness);
   const patches = useAgentStore(state => state.patches);
+  const showContextMenu = useUIStore(state => state.showContextMenu);
 
   const isGitInitialized = useGitStore(state => state.isInitialized);
   const gitStatus = useGitStore(state => state.status);
@@ -81,8 +86,8 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
   const isAware = agentAwareness?.has(node.id);
   const hasPatch = patches.some(p => p.fileId === node.id);
 
-  const handleStartEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleStartEdit = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setIsEditing(true);
     setEditName(node.name);
     setShowActions(false);
@@ -95,8 +100,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
     setIsEditing(false);
   };
 
-  const startCreate = (e: React.MouseEvent, type: 'file' | 'folder') => {
-    e.stopPropagation();
+  const startCreate = (type: 'file' | 'folder') => {
     setIsCreating(type);
     setNewChildName('');
     if (!node.isOpen) {
@@ -112,6 +116,35 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
     setIsCreating(null);
   };
 
+  const handleNodeContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items = node.type === 'file' ? [
+        { id: 'ai-explain', label: 'AI Explain', icon: <IconSparkles size={14}/>, onClick: () => {
+            useUIStore.getState().setIsAIOpen(true);
+            useChatStore.getState().sendMessage(`Explain the purpose and logic of the file: ${node.name}`, [node.id]);
+        }},
+        { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
+        { id: 'open-side', label: 'Open to Side', icon: <IconArrowRight size={14}/>, onClick: () => {
+            selectFile(node);
+            useUIStore.getState().setIsPreviewOpen(true);
+        }},
+        { id: 'rename', label: 'Rename', icon: <IconEdit size={14}/>, onClick: () => handleStartEdit() },
+        { id: 'copy-path', label: 'Copy Path', icon: <IconCopy size={14}/>, onClick: () => navigator.clipboard.writeText(filePath) },
+        { id: 'sep2', label: '', variant: 'separator', onClick: () => {} },
+        { id: 'delete', label: 'Delete', variant: 'danger', icon: <IconTrash size={14}/>, onClick: () => setFileToDelete(node) },
+    ] : [
+        { id: 'new-file', label: 'New File', icon: <IconFilePlus size={14}/>, onClick: () => startCreate('file') },
+        { id: 'new-folder', label: 'New Folder', icon: <IconFolderPlus size={14}/>, onClick: () => startCreate('folder') },
+        { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
+        { id: 'rename', label: 'Rename', icon: <IconEdit size={14}/>, onClick: () => handleStartEdit() },
+        { id: 'delete', label: 'Delete', variant: 'danger', icon: <IconTrash size={14}/>, onClick: () => setFileToDelete(node) },
+    ];
+
+    showContextMenu(e.clientX, e.clientY, items as any);
+  };
+
   return (
     <div className="select-none relative">
       <div 
@@ -123,6 +156,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
         `}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => selectFile(node)}
+        onContextMenu={handleNodeContextMenu}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
@@ -201,14 +235,14 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
                 {node.type === 'folder' && (
                     <>
                         <button 
-                            onClick={(e) => startCreate(e, 'file')} 
+                            onClick={(e) => { e.stopPropagation(); startCreate('file'); }} 
                             className="p-1 hover:bg-black/5 dark:hover:bg-white/20 rounded text-vibe-text-muted hover:text-green-500 transition-colors"
                             title="New File"
                         >
                             <IconFilePlus size={12} />
                         </button>
                         <button 
-                            onClick={(e) => startCreate(e, 'folder')} 
+                            onClick={(e) => { e.stopPropagation(); startCreate('folder'); }} 
                             className="p-1 hover:bg-black/5 dark:hover:bg-white/20 rounded text-vibe-text-muted hover:text-green-500 transition-colors"
                             title="New Folder"
                         >
@@ -293,6 +327,7 @@ const FileTreeNode: React.FC<FileTreeNodeProps> = ({ nodeId, depth }) => {
 const FileExplorer: React.FC = () => {
     const files = useFileTreeStore(state => state.files);
     const createNode = useFileTreeStore(state => state.createNode);
+    const showContextMenu = useUIStore(state => state.showContextMenu);
     
     const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
     const [newNodeName, setNewNodeName] = useState('');
@@ -310,8 +345,22 @@ const FileExplorer: React.FC = () => {
         setNewNodeName('');
     };
 
+    const handleExplorerContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      showContextMenu(e.clientX, e.clientY, [
+        { id: 'new-file', label: 'New File', icon: <IconFilePlus size={14}/>, onClick: () => handleStartCreate('file') },
+        { id: 'new-folder', label: 'New Folder', icon: <IconFolderPlus size={14}/>, onClick: () => handleStartCreate('folder') },
+        { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
+        { id: 'collapse', label: 'Collapse All', icon: <IconChevronDown size={14} className="rotate-90" />, onClick: () => {
+          files.forEach(f => {
+            if (f.type === 'folder' && f.isOpen) useFileTreeStore.getState().toggleFolder(f.id);
+          });
+        }},
+      ]);
+    };
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" onContextMenu={handleExplorerContextMenu}>
             <div className="p-4 text-xs font-bold text-vibe-text-muted uppercase flex justify-between items-center tracking-wider border-b border-vibe-border shrink-0">
                 <span>Explorer</span>
                 <div className="flex items-center gap-2 text-vibe-text-muted">

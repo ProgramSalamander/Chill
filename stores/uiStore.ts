@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { SidebarView } from '../types';
+import { SidebarView, ContextMenuState, ContextMenuItem } from '../types';
 import { SIDEBAR_VIEWS } from '../views/sidebarViews';
 
 type Theme = 'light' | 'dark';
@@ -21,6 +21,9 @@ interface UIState {
   isPreviewOpen: boolean;
   isCloneModalOpen: boolean;
   isNewProjectModalOpen: boolean;
+  
+  // Context Menu
+  contextMenu: ContextMenuState;
   
   // AI Feature Settings
   inlineCompletionsEnabled: boolean;
@@ -43,6 +46,9 @@ interface UIState {
   
   setInlineCompletionsEnabled: (enabled: boolean) => void;
   setDisabledInlineLanguages: (languages: string[]) => void;
+  
+  showContextMenu: (x: number, y: number, items: ContextMenuItem[]) => void;
+  hideContextMenu: () => void;
 }
 
 const getDefaultSidebarViews = (): SidebarView[] => {
@@ -63,20 +69,18 @@ const getDefaultSidebarViews = (): SidebarView[] => {
 
     const baseViewsMap = new Map(SIDEBAR_VIEWS.map(v => [v.id, v]));
 
-    // Reconstruct the array by merging saved config with static definitions.
     const mergedViews = savedViewsConfig
       .map(savedView => {
         const baseView = baseViewsMap.get(savedView.id);
-        if (!baseView) return null; // A view was removed from the codebase.
+        if (!baseView) return null;
         return {
-          ...baseView, // This brings back the icon component and title.
+          ...baseView,
           order: savedView.order,
           visible: savedView.visible,
         };
       })
       .filter((v): v is SidebarView => v !== null);
 
-    // Add any new views that are in the code but not in storage yet.
     SIDEBAR_VIEWS.forEach(baseView => {
       if (!mergedViews.some(v => v.id === baseView.id)) {
         mergedViews.push({ ...baseView, order: mergedViews.length, visible: true });
@@ -86,7 +90,6 @@ const getDefaultSidebarViews = (): SidebarView[] => {
     return mergedViews.sort((a, b) => a.order - b.order);
 
   } catch (e) {
-    // If anything fails, return the safe default.
     return defaultViews;
   }
 };
@@ -108,6 +111,8 @@ export const useUIStore = create<UIState>()(
       isNewProjectModalOpen: false,
       indexingStatus: 'idle',
       
+      contextMenu: { x: 0, y: 0, visible: false, items: [] },
+      
       inlineCompletionsEnabled: true,
       disabledInlineLanguages: [],
 
@@ -127,6 +132,9 @@ export const useUIStore = create<UIState>()(
       
       setInlineCompletionsEnabled: (enabled) => set({ inlineCompletionsEnabled: enabled }),
       setDisabledInlineLanguages: (languages) => set({ disabledInlineLanguages: languages }),
+      
+      showContextMenu: (x, y, items) => set({ contextMenu: { x, y, items, visible: true } }),
+      hideContextMenu: () => set((state) => ({ contextMenu: { ...state.contextMenu, visible: false } })),
     }),
     {
       name: 'vibe-ui-layout-storage',

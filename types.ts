@@ -9,8 +9,8 @@ export interface File {
   isOpen?: boolean;
   language: string;
   content: string;
-  committedContent?: string; // Kept for logic reference, though we lean on gitService now
-  isModified?: boolean; // Editor dirty state (unsaved to disk)
+  committedContent?: string;
+  isModified?: boolean;
   history?: {
     past: string[];
     future: string[];
@@ -39,9 +39,8 @@ export interface TerminalLine {
   timestamp: number;
 }
 
-// Updated Commit to match isomorphic-git ReadCommitResult roughly
 export interface Commit {
-  oid: string; // SHA
+  oid: string;
   message: string;
   payload?: string;
   commit: {
@@ -65,10 +64,10 @@ export interface Diagnostic {
   message: string;
   code?: string;
   severity: 'error' | 'warning' | 'info';
-  startLine: number; // 1-based
-  startColumn: number; // 1-based
-  endLine: number; // 1-based
-  endColumn: number; // 1-based
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
 }
 
 export type ThemeMode = 'neon' | 'calm' | 'matrix';
@@ -83,7 +82,7 @@ export interface AgentStep {
   toolName?: string;
   toolArgs?: any;
   timestamp: number;
-  agentRole?: AgentRole; // The specific agent persona acting
+  agentRole?: AgentRole;
 }
 
 export interface ProjectMeta {
@@ -92,11 +91,8 @@ export interface ProjectMeta {
   lastOpened: number;
 }
 
-// --- AI Provider Types ---
-
 export type AIProvider = 'gemini' | 'openai';
 
-// This represents the core configuration for making an API call
 export interface AIModelConfig {
   provider: AIProvider;
   modelId: string;
@@ -104,20 +100,16 @@ export interface AIModelConfig {
   apiKey: string;
 }
 
-// This is a user-configured profile that has a name and ID
 export interface AIModelProfile extends AIModelConfig {
   id: string;
   name: string;
 }
 
-// The top-level configuration stores all profiles and the active ones
 export interface AIConfig {
   profiles: AIModelProfile[];
   activeChatProfileId: string | null;
   activeCompletionProfileId: string | null;
 }
-
-// Unified Session Interfaces
 
 export interface AIToolCall {
   id: string;
@@ -126,7 +118,7 @@ export interface AIToolCall {
 }
 
 export interface AIToolResponse {
-  id: string; // Call ID for OpenAI, Name for Gemini (handled by adapter)
+  id: string;
   name: string;
   result: any;
 }
@@ -176,8 +168,6 @@ export type SidebarView = SidebarViewConfig & {
   visible: boolean;
 };
 
-// --- Agent Interactive Types ---
-
 export type AgentStatus = 'idle' | 'planning' | 'thinking' | 'executing' | 'completed' | 'failed' | 'summarizing' | 'awaiting_changes_review';
 
 export interface AgentPlanItem {
@@ -185,7 +175,7 @@ export interface AgentPlanItem {
   title: string;
   description?: string;
   status: 'pending' | 'active' | 'completed' | 'skipped' | 'failed';
-  assignedAgent?: AgentRole; // Which agent should handle this step
+  assignedAgent?: AgentRole;
   dependencies?: string[];
 }
 
@@ -211,8 +201,6 @@ export interface AIPatch {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
-// --- Pre-Flight Check Types ---
-
 export interface PreFlightCheck {
   id: string;
   name: string;
@@ -226,7 +214,6 @@ export interface PreFlightResult {
   diagnostics: Diagnostic[];
 }
 
-// --- Linter Types ---
 export type LinterStatus = 'idle' | 'initializing' | 'ready' | 'error';
 
 export interface Linter {
@@ -238,6 +225,21 @@ export interface Linter {
   lint: (code: string) => Diagnostic[];
 }
 
+export interface ContextMenuItem {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+  variant?: 'default' | 'danger' | 'separator';
+  shortcut?: string;
+}
+
+export interface ContextMenuState {
+  x: number;
+  y: number;
+  visible: boolean;
+  items: ContextMenuItem[];
+}
 
 declare global {
   interface Window {
