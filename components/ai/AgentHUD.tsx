@@ -66,11 +66,13 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
   status,
   agentSteps,
 }) => {
+  const patches = useAgentStore(state => state.patches);
   const goalStep = agentSteps.find(s => s.type === 'user');
   const summaryStep = agentSteps.find(s => s.type === 'summary');
   const executionSteps = agentSteps.filter(s => s.type !== 'user' && s.type !== 'summary');
   
   const isRunning = status === 'thinking' || status === 'executing' || status === 'planning';
+  const showReviewNode = (status === 'awaiting_changes_review' || status === 'failed' || status === 'completed') && patches.length > 0;
   
   return (
     <div className="px-1 pt-2 pb-10 flex flex-col gap-0 relative">
@@ -93,7 +95,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
             {goalStep && <GoalNode step={goalStep} />}
             
             {executionSteps.map((step, idx, arr) => (
-                <AgentStepNode key={step.id} step={step} isLast={idx === arr.length - 1 && !summaryStep && status !== 'awaiting_changes_review'} />
+                <AgentStepNode key={step.id} step={step} isLast={idx === arr.length - 1 && !summaryStep && !showReviewNode} />
             ))}
 
             {isRunning && executionSteps.length > 0 && (
@@ -106,7 +108,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
             )}
 
             {summaryStep && (
-                <div className="relative pl-6">
+                <div className="relative pl-6 mb-6">
                     <div className="absolute left-0 top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 bg-green-500/10 border-green-500/20 text-green-400">
                         <IconSparkles size={14} />
                     </div>
@@ -116,7 +118,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                 </div>
             )}
             
-            {status === 'awaiting_changes_review' && (
+            {showReviewNode && (
                 <ChangesReviewNode />
             )}
         </>
