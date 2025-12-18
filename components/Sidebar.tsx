@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { IconSearch, IconSettings, IconMore, IconEyeOff, IconEye, IconFolderOpen, IconZap } from './Icons';
 import { SidebarView } from '../types';
@@ -207,6 +208,8 @@ const Sidebar: React.FC = () => {
               })}
             </div>
 
+            <div className="flex-1" />
+
             <Tooltip content="Spotlight" shortcut="⌘P">
               <button 
                 onClick={() => setIsCommandPaletteOpen(true)}
@@ -227,7 +230,7 @@ const Sidebar: React.FC = () => {
               </button>
             </Tooltip>
             
-            <div className="relative mt-auto pt-4" ref={hiddenMenuRef}>
+            <div className="relative pt-1" ref={hiddenMenuRef}>
               <Tooltip content="Manage Views" position="top">
                 <button
                   onClick={() => setHiddenMenuOpen(p => !p)}
