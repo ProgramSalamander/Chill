@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ProjectMeta } from '../types';
@@ -8,6 +7,7 @@ import { useGitStore } from './gitStore';
 import { useChatStore } from './chatStore';
 import { errorService } from '../services';
 import { gitService } from '../services/gitService';
+import { notify } from './notificationStore';
 
 interface ProjectState {
   projectToDelete: ProjectMeta | null;
@@ -19,6 +19,7 @@ interface ProjectState {
   loadInitialProject: () => Promise<void>;
   handleNewProject: (name: string) => Promise<ProjectMeta | void>;
   handleLoadProject: (project: ProjectMeta) => Promise<void>;
+  handleRenameProject: (id: string, newName: string) => void;
   saveCurrentProject: () => void;
   clearActiveProject: () => void;
 }
@@ -58,12 +59,6 @@ export const useProjectStore = create<ProjectState>()(
             recentProjects: newRecents,
             projectToDelete: null,
           });
-
-          // If was active and we deleted it, we stay on landing or load next best project
-          if (wasActive && newRecents.length > 0) {
-            // Option: Load next project automatically or stay on landing
-            // get().handleLoadProject(newRecents[0]);
-          }
         } catch (e: any) {
           errorService.report(e, "Project Deletion");
         }
@@ -79,9 +74,7 @@ export const useProjectStore = create<ProjectState>()(
           if (projectToLoad) {
             await get().handleLoadProject(projectToLoad);
           } else {
-            // No project to load, stay on landing
             set({ activeProject: null });
-            // gitService.initForProject('default-scratchpad'); // Only init if actually working
           }
         } catch (e: any) {
           errorService.report(e, "Initial Project Load");
@@ -139,7 +132,6 @@ export const useProjectStore = create<ProjectState>()(
 
             errorService.report(`Switched to project: ${project.name}`, 'Project', { notifyUser: false, terminal: true, severity: 'info' });
           } else {
-             // Handle case where project entry exists in recents but data is gone
              projectService.deleteProject(project.id);
              set({ recentProjects: projectService.getRecents() });
              throw new Error(`Project data for '${project.name}' not found. Removing from recents.`);
@@ -147,6 +139,16 @@ export const useProjectStore = create<ProjectState>()(
         } catch (e: any) {
           errorService.report(e, "Project Load");
         }
+      },
+
+      handleRenameProject: (id: string, newName: string) => {
+        if (!newName.trim()) return;
+        projectService.renameProject(id, newName.trim());
+        set(state => ({
+            recentProjects: projectService.getRecents(),
+            activeProject: state.activeProject?.id === id ? { ...state.activeProject, name: newName.trim() } : state.activeProject
+        }));
+        notify(`Project renamed to ${newName}`, 'success');
       },
       
       saveCurrentProject: () => {

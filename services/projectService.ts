@@ -31,7 +31,6 @@ export const projectService = {
       localStorage.setItem(ACTIVE_ID_KEY, meta.id);
     } catch (e: any) {
       console.error("Failed to save project", e);
-      // The store will notify the user
       throw e;
     }
   },
@@ -51,6 +50,12 @@ export const projectService = {
       name,
       lastOpened: Date.now()
     };
+  },
+
+  renameProject: (id: string, newName: string) => {
+    const recents = projectService.getRecents();
+    const updated = recents.map(p => p.id === id ? { ...p, name: newName } : p);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
   },
 
   getActiveProjectId: () => {
@@ -77,7 +82,6 @@ export const projectService = {
       }
     } catch (e: any) {
       console.error("Failed to delete project", e);
-      // The store will notify the user
       throw e;
     }
   },

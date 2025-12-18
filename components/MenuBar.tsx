@@ -19,7 +19,9 @@ import {
   IconBrain,
   IconRefresh,
   IconEye,
-  IconChevronDown
+  IconChevronDown,
+  IconEdit,
+  IconX
 } from './Icons';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
@@ -52,6 +54,8 @@ const MenuBar: React.FC = () => {
   const activeProject = useProjectStore(state => state.activeProject);
   const recentProjects = useProjectStore(state => state.recentProjects);
   const handleLoadProject = useProjectStore(state => state.handleLoadProject);
+  const handleRenameProject = useProjectStore(state => state.handleRenameProject);
+  const clearActiveProject = useProjectStore(state => state.clearActiveProject);
   const setProjectToDelete = useProjectStore(state => state.setProjectToDelete);
   
   const { files, activeFileId, undo, redo, saveAllFiles } = useFileTreeStore();
@@ -85,6 +89,15 @@ const MenuBar: React.FC = () => {
     closeMenu();
   };
 
+  const handleRenameCurrent = () => {
+    if (!activeProject) return;
+    const name = prompt("Rename Project", activeProject.name);
+    if (name && name.trim()) {
+      handleRenameProject(activeProject.id, name.trim());
+    }
+    closeMenu();
+  };
+
   const menuButtonClass = (menuId: string) => `
     px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 
     ${activeMenu === menuId ? 'bg-white/10 text-vibe-glow shadow-sm' : 'text-vibe-text-soft hover:bg-white/5 hover:text-vibe-text-main'}
@@ -98,7 +111,10 @@ const MenuBar: React.FC = () => {
   return (
     <div className="h-10 w-full bg-vibe-900 border-b border-vibe-border flex items-center px-4 select-none z-50 shrink-0" ref={menuRef}>
       {/* Brand */}
-      <div className="flex items-center gap-2 mr-6 opacity-90 hover:opacity-100 transition-opacity cursor-default group">
+      <div 
+        className="flex items-center gap-2 mr-6 opacity-90 hover:opacity-100 transition-opacity cursor-pointer group"
+        onClick={() => clearActiveProject()}
+      >
         <div className="w-5 h-5 rounded bg-gradient-to-br from-vibe-accent to-purple-600 flex items-center justify-center shadow-[0_0_10px_rgba(var(--vibe-accent),0.3)] group-hover:scale-110 transition-transform">
             <span className="text-[10px] font-bold text-white">C</span>
         </div>
@@ -121,23 +137,33 @@ const MenuBar: React.FC = () => {
                         <div className={iconLabelClass}><IconGitBranch size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> <span>Clone...</span></div>
                     </button>
                     <div className="h-[1px] bg-white/5 my-1 mx-2" />
-                    <button onClick={() => { saveAllFiles(); closeMenu(); }} className={itemClass}>
-                         <div className={iconLabelClass}><IconSave size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> <span>Save All</span></div>
-                         <span className="text-[10px] opacity-40 font-mono">⌘S</span>
-                    </button>
-                    <button onClick={handleDownloadZip} className={itemClass}>
-                         <div className={iconLabelClass}><IconDownload size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> <span>Export as ZIP</span></div>
-                    </button>
+                    {activeProject && (
+                      <>
+                        <button onClick={handleRenameCurrent} className={itemClass}>
+                            <div className={iconLabelClass}><IconEdit size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> <span>Rename Project</span></div>
+                        </button>
+                        <button onClick={() => { saveAllFiles(); closeMenu(); }} className={itemClass}>
+                            <div className={iconLabelClass}><IconSave size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> <span>Save All</span></div>
+                            <span className="text-[10px] opacity-40 font-mono">⌘S</span>
+                        </button>
+                        <button onClick={handleDownloadZip} className={itemClass}>
+                            <div className={iconLabelClass}><IconDownload size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> <span>Export as ZIP</span></div>
+                        </button>
+                        <button onClick={() => { clearActiveProject(); closeMenu(); }} className={`${itemClass} text-red-400 hover:bg-red-500/10`}>
+                            <div className={iconLabelClass}><IconX size={14} /> <span>Close Project</span></div>
+                        </button>
+                        <div className="h-[1px] bg-white/5 my-1 mx-2" />
+                      </>
+                    )}
 
                     {recentProjects.length > 0 && (
                       <>
-                        <div className="h-[1px] bg-white/5 my-1 mx-2" />
                         <div className="px-3 py-1.5 text-[10px] font-bold text-vibe-text-muted uppercase tracking-wider">Recent</div>
                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
                           {recentProjects.map(proj => (
-                            <div key={proj.id} className="group flex items-center justify-between px-1 transition-colors mx-1 rounded-lg hover:bg-white/5">
-                                <button onClick={() => { handleLoadProject(proj); closeMenu(); }} className="flex-1 flex items-center gap-3 px-2 py-2 text-xs text-vibe-text-soft group-hover:text-vibe-text-main">
-                                    <IconFolder size={14} className="text-vibe-text-muted group-hover:text-vibe-accent" />
+                            <div key={proj.id} className={`group flex items-center justify-between px-1 transition-colors mx-1 rounded-lg ${activeProject?.id === proj.id ? 'bg-vibe-accent/10' : 'hover:bg-white/5'}`}>
+                                <button onClick={() => { handleLoadProject(proj); closeMenu(); }} className={`flex-1 flex items-center gap-3 px-2 py-2 text-xs ${activeProject?.id === proj.id ? 'text-vibe-glow font-bold' : 'text-vibe-text-soft group-hover:text-vibe-text-main'}`}>
+                                    <IconFolder size={14} className={activeProject?.id === proj.id ? 'text-vibe-accent' : 'text-vibe-text-muted group-hover:text-vibe-accent'} />
                                     <span className="truncate">{proj.name}</span>
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); setProjectToDelete(proj); closeMenu(); }} className="p-2 rounded-lg text-vibe-text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
@@ -236,7 +262,7 @@ const MenuBar: React.FC = () => {
          >
              <IconSearch size={12} className="text-vibe-text-muted group-hover:text-vibe-glow transition-colors" />
              <div className="flex items-center gap-1.5 text-[11px] text-vibe-text-soft font-medium tracking-wide overflow-hidden">
-                 <span className="opacity-60">{activeProject?.name || 'Vibe'}</span>
+                 <span className="opacity-60">{activeProject?.name || '...'}</span>
                  <span className="opacity-30">/</span>
                  <span className="truncate group-hover:text-vibe-text-main transition-colors">{activeFile?.name || 'Search...'}</span>
              </div>

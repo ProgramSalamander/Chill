@@ -1,17 +1,105 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
-import { IconPlus, IconGitBranch, IconFolder, IconClock, IconSparkles, IconTrash } from './Icons';
+import { IconPlus, IconGitBranch, IconFolder, IconClock, IconSparkles, IconTrash, IconEdit, IconCheck } from './Icons';
 import Tooltip from './Tooltip';
 
+const ProjectCard: React.FC<{ 
+  project: any; 
+  isActive: boolean; 
+  onLoad: () => void;
+  onDelete: () => void;
+  onRename: (newName: string) => void;
+}> = ({ project, isActive, onLoad, onDelete, onRename }) => {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState(project.name);
+
+  const handleRenameSubmit = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (newName.trim() && newName !== project.name) {
+      onRename(newName);
+    }
+    setIsRenaming(false);
+  };
+
+  return (
+    <div 
+      className={`group relative flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer shadow-sm
+        ${isActive 
+          ? 'bg-vibe-accent/10 border-vibe-accent/40 ring-1 ring-vibe-accent/20' 
+          : 'bg-vibe-800 border-vibe-border hover:border-vibe-accent/30 hover:bg-white/10 dark:hover:bg-white/[0.07]'}
+      `}
+      onClick={onLoad}
+    >
+      <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors
+            ${isActive ? 'bg-vibe-accent text-white shadow-lg' : 'bg-vibe-700 text-vibe-text-muted group-hover:text-vibe-glow'}
+          `}>
+            <IconFolder size={20} />
+          </div>
+          <div className="text-left truncate flex-1">
+            {isRenaming ? (
+              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <input 
+                  autoFocus
+                  className="bg-black/40 border border-vibe-accent/50 rounded px-2 py-0.5 text-sm text-white w-full outline-none"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleRenameSubmit(e);
+                    if (e.key === 'Escape') setIsRenaming(false);
+                  }}
+                />
+                <button onClick={handleRenameSubmit} className="text-green-400 p-1"><IconCheck size={14}/></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className={`text-sm font-bold truncate transition-colors ${isActive ? 'text-white' : 'text-vibe-text-soft group-hover:text-vibe-text-main'}`}>
+                  {project.name}
+                </p>
+                {isActive && (
+                  <span className="text-[8px] bg-vibe-accent text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-sm animate-pulse">Active</span>
+                )}
+              </div>
+            )}
+            <p className="text-[10px] text-vibe-text-muted flex items-center gap-1 mt-0.5">
+              <IconClock size={10} />
+              {new Date(project.lastOpened).toLocaleDateString()}
+            </p>
+          </div>
+      </div>
+      
+      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-all">
+        {!isRenaming && (
+          <Tooltip content="Rename Project" position="top">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsRenaming(true); }}
+              className="p-2 rounded-xl text-vibe-text-muted hover:text-vibe-glow hover:bg-white/5 transition-all"
+            >
+              <IconEdit size={14} />
+            </button>
+          </Tooltip>
+        )}
+        <Tooltip content="Delete Project" position="top">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="p-2 rounded-xl text-vibe-text-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
+          >
+            <IconTrash size={14} />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
+  );
+};
+
 const LandingView: React.FC = () => {
-  const { recentProjects, handleLoadProject, setProjectToDelete } = useProjectStore();
+  const { recentProjects, activeProject, handleLoadProject, setProjectToDelete, handleRenameProject } = useProjectStore();
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
   const setIsNewProjectModalOpen = useUIStore(state => state.setIsNewProjectModalOpen);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-700">
+    <div className="flex-1 flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-700 overflow-y-auto custom-scrollbar">
       <div className="max-w-4xl w-full flex flex-col items-center text-center space-y-12">
         
         {/* Brand/Welcome Header */}
@@ -82,32 +170,14 @@ const LandingView: React.FC = () => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                {recentProjects.map(proj => (
-                 <div 
-                  key={proj.id}
-                  className="group relative flex items-center justify-between p-4 rounded-2xl bg-vibe-800 border border-vibe-border hover:border-vibe-accent/30 hover:bg-white/10 dark:hover:bg-white/[0.07] transition-all cursor-pointer shadow-sm"
-                  onClick={() => handleLoadProject(proj)}
-                 >
-                    <div className="flex items-center gap-4 min-w-0">
-                       <div className="w-10 h-10 rounded-xl bg-vibe-700 flex items-center justify-center text-vibe-text-muted group-hover:text-vibe-glow transition-colors">
-                          <IconFolder size={20} />
-                       </div>
-                       <div className="text-left truncate">
-                          <p className="text-sm font-bold text-vibe-text-soft truncate group-hover:text-vibe-text-main transition-colors">{proj.name}</p>
-                          <p className="text-[10px] text-vibe-text-muted flex items-center gap-1 mt-0.5">
-                             <IconClock size={10} />
-                             {new Date(proj.lastOpened).toLocaleDateString()}
-                          </p>
-                       </div>
-                    </div>
-                    <Tooltip content="Delete Project" position="top">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setProjectToDelete(proj); }}
-                        className="p-2 rounded-xl text-vibe-text-muted hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <IconTrash size={16} />
-                      </button>
-                    </Tooltip>
-                 </div>
+                 <ProjectCard 
+                    key={proj.id}
+                    project={proj}
+                    isActive={activeProject?.id === proj.id}
+                    onLoad={() => handleLoadProject(proj)}
+                    onDelete={() => setProjectToDelete(proj)}
+                    onRename={(name) => handleRenameProject(proj.id, name)}
+                 />
                ))}
             </div>
           </div>
