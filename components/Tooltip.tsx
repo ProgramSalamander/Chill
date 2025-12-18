@@ -25,7 +25,8 @@ const Tooltip: React.FC<TooltipProps> = ({
     const tooltipRect = tooltipRef.current.getBoundingClientRect();
     const newStyle: React.CSSProperties = {};
     
-    const gap = 8;
+    // Reduced gap from 8 to 4 to make tooltip closer to the icon
+    const gap = 4;
     const screenPadding = 8;
     
     let top = 0;
@@ -98,7 +99,7 @@ const Tooltip: React.FC<TooltipProps> = ({
           position: 'fixed',
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1)' : 'scale(0.95)',
-          transition: 'opacity 0.1s ease-out, transform 0.1s ease-out',
+          transition: 'opacity 0.08s ease-out, transform 0.08s ease-out',
           pointerEvents: 'none',
           zIndex: 250,
         }}
