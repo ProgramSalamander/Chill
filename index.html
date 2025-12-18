@@ -29,8 +29,7 @@
         --vibe-glass-alpha: 0.8;
         --vibe-border-rgb: 0, 0, 0;
         --vibe-border-alpha: 0.1;
-        --selection-bg-rgb: 99, 102, 241;
-        --selection-text-rgb: 255, 255, 255;
+        --selection-bg-rgb: 79 70 229;
       }
       .dark {
         --bg-primary: 2 2 4;
@@ -45,8 +44,7 @@
         --vibe-glass-alpha: 0.65;
         --vibe-border-rgb: 255, 255, 255;
         --vibe-border-alpha: 0.08;
-        --selection-bg-rgb: 79, 70, 229;
-        --selection-text-rgb: 255, 255, 255;
+        --selection-bg-rgb: 129 140 248;
       }
       
       ::-webkit-scrollbar {
@@ -149,7 +147,7 @@
       }
 
       ::selection {
-        background: rgba(var(--vibe-accent), 0.3);
+        background: rgb(var(--selection-bg-rgb) / 0.35);
         color: inherit;
       }
 
