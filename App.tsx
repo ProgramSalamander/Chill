@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -28,8 +27,9 @@ import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
 import { useAgentStore } from './stores/agentStore';
 
-import { aiService, runLinting } from './services';
+import { aiService, runLinting, executionService, previewService } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
+import { getFilePath } from './utils/fileUtils';
 import { IconSparkles, IconCommand, IconLayout, IconSettings, IconZap, IconBrain } from './components/Icons';
 
 function App() {
@@ -70,44 +70,46 @@ function App() {
 
   // --- Preview Logic ---
   const [previewUrl, setPreviewUrl] = useState('');
-  const lastActiveFileIdRef = useRef<string | null>(null);
 
-  // Debounced Blob URL Generation for Preview
   useEffect(() => {
     if (!isPreviewOpen) return;
 
-    // Detect if we switched files vs just typing
-    const isFileSwitch = activeFileId !== lastActiveFileIdRef.current;
-    lastActiveFileIdRef.current = activeFileId;
-
-    const generate = () => {
-        try {
-            const html = generatePreviewHtml(files, activeFile);
-            const blob = new Blob([html], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            setPreviewUrl(prev => {
-                if (prev) URL.revokeObjectURL(prev);
-                return url;
-            });
-        } catch (e) {
-            console.error("Preview Generation Failed", e);
+    const updatePreview = () => {
+        if (activeFile?.language === 'markdown') {
+             // Fallback to blob for markdown since it needs compilation
+             const html = generatePreviewHtml(files, activeFile);
+             const blob = new Blob([html], { type: 'text/html' });
+             const url = URL.createObjectURL(blob);
+             setPreviewUrl(prev => {
+                 if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+                 return url;
+             });
+        } else {
+             // Use Service Worker for web projects
+             previewService.updatePreviewFiles(files);
+             
+             let path = 'index.html';
+             if (activeFile && activeFile.language === 'html') {
+                 path = getFilePath(activeFile, files);
+             } else {
+                 // Try to find index.html
+                 const index = files.find(f => f.name === 'index.html');
+                 if (index) path = getFilePath(index, files);
+             }
+             
+             setPreviewUrl(`/preview/${path}`);
         }
     };
 
-    if (isFileSwitch) {
-        // Immediate update on file switch to avoid showing wrong context
-        generate();
-    } else {
-        // Debounce updates during typing to prevent iframe flickering
-        const timer = setTimeout(generate, 800);
-        return () => clearTimeout(timer);
-    }
-  }, [files, activeFile, activeFileId, isPreviewOpen]);
+    // Debounce updates during typing
+    const timer = setTimeout(updatePreview, 500);
+    return () => clearTimeout(timer);
+  }, [files, activeFile, isPreviewOpen]);
 
   // Cleanup Blob URLs
   useEffect(() => {
       return () => {
-          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
       };
   }, [previewUrl]);
 
@@ -133,8 +135,6 @@ function App() {
     }
     lintTimerRef.current = setTimeout(async () => {
       const newDiagnostics = await runLinting(activeFile.content, activeFile.language);
-      // Simple equality check to avoid re-rendering loop, assuming diagnostic objects are stable enough
-      // or at least don't change if content didn't change significantly in a way that alters lint results
       if (JSON.stringify(newDiagnostics) !== JSON.stringify(diagnostics)) {
         setDiagnostics(newDiagnostics);
       }
@@ -225,8 +225,6 @@ function App() {
         const sugg = await aiService.getCodeCompletion(code, offset, currentFile.language, currentFile, useFileTreeStore.getState().files, signal);
         return sugg || null;
     } catch (e) {
-        // console.error("[App] Suggestion fetch failed:", e);
-        // Silent failure for aborted requests or standard errors during typing
         return null;
     }
   }, []);
@@ -287,20 +285,15 @@ function App() {
     }
   };
 
-  const handleRunCode = () => {
+  const handleRunCode = async () => {
       if (!activeFile) return;
       const { setIsPreviewOpen } = useUIStore.getState();
-      addTerminalLine(`Running ${activeFile.name}...`, 'command');
-      if (['javascript','typescript'].includes(activeFile.language)) {
-          try {
-             const originalLog = console.log;
-             console.log = (...args) => { addTerminalLine(args.map(a => JSON.stringify(a)).join(' ')); };
-             eval(activeFile.content);
-             console.log = originalLog;
-          } catch(e:any) { addTerminalLine(`Error: ${e.message}`, 'error'); }
-      } else if (activeFile.language === 'html') {
+      
+      if (activeFile.language === 'html') {
           setIsPreviewOpen(true);
-      } else { addTerminalLine('Execution not supported in browser.', 'warning'); }
+      } else {
+          await executionService.runCode(activeFile.content, activeFile.language);
+      }
   };
 
   return (
@@ -360,7 +353,7 @@ function App() {
                                         className="w-full h-full border-none bg-white"
                                         src={previewUrl}
                                         title="Live Preview"
-                                        sandbox="allow-scripts allow-modals" 
+                                        sandbox="allow-scripts allow-modals allow-same-origin" 
                                     />
                                 </div>
                             )}

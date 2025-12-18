@@ -251,6 +251,17 @@ export interface ContextMenuState {
   items: ContextMenuItem[];
 }
 
+// --- Execution Types ---
+
+export type ExecutionStatus = 'idle' | 'running' | 'stopping' | 'completed' | 'error';
+
+export interface ExecutionState {
+  status: ExecutionStatus;
+  output: string[];
+}
+
+export type RunnerType = 'python' | 'javascript' | 'html';
+
 declare global {
   interface Window {
     aistudio?: AIStudio;
