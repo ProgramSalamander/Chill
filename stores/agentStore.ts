@@ -65,38 +65,64 @@ const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   startAgent: async (goal) => {
-    get().resetAgent();
-    set({ status: 'planning', agentSteps: [{ id: Date.now().toString(), type: 'user', text: goal, timestamp: Date.now() }] });
+    const state = get();
+    const isContinuation = state.agentChatSession !== null && 
+      (state.status === 'completed' || state.status === 'failed' || state.status === 'awaiting_changes_review' || state.status === 'idle' && state.agentSteps.length > 0);
 
-    try {
-      const files = useFileTreeStore.getState().files;
-      const context = `Project contains ${files.length} files.`;
-      const generatedPlan = await aiService.generateAgentPlan({ goal, context });
-      
-      set({ plan: generatedPlan, status: 'thinking' });
+    if (!isContinuation) {
+      get().resetAgent();
+      set({ status: 'planning', agentSteps: [{ id: Date.now().toString(), type: 'user', text: goal, timestamp: Date.now() }] });
 
-      const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant executing a plan.
+      try {
+        const files = useFileTreeStore.getState().files;
+        const context = `Project contains ${files.length} files.`;
+        const generatedPlan = await aiService.generateAgentPlan({ goal, context });
+        
+        set({ plan: generatedPlan, status: 'thinking' });
+
+        const systemPrompt = `You are "Vibe Agent", an autonomous coding assistant executing a plan.
 ENVIRONMENT: You are in a browser-based environment. You CANNOT use commands like \`npx create-react-app\`, \`vite\`, \`next\`, or other complex build tools.
 WORKFLOW: To create a project boilerplate, you MUST create each file individually using the 'writeFile' tool. Your file modifications will be staged as AI Patches for user review.
 
 Current Plan:
 ${JSON.stringify(generatedPlan, null, 2)}
 For each turn, I will tell you which step needs to be worked on. You should output a Tool Call to perform an action.`;
-      
-      const config = getActiveChatConfig();
-      if (!config) {
-        throw new Error("No active AI model configured for the agent.");
-      }
-      const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true, config });
-      set({ agentChatSession: session });
-      await processNextStep();
+        
+        const config = getActiveChatConfig();
+        if (!config) {
+          throw new Error("No active AI model configured for the agent.");
+        }
+        const session = aiService.createChatSession({ systemInstruction: systemPrompt, isAgent: true, config });
+        set({ agentChatSession: session });
+        await processNextStep();
 
-    } catch (e: any) {
-      errorService.report(e, "Agent Start (Planning)");
+      } catch (e: any) {
+        errorService.report(e, "Agent Start (Planning)");
+        set(state => ({
+          agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'error', text: `Planning failed: ${e.message}`, timestamp: Date.now() }],
+          status: 'failed',
+        }));
+      }
+    } else {
+      // Continuation / Follow-up Turn
       set(state => ({
-        agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'error', text: `Planning failed: ${e.message}`, timestamp: Date.now() }],
-        status: 'failed',
+        status: 'thinking',
+        agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'user', text: goal, timestamp: Date.now() }]
       }));
+
+      try {
+        const session = state.agentChatSession!;
+        const response = await session.sendMessage({ 
+          message: `The user has provided a follow-up instruction: "${goal}". Please analyze this feedback. If it requires new actions, perform them now. If the current plan needs updates, state your updated approach then use tools. If you are finished, summarize.` 
+        });
+        handleAgentResponse(response);
+      } catch (e: any) {
+        errorService.report(e, "Agent Continuation");
+        set(state => ({
+          agentSteps: [...state.agentSteps, { id: Date.now().toString(), type: 'error', text: `Continuation failed: ${e.message}`, timestamp: Date.now() }],
+          status: 'failed',
+        }));
+      }
     }
   },
 
@@ -332,9 +358,24 @@ async function handleAgentResponse(response: any) {
       useAgentStore.setState({ plan: newPlan });
       processNextStep();
     } else {
-      processNextStep();
+      // If we got a final response without tool calls and without an active plan step, 
+      // it might be a multi-turn response summary or final thought.
+      const { status } = useAgentStore.getState();
+      if (status === 'thinking' || status === 'executing') {
+         // Check if we should conclude or just wait for next user turn
+         setAgentStatusAfterTurn();
+      }
     }
   }
+}
+
+function setAgentStatusAfterTurn() {
+    const { patches } = useAgentStore.getState();
+    if (patches.length > 0) {
+        useAgentStore.setState({ status: 'awaiting_changes_review' });
+    } else {
+        useAgentStore.setState({ status: 'completed' });
+    }
 }
 
 function handleFailedStep(errorMessage: string) {

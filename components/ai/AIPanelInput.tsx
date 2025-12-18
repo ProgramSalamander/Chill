@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { File } from '../../types';
 import { 
@@ -194,7 +195,7 @@ const AIPanelInput: React.FC<AIPanelInputProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === 'agent' ? "Describe a task for the agent..." : "Ask Vibe AI..."}
+            placeholder={mode === 'agent' ? "Follow up or describe a new task..." : "Ask Vibe AI..."}
             className="w-full bg-transparent border-none text-sm text-white focus:outline-none placeholder-slate-600 resize-none py-2 max-h-32 min-h-[40px] custom-scrollbar"
             style={{ height: Math.min(input.split('\n').length * 20 + 20, 120) + 'px' }}
             disabled={isRunning}
