@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   IconPlus, 
@@ -9,12 +8,15 @@ import {
   IconClock,
   IconSun,
   IconMoon,
-  IconTrash
+  IconTrash,
+  IconDownload
 } from './Icons';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useProjectStore } from '../stores/projectStore';
+import { downloadProjectAsZip } from '../utils/downloadUtils';
+import { notify } from '../stores/notificationStore';
 
 const MenuBar: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -32,7 +34,6 @@ const MenuBar: React.FC = () => {
   const saveAllFiles = useFileTreeStore(state => state.saveAllFiles);
   const files = useFileTreeStore(state => state.files);
 
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -48,6 +49,16 @@ const MenuBar: React.FC = () => {
   };
 
   const closeMenu = () => setActiveMenu(null);
+
+  const handleDownloadZip = async () => {
+    try {
+        await downloadProjectAsZip(files, activeProject?.name || 'chill-project');
+        notify('Project ZIP bundled and downloaded.', 'success');
+    } catch (e: any) {
+        notify(e.message || 'Failed to download project.', 'error');
+    }
+    closeMenu();
+  };
 
   const projectName = activeProject?.name || (files.length > 0 ? "Draft Workspace" : undefined);
 
@@ -86,6 +97,10 @@ const MenuBar: React.FC = () => {
                     <button onClick={() => { saveAllFiles(); closeMenu(); }} className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
                          <IconSave size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> 
                          <span>Save All</span>
+                    </button>
+                    <button onClick={handleDownloadZip} className="group px-3 py-2 text-xs text-left text-vibe-text-soft hover:bg-vibe-accent/20 hover:text-white flex items-center gap-3 transition-colors mx-1 rounded-lg">
+                         <IconDownload size={14} className="text-vibe-text-muted group-hover:text-vibe-glow" /> 
+                         <span>Download as ZIP</span>
                     </button>
 
                     {recentProjects.length > 0 && (

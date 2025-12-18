@@ -1,6 +1,3 @@
-
-
-
 import React from 'react';
 import { 
   FileCode, 
@@ -61,7 +58,8 @@ import {
   Info,
   Square,
   ArrowUp,
-  KeyRound
+  KeyRound,
+  Download
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -124,3 +122,4 @@ export const IconInfo = (props: any) => <Info {...props} />;
 export const IconSquare = (props: any) => <Square {...props} />;
 export const IconArrowUp = (props: any) => <ArrowUp {...props} />;
 export const IconKeyRound = (props: any) => <KeyRound {...props} />;
+export const IconDownload = (props: any) => <Download {...props} />;
