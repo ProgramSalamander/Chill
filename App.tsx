@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -16,6 +17,7 @@ import StatusBar from './components/StatusBar';
 import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
 import MainChangesView from './components/MainChangesView';
+import LandingView from './components/LandingView';
 
 import { useUIStore } from './stores/uiStore';
 import { useFileTreeStore } from './stores/fileStore';
@@ -24,7 +26,7 @@ import { useTerminalStore } from './stores/terminalStore';
 import { useChatStore } from './stores/chatStore';
 import { useAgentStore } from './stores/agentStore';
 
-import { aiService, initLinters, runLinting, ragService } from './services';
+import { aiService, runLinting } from './services';
 import { generatePreviewHtml } from './utils/previewUtils';
 import { IconSparkles } from './components/Icons';
 
@@ -42,6 +44,7 @@ function App() {
   const redo = useFileTreeStore(state => state.redo);
   const saveFile = useFileTreeStore(state => state.saveFile);
   const loadInitialProject = useProjectStore(state => state.loadInitialProject);
+  const activeProject = useProjectStore(state => state.activeProject);
 
   const setDiagnostics = useTerminalStore(state => state.setDiagnostics);
   const diagnostics = useTerminalStore(state => state.diagnostics);
@@ -72,7 +75,6 @@ function App() {
   // Initialize services and load project on startup
   useEffect(() => {
     const startApp = async () => {
-      // initLinters is now handled on-demand in runLinting
       initChat();
       await loadInitialProject();
     };
@@ -145,12 +147,11 @@ function App() {
           if (newCode) {
               const proposedContent = prefix + newCode + suffix;
               
-              // Instead of immediate update, we create a patch
               addPatch({
                 fileId: file.id,
                 range: {
                   startLineNumber: range.startLineNumber,
-                  startColumn: 1, // Highlight whole lines for better visibility
+                  startColumn: 1, 
                   endLineNumber: range.endLineNumber,
                   endColumn: lines[endLine].length + 1
                 },
@@ -208,69 +209,75 @@ function App() {
   return (
     <div className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent">
       <MenuBar />
-       <div className="flex-1 flex overflow-hidden p-3 gap-3">
-         <ErrorBoundary>
-           <Sidebar />
-         </ErrorBoundary>
-         <div className="flex-1 flex flex-col min-w-0 relative gap-3">
-            <ErrorBoundary>
-              <div className="shrink-0">
-                  <EditorTabs 
-                     onClearSelection={() => setSelectedCode('')}
-                     onRunCode={handleRunCode}
-                     hasActiveFile={!!activeFile}
-                  />
+      
+      {!activeProject ? (
+        <LandingView />
+      ) : (
+        <div className="flex-1 flex overflow-hidden p-3 gap-3 animate-in fade-in zoom-in-95 duration-500">
+          <ErrorBoundary>
+            <Sidebar />
+          </ErrorBoundary>
+          <div className="flex-1 flex flex-col min-w-0 relative gap-3">
+              <ErrorBoundary>
+                <div className="shrink-0">
+                    <EditorTabs 
+                      onClearSelection={() => setSelectedCode('')}
+                      onRunCode={handleRunCode}
+                      hasActiveFile={!!activeFile}
+                    />
+                </div>
+              </ErrorBoundary>
+              <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
+                  <ErrorBoundary>
+                    {activeSidebarView === 'changes' ? (
+                        <MainChangesView />
+                    ) : activeFile ? (
+                        <div className="flex-1 relative overflow-hidden">
+                            <CodeEditor 
+                                key={activeFile.id}
+                                theme={theme}
+                                code={activeFile.content} language={activeFile.language}
+                                onChange={(c) => updateFileContent(c)}
+                                onCursorChange={setCursorPosition}
+                                onSelectionChange={setSelectedCode}
+                                onFetchSuggestion={handleFetchSuggestion}
+                                onUndo={undo} onRedo={redo}
+                                onSave={handleSaveFile}
+                                showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
+                                onInlineAssist={handleInlineAssist}
+                                onAICommand={handleAICommand}
+                            />
+                            {selectedCode && (
+                              <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
+                                  <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                              </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
+                            <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">
+                              <IconSparkles size={40} className="text-vibe-glow opacity-60" />
+                            </div>
+                            <p className="text-sm font-medium tracking-wide">Select a file to start vibing</p>
+                            <p className="text-xs opacity-50">Cmd+P to search files</p>
+                        </div>
+                    )}
+                  </ErrorBoundary>
               </div>
-            </ErrorBoundary>
-            <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
-                <ErrorBoundary>
-                  {activeSidebarView === 'changes' ? (
-                      <MainChangesView />
-                  ) : activeFile ? (
-                      <div className="flex-1 relative overflow-hidden">
-                          <CodeEditor 
-                              key={activeFile.id}
-                              theme={theme}
-                              code={activeFile.content} language={activeFile.language}
-                              onChange={(c) => updateFileContent(c)}
-                              onCursorChange={setCursorPosition}
-                              onSelectionChange={setSelectedCode}
-                              onFetchSuggestion={handleFetchSuggestion}
-                              onUndo={undo} onRedo={redo}
-                              onSave={handleSaveFile}
-                              showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
-                              onInlineAssist={handleInlineAssist}
-                              onAICommand={handleAICommand}
-                          />
-                          {selectedCode && (
-                             <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-                                 <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
-                             </div>
-                          )}
-                      </div>
-                  ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
-                          <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">
-                             <IconSparkles size={40} className="text-vibe-glow opacity-60" />
-                          </div>
-                          <p className="text-sm font-medium tracking-wide">Select a file to start vibing</p>
-                          <p className="text-xs opacity-50">Cmd+P to search files</p>
-                      </div>
-                  )}
-                </ErrorBoundary>
-            </div>
-            <ErrorBoundary>
-              <div className="transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]">
-                 <Terminal />
-              </div>
-            </ErrorBoundary>
-         </div>
-         <ErrorBoundary>
-           <AIPanel 
-             onInsertCode={(c) => activeFile && updateFileContent(activeFile.content.slice(0, cursorPosition) + c + activeFile.content.slice(cursorPosition), true)}
-           />
-         </ErrorBoundary>
-      </div>
+              <ErrorBoundary>
+                <div className="transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]">
+                  <Terminal />
+                </div>
+              </ErrorBoundary>
+          </div>
+          <ErrorBoundary>
+            <AIPanel 
+              onInsertCode={(c) => activeFile && updateFileContent(activeFile.content.slice(0, cursorPosition) + c + activeFile.content.slice(cursorPosition), true)}
+            />
+          </ErrorBoundary>
+        </div>
+      )}
+
       <StatusBar />
       <Toaster />
       <SettingsModal />
