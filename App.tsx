@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import CodeEditor from './components/CodeEditor';
 import AIPanel from './components/AIPanel';
@@ -18,6 +19,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
 import LandingView from './components/LandingView';
 import { ContextMenu } from './components/ContextMenu';
+import { ResizablePanel } from './components/ResizablePanel';
 
 import { useUIStore } from './stores/uiStore';
 import { useFileTreeStore } from './stores/fileStore';
@@ -284,27 +286,40 @@ function App() {
               <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
                   <ErrorBoundary>
                     {activeFile ? (
-                        <div className="flex-1 relative overflow-hidden">
-                            <CodeEditor 
-                                key={activeFile.id}
-                                theme={theme}
-                                code={activeFile.content} language={activeFile.language}
-                                onChange={(c) => updateFileContent(c)}
-                                onCursorChange={setCursorPosition}
-                                onSelectionChange={setSelectedCode}
-                                onFetchSuggestion={handleFetchSuggestion}
-                                onUndo={undo} onRedo={redo}
-                                onSave={handleSaveFile}
-                                showPreview={isPreviewOpen} previewContent={getPreviewContent} diagnostics={diagnostics}
-                                onInlineAssist={handleInlineAssist}
-                                onAICommand={handleAICommand}
-                            />
-                            {selectedCode && (
-                              <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-                                  <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
-                              </div>
-                            )}
-                        </div>
+                        <ResizablePanel
+                            isSideVisible={isPreviewOpen}
+                            mainContent={
+                                <div className="flex-1 relative overflow-hidden h-full">
+                                    <CodeEditor 
+                                        key={activeFile.id}
+                                        theme={theme}
+                                        code={activeFile.content} language={activeFile.language}
+                                        onChange={(c) => updateFileContent(c)}
+                                        onCursorChange={setCursorPosition}
+                                        onSelectionChange={setSelectedCode}
+                                        onFetchSuggestion={handleFetchSuggestion}
+                                        onUndo={undo} onRedo={redo}
+                                        onSave={handleSaveFile}
+                                        diagnostics={diagnostics}
+                                        onInlineAssist={handleInlineAssist}
+                                        onAICommand={handleAICommand}
+                                    />
+                                    {selectedCode && (
+                                      <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
+                                          <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                                      </div>
+                                    )}
+                                </div>
+                            }
+                            sideContent={
+                                <iframe 
+                                    className="w-full h-full border-none bg-white"
+                                    srcDoc={getPreviewContent}
+                                    title="Live Preview"
+                                    sandbox="allow-scripts allow-modals" 
+                                />
+                            }
+                        />
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
                             <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">

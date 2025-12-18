@@ -13,7 +13,6 @@ import { useQuickFix } from './editor/hooks/useQuickFix';
 import { useAICommand } from './editor/hooks/useAICommand';
 import { useAgentStore } from '../stores/agentStore';
 import { useFileTreeStore } from '../stores/fileStore';
-import { ResizablePanel } from './ResizablePanel';
 
 interface CodeEditorProps {
   code: string;
@@ -28,8 +27,6 @@ interface CodeEditorProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onSave?: () => void;
-  showPreview?: boolean;
-  previewContent?: string;
   diagnostics?: Diagnostic[];
   onInlineAssist?: (instruction: string, range: any) => Promise<void>;
   onAICommand?: (type: 'test' | 'docs' | 'refactor' | 'fix', context: any) => void;
@@ -135,15 +132,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   onUndo,
   onRedo,
   onSave,
-  showPreview = false,
-  previewContent = '',
   diagnostics = [],
   onInlineAssist,
   onAICommand
 }) => {
   const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [monacoInstance, setMonacoInstance] = useState<typeof monaco | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   
   const [inlineInputPos, setInlineInputPos] = useState<{ top: number; left: number; lineHeight: number } | null>(null);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
@@ -339,59 +333,44 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   return (
-    <ResizablePanel
-      className={`rounded-2xl ${className || ''}`}
-      isSideVisible={showPreview}
-      mainContent={
-        <div className="h-full w-full relative">
-           <InlineInput 
-              position={inlineInputPos} 
-              onClose={() => setInlineInputPos(null)} 
-              onSubmit={handleInlineSubmit}
-              isProcessing={isProcessingInline}
-           />
+    <div className={`h-full w-full relative ${className || ''}`}>
+       <InlineInput 
+          position={inlineInputPos} 
+          onClose={() => setInlineInputPos(null)} 
+          onSubmit={handleInlineSubmit}
+          isProcessing={isProcessingInline}
+       />
 
-           <Editor
-              height="100%"
-              language={mappedLanguage}
-              value={code}
-              onChange={(value) => onChange(value || '')}
-              onMount={handleEditorDidMount}
-              theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}
-              options={{
-                  fontFamily: '"JetBrains Mono", monospace',
-                  fontSize: 14,
-                  lineHeight: 22,
-                  fontLigatures: true,
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  smoothScrolling: true,
-                  cursorBlinking: 'smooth',
-                  cursorSmoothCaretAnimation: 'on',
-                  folding: true,
-                  roundedSelection: true,
-                  renderLineHighlight: 'all',
-                  contextmenu: true,
-                  bracketPairColorization: { enabled: true },
-                  padding: { top: 20, bottom: 20 },
-                  inlineSuggest: { enabled: true },
-                  suggest: { showWords: false },
-                  codeLens: true,
-                  lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
-              }}
-           />
-        </div>
-      }
-      sideContent={
-        <iframe 
-            ref={iframeRef}
-            className="w-full h-full border-none"
-            srcDoc={previewContent}
-            title="Live Preview"
-            sandbox="allow-scripts allow-modals" 
-        />
-      }
-    />
+       <Editor
+          height="100%"
+          language={mappedLanguage}
+          value={code}
+          onChange={(value) => onChange(value || '')}
+          onMount={handleEditorDidMount}
+          theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}
+          options={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 14,
+              lineHeight: 22,
+              fontLigatures: true,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              smoothScrolling: true,
+              cursorBlinking: 'smooth',
+              cursorSmoothCaretAnimation: 'on',
+              folding: true,
+              roundedSelection: true,
+              renderLineHighlight: 'all',
+              contextmenu: true,
+              bracketPairColorization: { enabled: true },
+              padding: { top: 20, bottom: 20 },
+              inlineSuggest: { enabled: true },
+              suggest: { showWords: false },
+              codeLens: true,
+              lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.On },
+          }}
+       />
+    </div>
   );
 };
 
