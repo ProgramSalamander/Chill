@@ -19,7 +19,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ContextBar from './components/ContextBar';
 import LandingView from './components/LandingView';
 import { ContextMenu } from './components/ContextMenu';
-import { ResizablePanel } from './components/ResizablePanel';
 
 import { useUIStore } from './stores/uiStore';
 import { useFileTreeStore } from './stores/fileStore';
@@ -283,45 +282,46 @@ function App() {
                     />
                 </div>
               </ErrorBoundary>
-              <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-col">
+              
+              <div className="flex-1 relative overflow-hidden rounded-2xl glass-panel shadow-2xl flex flex-row">
                   <ErrorBoundary>
                     {activeFile ? (
-                        <ResizablePanel
-                            isSideVisible={isPreviewOpen}
-                            mainContent={
-                                <div className="flex-1 relative overflow-hidden h-full">
-                                    <CodeEditor 
-                                        key={activeFile.id}
-                                        theme={theme}
-                                        code={activeFile.content} language={activeFile.language}
-                                        onChange={(c) => updateFileContent(c)}
-                                        onCursorChange={setCursorPosition}
-                                        onSelectionChange={setSelectedCode}
-                                        onFetchSuggestion={handleFetchSuggestion}
-                                        onUndo={undo} onRedo={redo}
-                                        onSave={handleSaveFile}
-                                        diagnostics={diagnostics}
-                                        onInlineAssist={handleInlineAssist}
-                                        onAICommand={handleAICommand}
-                                    />
-                                    {selectedCode && (
-                                      <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-                                          <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
-                                      </div>
-                                    )}
-                                </div>
-                            }
-                            sideContent={
-                                <iframe 
-                                    className="w-full h-full border-none bg-white"
-                                    srcDoc={getPreviewContent}
-                                    title="Live Preview"
-                                    sandbox="allow-scripts allow-modals" 
+                        <>
+                            <div className={`relative h-full transition-[width] duration-300 ease-out ${isPreviewOpen ? 'w-1/2 border-r border-vibe-border' : 'w-full'}`}>
+                                <CodeEditor 
+                                    key={activeFile.id}
+                                    theme={theme}
+                                    code={activeFile.content} language={activeFile.language}
+                                    onChange={(c) => updateFileContent(c)}
+                                    onCursorChange={setCursorPosition}
+                                    onSelectionChange={setSelectedCode}
+                                    onFetchSuggestion={handleFetchSuggestion}
+                                    onUndo={undo} onRedo={redo}
+                                    onSave={handleSaveFile}
+                                    diagnostics={diagnostics}
+                                    onInlineAssist={handleInlineAssist}
+                                    onAICommand={handleAICommand}
                                 />
-                            }
-                        />
+                                {selectedCode && (
+                                  <div className="absolute bottom-8 right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
+                                      <ContextBar language={activeFile.language} onAction={(act) => { setIsAIOpen(true); sendMessage(`${act} the selected code:\n\`\`\`\n${selectedCode}\n\`\`\``); }} />
+                                  </div>
+                                )}
+                            </div>
+                            
+                            {isPreviewOpen && (
+                                <div className="w-1/2 h-full bg-white animate-in slide-in-from-right-5 fade-in duration-300 border-l border-vibe-border overflow-hidden">
+                                    <iframe 
+                                        className="w-full h-full border-none bg-white"
+                                        srcDoc={getPreviewContent}
+                                        title="Live Preview"
+                                        sandbox="allow-scripts allow-modals" 
+                                    />
+                                </div>
+                            )}
+                        </>
                     ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
+                        <div className="w-full flex flex-col items-center justify-center h-full text-slate-600 space-y-4 bg-gradient-to-b from-transparent to-black/20">
                             <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center mb-4 border border-white/5 animate-float shadow-xl backdrop-blur-sm">
                               <IconSparkles size={40} className="text-vibe-glow opacity-60" />
                             </div>
@@ -331,6 +331,7 @@ function App() {
                     )}
                   </ErrorBoundary>
               </div>
+
               <ErrorBoundary>
                 <div className="transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]">
                   <Terminal />
