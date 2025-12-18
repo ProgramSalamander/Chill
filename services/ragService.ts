@@ -1,7 +1,7 @@
 import { File } from '../types';
 import { getFilePath, generateProjectStructureContext } from '../utils/fileUtils';
 import { useUIStore } from '../stores/uiStore';
-import { useTerminalStore } from '../stores/terminalStore';
+import { errorService } from './errorService';
 
 const STOP_WORDS = new Set([
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
@@ -56,8 +56,8 @@ class RAGService {
   }
 
   private chunkFile(file: File, allFiles: File[]): Chunk[] {
-    const CHUNK_SIZE = 20; // lines
-    const CHUNK_OVERLAP = 5; // lines
+    const CHUNK_SIZE = 20; 
+    const CHUNK_OVERLAP = 5; 
     const chunks: Chunk[] = [];
     const lines = file.content.split('\n');
     const filePath = getFilePath(file, allFiles);
@@ -83,12 +83,11 @@ class RAGService {
     if (this.isIndexing) return;
     this.isIndexing = true;
     
-    // Run in a worker-like fashion to not block UI thread
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
       const filesToIndex = files
-        .filter(f => f.type === 'file' && f.content.length > 0 && f.content.length < 100000); // Skip large files
+        .filter(f => f.type === 'file' && f.content.length > 0 && f.content.length < 100000); 
         
       useUIStore.getState().setIndexingProgress({ loaded: 0, total: filesToIndex.length });
 
@@ -97,7 +96,7 @@ class RAGService {
           const file = filesToIndex[i];
           allChunks.push(...this.chunkFile(file, files));
           useUIStore.getState().setIndexingProgress({ loaded: i + 1, total: filesToIndex.length });
-          if (i % 5 === 0) { // Yield to main thread every 5 files
+          if (i % 5 === 0) { 
               await new Promise(resolve => setTimeout(resolve, 10));
           }
       }
@@ -142,7 +141,6 @@ class RAGService {
           vector.set(term, tfidf);
           magnitude += tfidf * tfidf;
         }
-        // Normalize vector
         const norm = Math.sqrt(magnitude);
         if (norm > 0) {
             for (const [term, val] of vector.entries()) {
@@ -160,8 +158,7 @@ class RAGService {
       };
 
     } catch (e: any) {
-      console.error("Failed to build RAG index:", e);
-      useTerminalStore.getState().addTerminalLine(`Failed to build smart context index: ${e.message}`, 'error');
+      errorService.report(e, "RAG Indexing");
       this.index = null;
     } finally {
       useUIStore.getState().setIndexingProgress(null);
@@ -186,7 +183,6 @@ class RAGService {
   
   private cosineSimilarity(vecA: Map<string, number>, vecB: Map<string, number>): number {
       let dotProduct = 0;
-      // Iterate over the smaller map for efficiency
       const [smallerVec, largerVec] = vecA.size < vecB.size ? [vecA, vecB] : [vecB, vecA];
 
       for (const [term, val] of smallerVec.entries()) {
@@ -194,10 +190,9 @@ class RAGService {
               dotProduct += val * (largerVec.get(term) || 0);
           }
       }
-      return dotProduct; // Magnitudes are 1 due to normalization
+      return dotProduct; 
   }
 
-  // New method to expose search directly
   public search(query: string, limit: number = 5): SearchResult[] {
     if (!this.index) return [];
 
@@ -252,15 +247,6 @@ class RAGService {
 
     if (relevantChunks.length > 0) {
         context += "Potentially relevant code snippets:\n";
-        // Dedupe chunks from the same file to avoid too much noise
-        const uniqueFileChunks = new Map<string, typeof relevantChunks[0]>();
-        for (const item of relevantChunks) {
-            // Simple logic: if we have a chunk from this file already, skip unless score is significantly better
-            // Actually, showing multiple parts of same file is good. Let's just key by ID (chunk ID is unique).
-            // But we want to avoid spamming the same file content.
-            // Let's just iterate.
-        }
-
         for (const chunk of relevantChunks) {
             context += `---\nFile: ${chunk.filePath} (lines ${chunk.startLine}-${chunk.endLine})\n${chunk.snippet}\n`;
         }
@@ -268,7 +254,6 @@ class RAGService {
     }
 
     if (activeFile) {
-      // Ensure active file is always included if not already covered substantially
       if (!relevantChunks.some(c => c.fileId === activeFile.id)) {
         context += `Currently active file (${getFilePath(activeFile, allFiles)}):\n${activeFile.content}\n\n`;
       }

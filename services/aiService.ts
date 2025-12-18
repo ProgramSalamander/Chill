@@ -2,7 +2,7 @@ import { getAIConfig, getActiveChatConfig, getActiveCompletionConfig } from "./c
 import { GeminiProvider } from "./providers/GeminiProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AIModelProfile, Message, AgentPlanItem, AISession, AIProviderAdapter, File } from "../types";
-import { useTerminalStore } from "../stores/terminalStore";
+import { errorService } from "./errorService";
 
 class AIService {
   private getProvider(config: AIModelProfile): AIProviderAdapter {
@@ -34,15 +34,14 @@ class AIService {
   }): Promise<AgentPlanItem[]> {
     const config = getActiveChatConfig();
     if (!config) {
-        console.error("No active chat model configured for agent planning.");
+        errorService.report("No active chat model configured for agent planning.", "AI Service", { notifyUser: true });
         return [];
     }
     try {
         const provider = this.getProvider(config);
         return await provider.generateAgentPlan({ ...props, config });
     } catch (e: any) {
-        console.error("Failed to generate or parse plan", e);
-        useTerminalStore.getState().addTerminalLine(`Failed to generate agent plan: ${e.message}`, 'error');
+        errorService.report(e, "AI Service (Planning)");
         return [];
     }
   }
@@ -71,8 +70,7 @@ class AIService {
         const response = await this.generateText(config, prompt);
         return response.trim() || "Update files";
     } catch (e: any) {
-        console.error("AI Error generating commit message:", e);
-        useTerminalStore.getState().addTerminalLine(`AI commit message generation failed.`, 'warning');
+        errorService.report(e, "AI Service (Commit Message)", { silent: true, severity: 'warning' });
         return "Update files";
     }
   }
@@ -117,27 +115,20 @@ ${codeAfterCursor.slice(0, 500)}
 
 Complete the code at the cursor position.`;
     
-    console.log('[aiService] getCodeCompletion prompt:', { language, filename: file.name, context: `...${context.slice(-100)}[CURSOR]` });
-
     try {
         const response = await this.generateText(config, prompt, { temperature: 0.2, maxOutputTokens: 128 });
         
-        console.log('[aiService] Raw completion response:', response);
-
         if (!response) {
             return null;
         }
 
         let cleanedResponse = response;
-        // Strip markdown fences if the model includes them by mistake, but preserve surrounding whitespace.
         const trimmedResponse = response.trim();
         if (trimmedResponse.startsWith('```') && trimmedResponse.endsWith('```')) {
             cleanedResponse = trimmedResponse.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
         }
 
-        // Trim exact overlaps between the suggestion and surrounding context
         if (cleanedResponse) {
-            // Trim leading overlap that duplicates the start of codeAfterCursor
             const maxLead = Math.min(cleanedResponse.length, codeAfterCursor.length);
             for (let i = maxLead; i > 0; i--) {
                 if (cleanedResponse.endsWith(codeAfterCursor.slice(0, i))) {
@@ -146,7 +137,6 @@ Complete the code at the cursor position.`;
                 }
             }
 
-            // Trim trailing overlap that duplicates the end of codeBeforeCursor
             const maxTrail = Math.min(cleanedResponse.length, codeBeforeCursor.length);
             for (let i = maxTrail; i > 0; i--) {
                 if (cleanedResponse.startsWith(codeBeforeCursor.slice(codeBeforeCursor.length - i))) {
@@ -158,10 +148,10 @@ Complete the code at the cursor position.`;
             if (cleanedResponse.trim().length === 0) cleanedResponse = null;
         }
         
-        console.log('[aiService] Cleaned completion response:', cleanedResponse);
         return cleanedResponse ? cleanedResponse : null;
     } catch (e: any) {
-        console.error('[aiService] getCodeCompletion error:', e);
+        // Code completion failures should be silent to not interrupt typing flow
+        errorService.report(e, "AI Service (Completion)", { silent: true, terminal: false, severity: 'warning' });
         return null;
     }
   }
@@ -192,8 +182,7 @@ Complete the code at the cursor position.`;
         
         return cleanedText ? cleanedText : null;
     } catch (e: any) {
-        console.error("Failed to edit code with AI:", e);
-        useTerminalStore.getState().addTerminalLine(`AI code edit failed: ${e.message}`, 'error');
+        errorService.report(e, "AI Service (Code Edit)");
         return null;
     }
   }

@@ -1,6 +1,3 @@
-
-
-
 import * as git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
@@ -8,6 +5,7 @@ import { File } from '../types';
 import { getLanguage } from '../utils/fileUtils';
 import { useTerminalStore } from '../stores/terminalStore';
 import { useGitAuthStore } from '../stores/gitAuthStore';
+import { errorService } from './errorService';
 
 let fs: LightningFS;
 let pfs: any;
@@ -45,8 +43,6 @@ async function directoryExists(dirPath: string) {
 
 // These are called by isomorphic-git during an operation
 const onAuth = (): undefined => {
-  // We will always rely on onAuthFailure to prompt for credentials for security.
-  // This prevents storing credentials in memory longer than necessary.
   return undefined;
 };
 
@@ -55,10 +51,9 @@ const onAuthFailure = async (url: string) => {
   addTerminalLine(`Authentication required for ${new URL(url).hostname}.`, 'warning');
   try {
     const { username, token } = await useGitAuthStore.getState().promptForCredentials();
-    return { username, password: token }; // 'password' is used for PATs in isomorphic-git
+    return { username, password: token }; 
   } catch (e) {
     addTerminalLine('Authentication cancelled.', 'info');
-    // Throwing an error will cancel the git operation and bubble up to the gitStore action.
     throw new Error('Authentication cancelled by user.');
   }
 };
@@ -79,21 +74,18 @@ export const gitService = {
       try {
           const files = await pfs.readdir('/');
           for (const file of files) {
-             if (file === '.git') continue; // isomorphic-git might struggle if we nuke .git while active, but we should usually be fine as we re-clone
+             if (file === '.git') continue; 
              try {
-                // Determine if dir or file
                 const stat = await pfs.stat(`/${file}`);
                 if (stat.type === 'dir') {
-                    // Recursive delete helper (naive)
                     await gitService.deleteRecursive(`/${file}`);
                 } else {
                     await pfs.unlink(`/${file}`);
                 }
              } catch (e) {
-                 console.warn("Failed to delete", file, e);
+                errorService.report(e, "Git FS Clear", { silent: true, severity: 'warning' });
              }
           }
-          // Try to remove .git last
           try {
               await gitService.deleteRecursive('/.git');
           } catch(e) {}
@@ -122,8 +114,7 @@ export const gitService = {
     try {
         await git.init({ fs, dir: '/' });
     } catch (e: any) {
-        console.error("Git Init Error", e);
-        useTerminalStore.getState().addTerminalLine(`Git init failed: ${e.message}`, 'error');
+        errorService.report(e, "Git Init");
     }
   },
 
@@ -132,10 +123,8 @@ export const gitService = {
       const stats = await pfs.stat('/.git');
       return stats.type === 'dir';
     } catch (e: any) {
-      if (e.code === 'ENOENT') {
-        return false; // This is an expected case, not an error.
-      }
-      console.error("Failed to check for git repo:", e);
+      if (e.code === 'ENOENT') return false;
+      errorService.report(e, "Git Repo Check", { silent: true, terminal: false, severity: 'warning' });
       return false;
     }
   },
@@ -157,7 +146,6 @@ export const gitService = {
 
   writeFile: async (filepath: string, content: string) => {
     try {
-        // Make parent directories if they don't exist
         const parts = filepath.split('/');
         if (parts.length > 1) {
           let currentPath = '';
@@ -170,8 +158,8 @@ export const gitService = {
         }
         await pfs.writeFile(`/${filepath}`, content, 'utf8');
     } catch (e: any) {
-        console.error("Git Write Error", e);
-        useTerminalStore.getState().addTerminalLine(`Failed to write file to git FS for ${filepath}: ${e.message}`, 'error');
+        // Fix: Removed 'context' property from ErrorReportOptions as it is not supported and merged it into the context string parameter.
+        errorService.report(e, `Git FS Write: ${filepath}`);
     }
   },
 
@@ -199,26 +187,18 @@ export const gitService = {
             const [filepath, head, workdir, stage] = row;
             let status: GitStatus['status'] = 'unmodified';
 
-            // Simplified mapping for UI
-            if (head === 0 && workdir === 2 && stage === 0) status = 'added'; // Untracked
-            else if (head === 0 && stage === 2) status = '*added'; // Staged New
-            else if (head === 1 && workdir === 2 && stage === 1) status = 'modified'; // Modified
-            else if (head === 1 && stage === 2 && workdir === 2) status = '*modified'; // Staged Modified
-            else if (head === 1 && workdir === 0) status = 'deleted'; // Deleted locally
-            else if (head === 1 && stage === 3) status = '*deleted'; // Staged Deletion
-            else if (head === 1 && workdir === 2 && stage === 3) status = '*modified'; // Staged modified (special case)
+            if (head === 0 && workdir === 2 && stage === 0) status = 'added'; 
+            else if (head === 0 && stage === 2) status = '*added'; 
+            else if (head === 1 && workdir === 2 && stage === 1) status = 'modified'; 
+            else if (head === 1 && stage === 2 && workdir === 2) status = '*modified'; 
+            else if (head === 1 && workdir === 0) status = 'deleted'; 
+            else if (head === 1 && stage === 3) status = '*deleted'; 
+            else if (head === 1 && workdir === 2 && stage === 3) status = '*modified'; 
             
-            return {
-                filepath,
-                head,
-                workdir,
-                stage,
-                status
-            };
+            return { filepath, head, workdir, stage, status };
         });
     } catch (e: any) {
-        console.error("Git Status Error", e);
-        useTerminalStore.getState().addTerminalLine(`Failed to get git status: ${e.message}`, 'error');
+        errorService.report(e, "Git Status");
         return [];
     }
   },
@@ -232,7 +212,6 @@ export const gitService = {
   },
 
   reset: async (filepath: string) => {
-    // Reset index (unstage)
     await git.resetIndex({ fs, dir: '/', filepath });
   },
 
@@ -241,7 +220,6 @@ export const gitService = {
   },
 
   readConfig: async () => {
-    // FIX: The `key` property should be `path` for `git.getConfig`.
     return git.getConfig({ fs, dir: '/', path: 'user.name' });
   },
 
@@ -249,13 +227,8 @@ export const gitService = {
     try {
         return await git.log({ fs, dir: '/' });
     } catch (e: any) {
-        // This is an expected error for a new repository with no commits.
-        if (e.code === 'NotFoundError') {
-            return []; // Return empty array silently.
-        }
-        // Log other unexpected errors.
-        console.error("Failed to get git log:", e);
-        useTerminalStore.getState().addTerminalLine(`Failed to get git log: ${e.message}`, 'error');
+        if (e.code === 'NotFoundError') return [];
+        errorService.report(e, "Git Log", { silent: true, terminal: false, severity: 'warning' });
         return [];
     }
   },
@@ -266,19 +239,15 @@ export const gitService = {
       const { blob } = await git.readBlob({ fs, dir: '/', oid, filepath });
       return new TextDecoder().decode(blob);
     } catch (e) {
-      // Could be file not in commit, or ref not found etc.
-      console.warn(`Could not read blob for ${filepath}@${ref}:`, e);
       return null;
     }
   },
 
   pull: async (name: string = 'Vibe Coder', email: string = 'coder@vibecode.ai') => {
-    // Attempt to pull from 'main', fallback to 'master'
     try {
       await git.pull({ fs, http, dir: '/', ref: 'main', singleBranch: true, author: { name, email }, onAuth, onAuthFailure });
     } catch (e: any) {
       if (e.code === 'ResolveRefError') {
-        console.warn("Could not find 'main' branch, trying 'master'.");
         await git.pull({ fs, http, dir: '/', ref: 'master', singleBranch: true, author: { name, email }, onAuth, onAuthFailure });
       } else {
         throw e;
@@ -298,12 +267,10 @@ export const gitService = {
   },
 
   fetch: async () => {
-    // Attempt to fetch from 'main', fallback to 'master'
     try {
       return await git.fetch({ fs, http, dir: '/', ref: 'main', singleBranch: true, onAuth, onAuthFailure });
     } catch (e: any) {
         if (e.code === 'ResolveRefError') {
-            console.warn("Could not find 'main' branch, trying 'master'.");
             return await git.fetch({ fs, http, dir: '/', ref: 'master', singleBranch: true, onAuth, onAuthFailure });
         } else {
             throw e;
@@ -311,7 +278,6 @@ export const gitService = {
     }
   },
 
-  // Helper to traverse FS and build File[] state
   loadFilesToMemory: async (): Promise<File[]> => {
       const files: File[] = [];
       
@@ -324,7 +290,6 @@ export const gitService = {
               const id = Math.random().toString(36).slice(2, 11);
 
               if (stat.type === 'dir') {
-                   // Create folder node
                    files.push({
                        id,
                        name: entry,
@@ -336,9 +301,8 @@ export const gitService = {
                    });
                    await walk(fullPath, id);
               } else {
-                   // Read file content (skip binary/large files)
                    let content = '';
-                   if (stat.size < 2000000) { // 2MB limit
+                   if (stat.size < 2000000) { 
                        content = await pfs.readFile(fullPath, 'utf8');
                    } else {
                        content = '[File too large]';
@@ -351,7 +315,7 @@ export const gitService = {
                        parentId,
                        language: getLanguage(entry),
                        content,
-                       committedContent: content, // Since we just loaded from git/fs
+                       committedContent: content,
                        isModified: false,
                        history: { past: [], future: [], lastSaved: Date.now() }
                    });
