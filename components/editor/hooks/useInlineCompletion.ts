@@ -1,6 +1,7 @@
 
 import { useEffect } from 'react';
 import * as monaco from 'monaco-editor';
+import { useUIStore } from '../../../stores/uiStore';
 
 export const useInlineCompletion = (
   monacoInstance: typeof monaco | null,
@@ -14,6 +15,13 @@ export const useInlineCompletion = (
     const provider = monacoInstance.languages.registerInlineCompletionsProvider(language, {
       debounceDelayMs: 400,
       provideInlineCompletions: async (model, position, context, token) => {
+        const { inlineCompletionsEnabled, disabledInlineLanguages } = useUIStore.getState();
+
+        // Check if disabled globally or for this specific language
+        if (!inlineCompletionsEnabled || disabledInlineLanguages.includes(language)) {
+          return { items: [] };
+        }
+
         console.log('[CodeEditor] Inline completion triggered', { position, kind: context.triggerKind });
         
         if (token.isCancellationRequested) {

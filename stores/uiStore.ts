@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SidebarView } from '../types';
@@ -20,6 +21,10 @@ interface UIState {
   isPreviewOpen: boolean;
   isCloneModalOpen: boolean;
   
+  // AI Feature Settings
+  inlineCompletionsEnabled: boolean;
+  disabledInlineLanguages: string[];
+  
   // Actions
   toggleTheme: () => void;
   setIsTerminalOpen: (isOpen: boolean) => void;
@@ -33,6 +38,9 @@ interface UIState {
   setIsPreviewOpen: (isOpen: boolean) => void;
   setIsCloneModalOpen: (isOpen: boolean) => void;
   setIndexingStatus: (status: IndexingStatus) => void;
+  
+  setInlineCompletionsEnabled: (enabled: boolean) => void;
+  setDisabledInlineLanguages: (languages: string[]) => void;
 }
 
 const getDefaultSidebarViews = (): SidebarView[] => {
@@ -96,6 +104,9 @@ export const useUIStore = create<UIState>()(
       isPreviewOpen: false,
       isCloneModalOpen: false,
       indexingStatus: 'idle',
+      
+      inlineCompletionsEnabled: true,
+      disabledInlineLanguages: [],
 
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       setIsTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -109,6 +120,9 @@ export const useUIStore = create<UIState>()(
       setIsPreviewOpen: (isOpen) => set({ isPreviewOpen: isOpen }),
       setIsCloneModalOpen: (isOpen) => set({ isCloneModalOpen: isOpen }),
       setIndexingStatus: (status) => set({ indexingStatus: status }),
+      
+      setInlineCompletionsEnabled: (enabled) => set({ inlineCompletionsEnabled: enabled }),
+      setDisabledInlineLanguages: (languages) => set({ disabledInlineLanguages: languages }),
     }),
     {
       name: 'vibe-ui-layout-storage',
@@ -118,6 +132,8 @@ export const useUIStore = create<UIState>()(
         activeSidebarView: state.activeSidebarView,
         sidebarWidth: state.sidebarWidth,
         sidebarViews: state.sidebarViews.map(({ id, order, visible }) => ({ id, order, visible })),
+        inlineCompletionsEnabled: state.inlineCompletionsEnabled,
+        disabledInlineLanguages: state.disabledInlineLanguages,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
