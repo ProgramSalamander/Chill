@@ -135,7 +135,16 @@ export const useFileTreeStore = create<FileTreeState>()(
             const timeDiff = now - history.lastSaved;
             const isSignificant = Math.abs(content.length - f.content.length) > 2;
             if (forceHistory || timeDiff > 1000 || isSignificant) {
-              return { ...f, content, isModified: true, history: { past: [...history.past, f.content], future: [], lastSaved: now } };
+              return { 
+                ...f, 
+                content, 
+                isModified: true, 
+                history: { 
+                  past: [...history.past, f.content].slice(-50), // Limit history to 50 items
+                  future: [], 
+                  lastSaved: now 
+                } 
+              };
             }
             return { ...f, content, isModified: true };
           })
@@ -181,8 +190,49 @@ export const useFileTreeStore = create<FileTreeState>()(
         }
       },
 
-      undo: () => { /* ... implementation ... */ },
-      redo: () => { /* ... implementation ... */ },
+      undo: () => {
+        const { activeFileId } = get();
+        if (!activeFileId) return;
+        set(state => ({
+          files: state.files.map(f => {
+            if (f.id !== activeFileId || !f.history || f.history.past.length === 0) return f;
+            const past = [...f.history.past];
+            const currentContent = f.content;
+            const previousContent = past.pop()!;
+            return {
+              ...f,
+              content: previousContent,
+              history: {
+                past,
+                future: [currentContent, ...f.history.future],
+                lastSaved: Date.now()
+              }
+            };
+          })
+        }));
+      },
+
+      redo: () => {
+        const { activeFileId } = get();
+        if (!activeFileId) return;
+        set(state => ({
+          files: state.files.map(f => {
+            if (f.id !== activeFileId || !f.history || f.history.future.length === 0) return f;
+            const future = [...f.history.future];
+            const currentContent = f.content;
+            const nextContent = future.shift()!;
+            return {
+              ...f,
+              content: nextContent,
+              history: {
+                past: [...f.history.past, currentContent],
+                future,
+                lastSaved: Date.now()
+              }
+            };
+          })
+        }));
+      },
 
       setActiveFileId: (id) => set({ activeFileId: id }),
       setFileToDelete: (file) => set({ fileToDelete: file }),

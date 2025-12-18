@@ -54,6 +54,8 @@ function App() {
   const showContextMenu = useUIStore(state => state.showContextMenu);
   const setIsCommandPaletteOpen = useUIStore(state => state.setIsCommandPaletteOpen);
   const setIsSettingsOpen = useUIStore(state => state.setIsSettingsOpen);
+  const setIsTerminalOpen = useUIStore(state => state.setIsTerminalOpen);
+  const setActiveSidebarView = useUIStore(state => state.setActiveSidebarView);
 
   const initChat = useChatStore(state => state.initChat);
   const sendMessage = useChatStore(state => state.sendMessage);
@@ -93,6 +95,48 @@ function App() {
   }, [activeFile?.content, activeFile?.id, diagnostics, setDiagnostics]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmd = isMac ? e.metaKey : e.ctrlKey;
+      
+      // Toggle Sidebar (Cmd+B)
+      if (cmd && e.key === 'b') {
+        e.preventDefault();
+        const current = useUIStore.getState().activeSidebarView;
+        setActiveSidebarView(current ? null : 'explorer');
+      }
+      // Toggle AI Panel (Cmd+L)
+      if (cmd && e.key === 'l') {
+        e.preventDefault();
+        setIsAIOpen(!useUIStore.getState().isAIOpen);
+      }
+      // Toggle Terminal (Cmd+J)
+      if (cmd && e.key === 'j') {
+        e.preventDefault();
+        setIsTerminalOpen(!useUIStore.getState().isTerminalOpen);
+      }
+      // Open Spotlight (Cmd+P)
+      if (cmd && e.key === 'p') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+      // Open Settings (Cmd+,)
+      if (cmd && e.key === ',') {
+        e.preventDefault();
+        setIsSettingsOpen(true);
+      }
+      // Save (Cmd+S)
+      if (cmd && e.key === 's') {
+        e.preventDefault();
+        if (activeFile) saveFile(activeFile);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeFile, saveFile, setActiveSidebarView, setIsAIOpen, setIsTerminalOpen, setIsCommandPaletteOpen, setIsSettingsOpen]);
+
+  useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
@@ -112,11 +156,11 @@ function App() {
       { id: 'ai-help', label: 'Ask AI Assistant', icon: <IconBrain size={14}/>, shortcut: '⌘L', onClick: () => setIsAIOpen(true) },
       { id: 'sep1', label: '', variant: 'separator', onClick: () => {} },
       { id: 'format', label: 'Format Document', icon: <IconZap size={14}/>, shortcut: '⇧⌥F', onClick: () => addTerminalLine("Formatting not implemented", "info") },
-      { id: 'sidebar', label: 'Toggle Sidebar', icon: <IconLayout size={14}/>, shortcut: '⌘B', onClick: () => useUIStore.getState().setActiveSidebarView(useUIStore.getState().activeSidebarView ? null : 'explorer') },
+      { id: 'sidebar', label: 'Toggle Sidebar', icon: <IconLayout size={14}/>, shortcut: '⌘B', onClick: () => setActiveSidebarView(useUIStore.getState().activeSidebarView ? null : 'explorer') },
       { id: 'sep2', label: '', variant: 'separator', onClick: () => {} },
       { id: 'settings', label: 'Settings', icon: <IconSettings size={14}/>, shortcut: '⌘,', onClick: () => setIsSettingsOpen(true) },
     ]);
-  }, [showContextMenu, setIsCommandPaletteOpen, setIsAIOpen, setIsSettingsOpen, addTerminalLine]);
+  }, [showContextMenu, setIsCommandPaletteOpen, setIsAIOpen, setIsSettingsOpen, setActiveSidebarView, addTerminalLine]);
 
   const handleSaveFile = useCallback(() => {
     if (activeFile) {
@@ -273,7 +317,7 @@ function App() {
                   </ErrorBoundary>
               </div>
               <ErrorBoundary>
-                <div className="transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]">
+                <div className="transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]">
                   <Terminal />
                 </div>
               </ErrorBoundary>
