@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   FileCode, 
@@ -9,7 +10,6 @@ import {
   MessageSquare, 
   Sparkles, 
   X, 
-  Menu, 
   ChevronRight, 
   ChevronDown,
   Plus,
@@ -26,11 +26,9 @@ import {
   Trash2,
   Command,
   Edit2,
-  MoreHorizontal,
   FilePlus,
   FolderPlus,
   GitBranch,
-  GitCommit,
   GitMerge,
   PlusCircle,
   MinusCircle,
@@ -47,11 +45,9 @@ import {
   PlayCircle,
   BrainCircuit,
   Network,
-  ShieldCheck,
   AlertTriangle,
   Activity,
   ArrowRightCircle,
-  Workflow,
   Sun,
   Moon,
   ArrowDown,
@@ -73,7 +69,6 @@ export const IconMessage = (props: any) => <MessageSquare {...props} />;
 export const IconSparkles = (props: any) => <Sparkles {...props} />;
 export const IconClose = (props: any) => <X {...props} />;
 export const IconX = (props: any) => <X {...props} />;
-export const IconMenu = (props: any) => <Menu {...props} />;
 export const IconChevronRight = (props: any) => <ChevronRight {...props} />;
 export const IconChevronDown = (props: any) => <ChevronDown {...props} />;
 export const IconPlus = (props: any) => <Plus {...props} />;
@@ -90,11 +85,9 @@ export const IconRedo = (props: any) => <Redo {...props} />;
 export const IconTrash = (props: any) => <Trash2 {...props} />;
 export const IconCommand = (props: any) => <Command {...props} />;
 export const IconEdit = (props: any) => <Edit2 {...props} />;
-export const IconMore = (props: any) => <MoreHorizontal {...props} />;
 export const IconFilePlus = (props: any) => <FilePlus {...props} />;
 export const IconFolderPlus = (props: any) => <FolderPlus {...props} />;
 export const IconGitBranch = (props: any) => <GitBranch {...props} />;
-export const IconGitCommit = (props: any) => <GitCommit {...props} />;
 export const IconGitMerge = (props: any) => <GitMerge {...props} />;
 export const IconPlusCircle = (props: any) => <PlusCircle {...props} />;
 export const IconMinusCircle = (props: any) => <MinusCircle {...props} />;
@@ -111,11 +104,9 @@ export const IconXCircle = (props: any) => <XCircle {...props} />;
 export const IconPlayCircle = (props: any) => <PlayCircle {...props} />;
 export const IconBrain = (props: any) => <BrainCircuit {...props} />;
 export const IconNetwork = (props: any) => <Network {...props} />;
-export const IconShield = (props: any) => <ShieldCheck {...props} />;
 export const IconAlert = (props: any) => <AlertTriangle {...props} />;
 export const IconActivity = (props: any) => <Activity {...props} />;
 export const IconArrowRight = (props: any) => <ArrowRightCircle {...props} />;
-export const IconWorkflow = (props: any) => <Workflow {...props} />;
 export const IconSun = (props: any) => <Sun {...props} />;
 export const IconMoon = (props: any) => <Moon {...props} />;
 export const IconArrowDown = (props: any) => <ArrowDown {...props} />;
