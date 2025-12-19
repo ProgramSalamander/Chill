@@ -106,7 +106,11 @@ const CloneModal: React.FC = () => {
                     <div className="text-[10px] text-slate-500 font-mono mt-0.5">ProgramSalamander/Chill</div>
                 </div>
                 <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-vibe-accent group-hover:text-white transition-colors text-slate-500">
-                    <IconGitBranch size={12} />
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v16/icons/github.svg" 
+                      className="w-3 h-3 invert opacity-60 group-hover:opacity-100 transition-opacity" 
+                      alt="GitHub" 
+                    />
                 </div>
             </button>
           </div>
