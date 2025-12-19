@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  IconSearch, 
+  IconCommand, 
   IconFileCode, 
   IconChevronRight,
   IconFilePlus,
@@ -143,7 +144,7 @@ const CommandPalette: React.FC = () => {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center px-6 py-4 border-b border-white/5 bg-white/5">
-           <IconSearch className="text-vibe-glow w-5 h-5 mr-4 opacity-70" />
+           <IconCommand className="text-vibe-glow w-5 h-5 mr-4 opacity-70" />
            <input 
              ref={inputRef}
              type="text"

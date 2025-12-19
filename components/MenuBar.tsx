@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   IconPlus, 
@@ -12,7 +13,7 @@ import {
   IconDownload,
   IconUndo,
   IconRedo,
-  IconSearch,
+  IconCommand,
   IconTerminal,
   IconSparkles,
   IconLayout,
@@ -21,7 +22,8 @@ import {
   IconEye,
   IconChevronDown,
   IconEdit,
-  IconX
+  IconX,
+  IconSearch
 } from './Icons';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
@@ -193,7 +195,7 @@ const MenuBar: React.FC = () => {
                     </button>
                     <div className="h-[1px] bg-white/5 my-1 mx-2" />
                     <button onClick={() => { setIsCommandPaletteOpen(true); closeMenu(); }} className={itemClass}>
-                        <div className={iconLabelClass}><IconSearch size={14} /> <span>Spotlight</span></div>
+                        <div className={iconLabelClass}><IconCommand size={14} /> <span>Spotlight</span></div>
                         <span className="text-[10px] opacity-40 font-mono">⌘P</span>
                     </button>
                 </div>
@@ -260,7 +262,7 @@ const MenuBar: React.FC = () => {
             onClick={() => setIsCommandPaletteOpen(true)}
             className="flex items-center gap-2 px-4 h-7 my-auto bg-black/20 hover:bg-black/40 dark:bg-white/5 dark:hover:bg-white/10 rounded-lg border border-white/5 shadow-inner transition-all group max-w-sm w-full justify-center"
          >
-             <IconSearch size={12} className="text-vibe-text-muted group-hover:text-vibe-glow transition-colors" />
+             <IconCommand size={12} className="text-vibe-text-muted group-hover:text-vibe-glow transition-colors" />
              <div className="flex items-center gap-1.5 text-[11px] text-vibe-text-soft font-medium tracking-wide overflow-hidden">
                  <span className="opacity-60">{activeProject?.name || '...'}</span>
                  <span className="opacity-30">/</span>

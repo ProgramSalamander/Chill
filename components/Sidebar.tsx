@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { IconSearch, IconSettings } from './Icons';
+import { IconCommand, IconSettings } from './Icons';
 import { SidebarView } from '../types';
 import FileExplorer from './FileExplorer';
 import GitPanel from './GitPanel';
@@ -202,7 +202,7 @@ const Sidebar: React.FC = () => {
                 onClick={() => setIsCommandPaletteOpen(true)}
                 className="p-3 rounded-xl text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-300 hover:scale-105"
               >
-                <IconSearch size={20} strokeWidth={1.5} />
+                <IconCommand size={20} strokeWidth={1.5} />
               </button>
             </Tooltip>
             
