@@ -151,11 +151,14 @@ export const useFileTreeStore = create<FileTreeState>()(
             const history = f.history || { past: [], future: [], lastSaved: 0 };
             const timeDiff = now - history.lastSaved;
             const isSignificant = Math.abs(content.length - f.content.length) > 2;
+            
+            const isModified = content !== (f.committedContent || '');
+
             if (forceHistory || timeDiff > 1000 || isSignificant) {
               return { 
                 ...f, 
                 content, 
-                isModified: true, 
+                isModified, 
                 history: { 
                   past: [...history.past, f.content].slice(-50), // Limit history to 50 items
                   future: [], 
@@ -163,13 +166,13 @@ export const useFileTreeStore = create<FileTreeState>()(
                 } 
               };
             }
-            return { ...f, content, isModified: true };
+            return { ...f, content, isModified };
           })
         }));
       },
 
       saveFile: async (file) => {
-        set(state => ({ files: state.files.map(f => f.id === file.id ? { ...f, isModified: false } : f) }));
+        set(state => ({ files: state.files.map(f => f.id === file.id ? { ...f, isModified: false, committedContent: f.content } : f) }));
         notify(`Saved ${file.name}`, 'success');
         useGitStore.getState().syncFile(file);
         ragService.triggerDebouncedUpdate(get().files);
@@ -216,9 +219,13 @@ export const useFileTreeStore = create<FileTreeState>()(
             const past = [...f.history.past];
             const currentContent = f.content;
             const previousContent = past.pop()!;
+            
+            const isModified = previousContent !== (f.committedContent || '');
+
             return {
               ...f,
               content: previousContent,
+              isModified,
               history: {
                 past,
                 future: [currentContent, ...f.history.future],
@@ -238,9 +245,13 @@ export const useFileTreeStore = create<FileTreeState>()(
             const future = [...f.history.future];
             const currentContent = f.content;
             const nextContent = future.shift()!;
+            
+            const isModified = nextContent !== (f.committedContent || '');
+
             return {
               ...f,
               content: nextContent,
+              isModified,
               history: {
                 past: [...f.history.past, currentContent],
                 future,
