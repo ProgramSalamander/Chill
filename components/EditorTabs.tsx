@@ -92,25 +92,29 @@ const EditorTabs: React.FC<EditorTabsProps> = ({
       </div>
 
       <div className="flex items-center gap-2 pl-2 border-l border-vibe-border">
-          <Tooltip content={isPreviewOpen ? "Hide Preview" : "Show Live Preview"} position="bottom">
-            <button 
-                onClick={() => setIsPreviewOpen(!isPreviewOpen)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/5'}`}
-            >
-                {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
-                <span className="hidden lg:inline">Preview</span>
-            </button>
-          </Tooltip>
-          <Tooltip content="Run Code" position="bottom">
-            <button 
-                onClick={onRunCode}
-                disabled={!hasActiveFile}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
-            >
-                <IconPlay size={14} />
-                <span className="hidden lg:inline">Run</span>
-            </button>
-          </Tooltip>
+          {hasActiveFile && (
+            <>
+              <Tooltip content={isPreviewOpen ? "Hide Preview" : "Show Live Preview"} position="bottom">
+                <button 
+                    onClick={() => setIsPreviewOpen(!isPreviewOpen)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isPreviewOpen ? 'bg-vibe-accent text-white shadow-lg shadow-vibe-accent/20' : 'text-vibe-text-soft hover:text-vibe-text-main hover:bg-black/5 dark:hover:bg-white/5'}`}
+                >
+                    {isPreviewOpen ? <IconEyeOff size={14} /> : <IconEye size={14} />}
+                    <span className="hidden lg:inline">Preview</span>
+                </button>
+              </Tooltip>
+              <Tooltip content="Run Code" position="bottom">
+                <button 
+                    onClick={onRunCode}
+                    disabled={!hasActiveFile}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20 border border-green-500/20 transition-all text-xs font-semibold hover:shadow-[0_0_10px_rgba(74,222,128,0.2)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                >
+                    <IconPlay size={14} />
+                    <span className="hidden lg:inline">Run</span>
+                </button>
+              </Tooltip>
+            </>
+          )}
           <Tooltip content={isAIOpen ? "Close AI Panel" : "Open AI Panel"} position="bottom">
             <button 
                 onClick={() => setIsAIOpen(!isAIOpen)}
