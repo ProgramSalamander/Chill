@@ -127,7 +127,6 @@ const AIPanel: React.FC<AIPanelProps> = ({ onInsertCode }) => {
               <div>
                   <h3 className="font-bold tracking-tight text-white text-base flex items-center gap-2">
                       {mode === 'chat' ? 'Vibe Chat' : 'Neural Agent'}
-                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 border border-white/5 text-slate-400 font-mono tracking-widest uppercase">Agent v3</span>
                   </h3>
                   <ModelSwitcher />
               </div>

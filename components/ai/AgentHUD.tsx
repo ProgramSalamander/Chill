@@ -83,7 +83,7 @@ const AgentHUD: React.FC<AgentHUDProps> = ({
                 <IconCpu size={32} className="text-orange-400" />
             </div>
             <div className="text-center">
-                <p className="text-sm font-semibold text-white">Vibe Agent v2.1</p>
+                <p className="text-sm font-semibold text-white">Vibe Agent</p>
                 <p className="text-xs mt-2 max-w-[200px]">I will plan, review, and code with you. Enter a goal to start.</p>
             </div>
         </div>
