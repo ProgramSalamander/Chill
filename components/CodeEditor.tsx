@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
@@ -15,11 +14,13 @@ import { useQuickFix } from './editor/hooks/useQuickFix';
 import { useAICommand } from './editor/hooks/useAICommand';
 import { useAgentStore } from '../stores/agentStore';
 import { useFileTreeStore } from '../stores/fileStore';
+import { getFilePath } from '../utils/fileUtils';
 
 interface CodeEditorProps {
   code: string;
   language: string;
   theme: 'light' | 'dark';
+  path?: string;
   onChange: (newCode: string) => void;
   className?: string;
   cursorOffset?: number;
@@ -107,6 +108,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   code, 
   language, 
   theme,
+  path,
   onChange, 
   className, 
   onCursorChange,
@@ -134,6 +136,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const acceptPatch = useAgentStore(state => state.acceptPatch);
   const rejectPatch = useAgentStore(state => state.rejectPatch);
   const activeFileId = useFileTreeStore(state => state.activeFileId);
+  const allFiles = useFileTreeStore(state => state.files);
   
   const activePatches = useMemo(() => 
     patches.filter(p => p.fileId === activeFileId && p.status === 'pending'), 
@@ -297,9 +300,93 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   }, [diagnostics, editor, monacoInstance]);
 
+  // --- Sync Files to Monaco Models for Cross-File Imports ---
+  useEffect(() => {
+    if (!monacoInstance || !allFiles) return;
+
+    // We only want to create models for files that are NOT the current one (the Editor handles the active one).
+    // This allows Monaco to resolve relative imports like `import X from './X'`
+    
+    allFiles.forEach(file => {
+      if (file.type !== 'file') return;
+      if (file.id === activeFileId) return; // Don't interfere with active model
+
+      const filePath = getFilePath(file, allFiles);
+      const uri = monacoInstance.Uri.parse(`file:///${filePath}`);
+      
+      let model = monacoInstance.editor.getModel(uri);
+      
+      if (!model) {
+        model = monacoInstance.editor.createModel(
+          file.content,
+          getMonacoLanguage(file.language),
+          uri
+        );
+      } else if (model.getValue() !== file.content) {
+        // Only update if changed to avoid cursor jumping if we were editing it (though we skip activeFileId)
+        model.setValue(file.content);
+      }
+    });
+  }, [allFiles, monacoInstance, activeFileId]);
+
   const handleEditorDidMount: OnMount = (editorInstance, monacoInst) => {
     setEditor(editorInstance);
     setMonacoInstance(monacoInst);
+
+    // --- Configure TS/JS Defaults for React/JSX support ---
+    const compilerOptions: monaco.languages.typescript.CompilerOptions = {
+        target: monacoInst.languages.typescript.ScriptTarget.ESNext,
+        allowNonTsExtensions: true,
+        moduleResolution: monacoInst.languages.typescript.ModuleResolutionKind.NodeJs,
+        module: monacoInst.languages.typescript.ModuleKind.CommonJS,
+        noEmit: true,
+        esModuleInterop: true,
+        jsx: monacoInst.languages.typescript.JsxEmit.React,
+        reactNamespace: 'React',
+        allowJs: true,
+        typeRoots: ['node_modules/@types'],
+        checkJs: true,
+    };
+
+    monacoInst.languages.typescript.typescriptDefaults.setCompilerOptions(compilerOptions);
+    monacoInst.languages.typescript.javascriptDefaults.setCompilerOptions(compilerOptions);
+    
+    // Add React Type Shim to suppress "Cannot find module 'react'"
+    const reactTypes = `
+        declare module 'react' { 
+            export = React; 
+        }
+        declare namespace React {
+            var createElement: any;
+            interface ReactElement<P = any, T extends string | any = string | any> {
+                type: T;
+                props: P;
+                key: any;
+            }
+            type ReactNode = any;
+            var Fragment: any;
+            function useState<T>(initialState: T | (() => T)): [T, (newState: T) => void];
+            function useEffect(effect: () => void | (() => void), deps?: any[]): void;
+            function useRef<T>(initialValue: T): { current: T };
+            function useCallback<T extends (...args: any[]) => any>(callback: T, deps: any[]): T;
+            function useMemo<T>(factory: () => T, deps: any[]): T;
+            type FC<P = {}> = (props: P) => ReactElement | null;
+        }
+        declare global {
+            namespace JSX {
+                interface Element extends React.ReactElement<any, any> { }
+                interface IntrinsicElements {
+                    [elemName: string]: any;
+                }
+            }
+        }
+    `;
+    
+    // Ensure we don't add it multiple times
+    const libUri = 'file:///node_modules/@types/react/index.d.ts';
+    if (!monacoInst.languages.typescript.typescriptDefaults.getExtraLibs()[libUri]) {
+        monacoInst.languages.typescript.typescriptDefaults.addExtraLib(reactTypes, libUri);
+    }
 
     monacoInst.editor.defineTheme('vibe-dark-theme', vibeDarkTheme);
     monacoInst.editor.defineTheme('vibe-light-theme', vibeLightTheme);
@@ -349,6 +436,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           height="100%"
           language={mappedLanguage}
           value={code}
+          path={path}
           onChange={(value) => onChange(value || '')}
           onMount={handleEditorDidMount}
           theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}

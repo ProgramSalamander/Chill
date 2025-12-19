@@ -320,6 +320,8 @@ function App() {
       }
   };
 
+  const activeFilePath = activeFile ? getFilePath(activeFile, files) : undefined;
+
   return (
     <div 
       className="flex flex-col h-screen w-screen text-slate-300 font-sans overflow-hidden bg-transparent"
@@ -353,7 +355,9 @@ function App() {
                                 <CodeEditor 
                                     key={activeFile.id}
                                     theme={theme}
-                                    code={activeFile.content} language={activeFile.language}
+                                    code={activeFile.content} 
+                                    language={activeFile.language}
+                                    path={activeFilePath}
                                     onChange={(c) => updateFileContent(c)}
                                     onCursorChange={setCursorPosition}
                                     onSelectionChange={setSelectedCode}
