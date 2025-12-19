@@ -2,6 +2,10 @@
 import { AIProviderAdapter, AIModelProfile, AISession, AIResponse, AIUsageMetadata, AIToolResponse, Message, MessageRole, AgentPlanItem } from "../../types";
 import { AGENT_TOOLS_OPENAI, getApiKey } from "./base";
 
+const filterEmptyMessages = (messages: any[]) => {
+    return messages.filter(m => m.content && m.content.trim() !== "" || (m.tool_calls && m.tool_calls.length > 0) || m.role === 'tool');
+};
+
 const toOpenAIMessages = (messages: Message[]) => {
     return messages.map(msg => ({
         role: msg.role === MessageRole.MODEL ? 'assistant' : msg.role as ('user' | 'system'),
@@ -40,18 +44,14 @@ class OpenAISession implements AISession {
         });
     }
 
-    // Fix: Updated to return usage metadata in AIResponse to match interface
     async sendMessage(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AIResponse> {
         const messages: any[] = [
             { role: 'system', content: this.systemInstruction },
             ...toOpenAIMessages(this.history)
         ];
 
-        if (props.message) {
-            messages.push({ role: 'user', content: props.message });
-        }
-        
-        if (props.toolResponses) {
+        // 核心修复：工具回复必须紧跟在 history 之后（响应上一个 assistant 的 tool_calls）
+        if (props.toolResponses && props.toolResponses.length > 0) {
             props.toolResponses.forEach(tr => {
                 messages.push({
                     role: 'tool',
@@ -61,7 +61,15 @@ class OpenAISession implements AISession {
             });
         }
 
-        const body: any = { messages };
+        // 只有当消息不为空时才添加 user 消息
+        if (props.message && props.message.trim() !== "") {
+            messages.push({ role: 'user', content: props.message });
+        }
+
+        const body: any = { 
+            messages: filterEmptyMessages(messages) 
+        };
+        
         if (this.isAgent) {
             body.tools = AGENT_TOOLS_OPENAI;
             body.tool_choice = "auto";
@@ -73,10 +81,17 @@ class OpenAISession implements AISession {
         const data = await res.json();
         const responseMsg = data.choices[0].message;
 
-        if (props.message) this.history.push({ id: Date.now().toString(), role: MessageRole.USER, text: props.message, timestamp: Date.now() });
-        this.history.push({ id: (Date.now() + 1).toString(), role: MessageRole.MODEL, text: responseMsg.content || 'Tool call', timestamp: Date.now() });
+        if (props.message && props.message.trim() !== "") {
+            this.history.push({ id: Date.now().toString(), role: MessageRole.USER, text: props.message, timestamp: Date.now() });
+        }
+        
+        this.history.push({ 
+            id: (Date.now() + 1).toString(), 
+            role: MessageRole.MODEL, 
+            text: responseMsg.content || '', 
+            timestamp: Date.now() 
+        });
 
-        // Fix: Map OpenAI usage to AIUsageMetadata
         const usage: AIUsageMetadata | undefined = data.usage ? {
             promptTokenCount: data.usage.prompt_tokens,
             candidatesTokenCount: data.usage.completion_tokens,
@@ -95,16 +110,28 @@ class OpenAISession implements AISession {
         return aiResponse;
     }
 
-    // Fix: Updated signature to match AISession interface and included stream_options for usage tracking
     async sendMessageStream(props: { message: string, toolResponses?: AIToolResponse[] }): Promise<AsyncIterable<{ text: string, usage?: AIUsageMetadata }>> {
+        // 如果有工具回复，流式传输通常不适用，直接降级到普通发送
+        if (props.toolResponses && props.toolResponses.length > 0) {
+            const response = await this.sendMessage(props);
+            return (async function* () { yield { text: response.text, usage: response.usage }; })();
+        }
+
         const messages: any[] = [
             { role: 'system', content: this.systemInstruction },
-            ...toOpenAIMessages(this.history),
-            { role: 'user', content: props.message }
+            ...toOpenAIMessages(this.history)
         ];
+        
+        if (props.message && props.message.trim() !== "") {
+            messages.push({ role: 'user', content: props.message });
+        }
 
-        // Enable usage in stream chunks
-        const body = { messages, stream: true, stream_options: { include_usage: true } };
+        const body = { 
+            messages: filterEmptyMessages(messages), 
+            stream: true, 
+            stream_options: { include_usage: true } 
+        };
+        
         const res = await this.performFetch(body);
         if (!res.ok) throw new Error(`OpenAI API stream error: ${await res.text()}`);
 
@@ -127,7 +154,6 @@ class OpenAISession implements AISession {
                             if (delta) {
                                 yield { text: delta };
                             }
-                            // Handle usage metadata in the last chunk
                             if (parsed.usage) {
                                 yield { 
                                     text: '',
@@ -138,7 +164,7 @@ class OpenAISession implements AISession {
                                     }
                                 };
                             }
-                        } catch (e) { /* ignore parse errors on incomplete chunks */ }
+                        } catch (e) { }
                     }
                 }
             }
@@ -151,7 +177,6 @@ export class OpenAIProvider implements AIProviderAdapter {
     return new OpenAISession(props.systemInstruction, props.history, props.isAgent, props.config);
   }
 
-  // Fix: Updated return type to include AIUsageMetadata to satisfy AIProviderAdapter interface
   async generateText(props: { prompt: string; config: AIModelProfile; options?: { temperature?: number | undefined; maxOutputTokens?: number | undefined; signal?: AbortSignal; } | undefined; }): Promise<{ text: string, usage?: AIUsageMetadata }> {
     const apiKey = getApiKey(props.config);
     if (!apiKey) throw new Error("API Key not configured for OpenAI provider.");
