@@ -58,18 +58,18 @@ const CloneModal: React.FC = () => {
   if (!isCloneModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-[450px] bg-[#0f0f16] border border-white/10 rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
-        <div className="p-5 border-b border-white/5 flex justify-between items-center bg-white/5">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-[450px] bg-vibe-800 border border-vibe-border rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
+        <div className="p-5 border-b border-vibe-border flex justify-between items-center bg-vibe-700/50">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-vibe-accent/10 border border-vibe-accent/20">
-               <IconGitBranch size={18} className="text-vibe-glow" />
+               <IconGitBranch size={18} className="text-vibe-accent" />
             </div>
-            <h2 className="text-lg font-semibold text-white tracking-tight">Clone Repository</h2>
+            <h2 className="text-lg font-semibold text-vibe-text-main tracking-tight">Clone Repository</h2>
           </div>
           <button 
             onClick={() => setIsCloneModalOpen(false)} 
-            className="text-slate-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-md"
+            className="text-vibe-text-muted hover:text-vibe-text-main transition-colors p-1 hover:bg-vibe-700/50 rounded-md"
             aria-label="Close clone dialog"
           >
             <IconClose size={18} />
@@ -77,7 +77,7 @@ const CloneModal: React.FC = () => {
         </div>
         
         <div className="p-6">
-          <p className="text-slate-300 text-sm leading-relaxed mb-4">
+          <p className="text-vibe-text-soft text-sm leading-relaxed mb-4">
             Enter the URL of the Git repository you wish to clone.
           </p>
           <input 
@@ -85,7 +85,7 @@ const CloneModal: React.FC = () => {
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
             placeholder="e.g., https://github.com/user/repo.git"
-            className="w-full bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-vibe-accent placeholder-slate-600"
+            className="w-full bg-vibe-900 border border-vibe-border rounded-lg px-3 py-2 text-sm text-vibe-text-main focus:outline-none focus:border-vibe-accent placeholder-vibe-text-muted"
             disabled={isCloning}
           />
            {error && (
@@ -94,36 +94,36 @@ const CloneModal: React.FC = () => {
             </p>
           )}
 
-          <div className="mt-4 pt-4 border-t border-white/5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Or clone Chill itself!</span>
+          <div className="mt-4 pt-4 border-t border-vibe-border">
+            <span className="text-[10px] font-bold text-vibe-text-muted uppercase tracking-wider mb-2 block">Or clone Chill itself!</span>
             <button 
                 onClick={handleQuickClone}
                 disabled={isCloning}
-                className="w-full flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-vibe-accent/10 hover:border-vibe-accent/30 transition-all group text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-vibe-border bg-vibe-900/50 hover:bg-vibe-accent/10 hover:border-vibe-accent/30 transition-all group text-left disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 <div>
-                    <div className="text-xs font-medium text-slate-300 group-hover:text-white">Clone Chill Source</div>
-                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">ProgramSalamander/Chill</div>
+                    <div className="text-xs font-medium text-vibe-text-soft group-hover:text-vibe-text-main">Clone Chill Source</div>
+                    <div className="text-[10px] text-vibe-text-muted font-mono mt-0.5">ProgramSalamander/Chill</div>
                 </div>
-                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-vibe-accent group-hover:text-white transition-colors text-slate-500">
+                <div className="w-6 h-6 rounded-full bg-vibe-700/50 flex items-center justify-center group-hover:bg-vibe-accent group-hover:text-white transition-colors text-vibe-text-muted">
                     <img 
                       src="https://cdn.jsdelivr.net/npm/simple-icons@v16/icons/github.svg" 
-                      className="w-3 h-3 invert opacity-60 group-hover:opacity-100 transition-opacity" 
+                      className="w-3 h-3 dark:invert opacity-60 group-hover:opacity-100 transition-opacity" 
                       alt="GitHub" 
                     />
                 </div>
             </button>
           </div>
 
-          <p className="text-slate-500 text-xs mt-4">
+          <p className="text-vibe-text-muted text-xs mt-4">
             This will overwrite your current in-memory workspace.
           </p>
         </div>
 
-        <div className="p-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">
+        <div className="p-4 bg-vibe-700/30 border-t border-vibe-border flex justify-end gap-3">
           <button 
             onClick={() => setIsCloneModalOpen(false)} 
-            className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="px-4 py-2 rounded-lg text-xs font-medium text-vibe-text-soft hover:text-vibe-text-main hover:bg-vibe-700/50 transition-colors"
             disabled={isCloning}
           >
             Cancel
