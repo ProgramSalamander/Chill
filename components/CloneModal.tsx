@@ -43,6 +43,7 @@ const CloneModal: React.FC = () => {
 
       const success = await clone(url.trim());
       if (success) {
+        useProjectStore.getState().saveCurrentProject();
         setIsCloneModalOpen(false);
       } else {
         setError('Failed to clone repository. Please check the URL and terminal for more details.');

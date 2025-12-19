@@ -217,9 +217,6 @@ export const useGitStore = create<GitState>((set, get) => ({
         notify('Repository cloned successfully.', 'success');
         get().refresh();
 
-        const { saveCurrentProject } = await import('./projectStore').then(m => m.useProjectStore.getState());
-        saveCurrentProject();
-
         return true;
     } catch (e: any) {
         if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {

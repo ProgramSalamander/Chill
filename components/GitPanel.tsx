@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { aiService } from '../services/aiService';
 import { GitStatus } from '../services/gitService';
@@ -77,9 +76,12 @@ const GitPanel: React.FC = () => {
     setCommitMessage('');
   };
 
-  const handleClone = () => {
+  const handleClone = async () => {
     if (repoUrl.trim()) {
-      clone(repoUrl.trim());
+      const success = await clone(repoUrl.trim());
+      if (success) {
+          useProjectStore.getState().saveCurrentProject();
+      }
     }
   };
 
