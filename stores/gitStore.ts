@@ -21,6 +21,7 @@ interface GitState {
   init: () => Promise<void>;
   refresh: () => Promise<void>;
   syncFile: (file: File) => Promise<void>;
+  syncAllFilesToFs: () => Promise<void>;
   deleteFile: (file: File) => Promise<void>;
   stage: (fileId: string) => Promise<void>;
   stageAll: () => Promise<void>;
@@ -51,13 +52,15 @@ export const useGitStore = create<GitState>((set, get) => ({
         const isRepo = await gitService.isRepoInitialized();
         if (isRepo) {
             set({ isInitialized: true });
-            get().refresh();
-            errorService.report('Existing Git repository detected.', 'Git', { notifyUser: false, terminal: true, severity: 'info' });
+            // Critical: Ensure the FS actually has the files the store says it has
+            // otherwise Git status will show everything as 'deleted'
+            await get().syncAllFilesToFs();
+            await get().refresh();
+            errorService.report('Git repository connected.', 'Git', { notifyUser: false, terminal: true, severity: 'info' });
         } else {
-            set({ isInitialized: false });
+            set({ isInitialized: false, status: [], commits: [] });
         }
     } catch (e) {
-        errorService.report(e, "Git Check", { silent: true });
         set({ isInitialized: false });
     }
   },
@@ -69,31 +72,33 @@ export const useGitStore = create<GitState>((set, get) => ({
       const logs = await gitService.log();
       set({ status: s, commits: logs as any });
     } catch (e) {
-      errorService.report(e, "Git Status Refresh", { silent: true, severity: 'warning' });
+      console.error("Git refresh error", e);
+    }
+  },
+
+  syncAllFilesToFs: async () => {
+    const { files } = useFileTreeStore.getState();
+    const actualFiles = files.filter(f => f.type === 'file');
+    for (const f of actualFiles) {
+        const path = getFilePath(f, files);
+        await gitService.writeFile(path, f.content);
     }
   },
 
   init: async () => {
-    const { files } = useFileTreeStore.getState();
-
     try {
       const isAlreadyInitialized = await gitService.isRepoInitialized();
       if(isAlreadyInitialized) {
           set({ isInitialized: true });
-          get().refresh();
+          await get().syncAllFilesToFs();
+          await get().refresh();
           return;
       }
 
       await gitService.init();
       set({ isInitialized: true });
-
-      for (const f of files) {
-        if (f.type === 'file') {
-          const path = getFilePath(f, files);
-          await gitService.writeFile(path, f.content);
-        }
-      }
-
+      await get().syncAllFilesToFs();
+      
       errorService.report('Git repository initialized.', 'Git', { notifyUser: false, terminal: true, severity: 'info' });
       get().refresh();
     } catch (e: any) {
@@ -108,7 +113,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await gitService.writeFile(path, file.content);
       get().refresh();
     } catch (e: any) {
-      errorService.report(e, `Git Sync: ${file.name}`, { silent: true, severity: 'warning' });
+      console.error("Git sync error", e);
     }
   },
 
@@ -118,9 +123,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       const path = getFilePath(file, useFileTreeStore.getState().files);
       await gitService.deleteFile(path);
       get().refresh();
-    } catch (e: any) {
-      errorService.report(e, `Git Delete: ${file.name}`, { silent: true, severity: 'warning' });
-    }
+    } catch (e: any) {}
   },
 
   stage: async (fileId) => {
@@ -143,11 +146,9 @@ export const useGitStore = create<GitState>((set, get) => ({
           s.status === 'added' || s.status === 'modified' || s.status === 'deleted'
       );
       if (unstagedFiles.length === 0) return;
-
       for (const fileStatus of unstagedFiles) {
           await gitService.add(fileStatus.filepath);
       }
-      
       notify(`Staged ${unstagedFiles.length} files.`, 'info');
       get().refresh();
     } catch (e: any) {
@@ -175,11 +176,9 @@ export const useGitStore = create<GitState>((set, get) => ({
             s.status === '*added' || s.status === '*modified' || s.status === '*deleted'
         );
         if (stagedFiles.length === 0) return;
-
         for (const fileStatus of stagedFiles) {
             await gitService.reset(fileStatus.filepath);
         }
-        
         notify(`Unstaged ${stagedFiles.length} files.`, 'info');
         get().refresh();
       } catch (e: any) {
@@ -200,32 +199,20 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   clone: async (url) => {
     set({ isCloning: true, cloneProgress: { phase: 'Preparing...', loaded: 0, total: 1 } });
-
     try {
         errorService.report(`Cloning from ${url}...`, 'Git', { notifyUser: false, terminal: true, severity: 'info' });
-
         const onProgress = (progress: { phase: string; loaded: number; total: number }) => {
             set({ cloneProgress: progress });
         };
-
         await gitService.clone(url, undefined, onProgress);
-
         const newFiles = await gitService.loadFilesToMemory();
         useFileTreeStore.getState().setAllFiles(newFiles);
-
         set({ isInitialized: true, isCloning: false, cloneProgress: null });
         notify('Repository cloned successfully.', 'success');
         get().refresh();
-
         return true;
     } catch (e: any) {
-        if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
-            errorService.report('Authentication failed. Check your credentials.', 'Git Clone');
-        } else if (e.message?.includes('Authentication cancelled')) {
-            // expected flow
-        } else {
-            errorService.report(e, "Git Clone");
-        }
+        errorService.report(e, "Git Clone");
         set({ isCloning: false, cloneProgress: null });
         return false;
     }
@@ -242,13 +229,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       notify('Pull successful. Workspace updated.', 'success');
       get().refresh();
     } catch (e: any) {
-      if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
-        errorService.report('Authentication failed. Check credentials.', 'Git Pull');
-      } else if (e.message?.includes('Authentication cancelled')) {
-        // expected flow
-      } else {
         errorService.report(e, "Git Pull");
-      }
     } finally {
       set({ isPulling: false });
     }
@@ -263,17 +244,10 @@ export const useGitStore = create<GitState>((set, get) => ({
       if (result.ok) {
         notify('Push successful.', 'success');
       } else {
-        const error = result.error || 'Unknown push error. Check permissions.';
-        errorService.report(error, "Git Push");
+        errorService.report(result.error || 'Unknown push error.', "Git Push");
       }
     } catch (e: any) {
-      if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
-        errorService.report('Authentication failed. Check permissions.', 'Git Push');
-      } else if (e.message?.includes('Authentication cancelled')) {
-        // expected flow
-      } else {
         errorService.report(e, "Git Push");
-      }
     } finally {
       set({ isPushing: false });
       get().refresh();
@@ -288,13 +262,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await gitService.fetch();
       notify('Fetch complete.', 'info');
     } catch (e: any) {
-      if (e.name === 'HttpError' && (e.data?.statusCode === 401 || e.data?.statusCode === 403)) {
-        errorService.report('Authentication failed. Check credentials.', 'Git Fetch');
-      } else if (e.message?.includes('Authentication cancelled')) {
-        // expected flow
-      } else {
         errorService.report(e, "Git Fetch");
-      }
     } finally {
       set({ isFetching: false });
       get().refresh();
@@ -303,23 +271,17 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   revertFile: async (fileId) => {
     if (!get().isInitialized) return;
-    
     const { files, updateFileContent, deleteNode, saveFile } = useFileTreeStore.getState();
     const file = files.find(f => f.id === fileId);
     if (!file) return;
-
     const path = getFilePath(file, files);
-
     try {
         const headContent = await gitService.readBlob(path).catch(() => null);
         await gitService.checkout(path);
-
         if (headContent !== null) {
             updateFileContent(headContent, true, file.id);
             const updatedFile = useFileTreeStore.getState().files.find(f => f.id === fileId);
-            if (updatedFile) {
-                saveFile(updatedFile);
-            }
+            if (updatedFile) saveFile(updatedFile);
             notify(`Reverted changes in ${file.name}`, 'info');
         } else {
             await deleteNode(file);

@@ -1,4 +1,4 @@
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { IconAlert } from './Icons';
 
 interface Props {
@@ -9,8 +9,13 @@ interface State {
   hasError: boolean;
 }
 
-class ErrorBoundary extends React.Component<Props, State> {
+class ErrorBoundary extends Component<Props, State> {
   public state: State = { hasError: false };
+
+  // Explicitly defining constructor and calling super(props) to ensure this.props is correctly inherited and typed
+  constructor(props: Props) {
+    super(props);
+  }
 
   static getDerivedStateFromError(_: Error): State {
     return { hasError: true };
@@ -31,6 +36,7 @@ class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
+    // Fixed property 'props' error by ensuring proper class inheritance from Component
     return this.props.children;
   }
 }

@@ -4,7 +4,6 @@ import http from 'isomorphic-git/http/web';
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { File } from '../types';
 import { getLanguage } from '../utils/fileUtils';
-import { useTerminalStore } from '../stores/terminalStore';
 import { useGitAuthStore } from '../stores/gitAuthStore';
 import { errorService } from './errorService';
 
@@ -15,9 +14,9 @@ const ACTIVE_ID_KEY = 'vibe_active_project_id';
 
 const initFs = (projectId: string) => {
     if (!projectId) {
-        console.warn("Cannot initialize FS without a project ID. Using default 'default-scratchpad'.");
         projectId = 'default-scratchpad';
     }
+    // wipe: false ensures we persist the .git folder across sessions
     fs = new LightningFS(`vibecode-fs-${projectId}`, { wipe: false });
     pfs = fs.promises;
 };
@@ -26,26 +25,33 @@ const initFs = (projectId: string) => {
 const initialProjectId = localStorage.getItem(ACTIVE_ID_KEY) || 'default-scratchpad';
 initFs(initialProjectId);
 
-
 async function directoryExists(dirPath: string) {
   try {
     const stats = await pfs.stat(dirPath);
     return stats.type === 'dir';
   } catch (err: any) {
-    if (err.code === 'ENOENT') {
-      return false;
-    }
-    if (err.code === 'EEXIST') {
-      return true;
-    }
-    throw err;
+    return false;
   }
 }
 
-// These are called by isomorphic-git during an operation
-const onAuth = (): undefined => {
-  return undefined;
-};
+async function ensureDirectory(filepath: string) {
+    const parts = filepath.split('/').filter(Boolean);
+    if (parts.length <= 1) return;
+    
+    let currentPath = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+        currentPath += `/${parts[i]}`;
+        if (!(await directoryExists(currentPath))) {
+            try {
+                await pfs.mkdir(currentPath);
+            } catch (e: any) {
+                if (e.code !== 'EEXIST') throw e;
+            }
+        }
+    }
+}
+
+const onAuth = (): undefined => undefined;
 
 const onAuthFailure = async (url: string) => {
   errorService.report(`Authentication required for ${new URL(url).hostname}.`, 'Git Auth', { severity: 'warning' });
@@ -57,7 +63,6 @@ const onAuthFailure = async (url: string) => {
     throw new Error('Authentication cancelled by user.');
   }
 };
-
 
 export interface GitStatus {
     filepath: string;
@@ -82,16 +87,9 @@ export const gitService = {
                 } else {
                     await pfs.unlink(`/${file}`);
                 }
-             } catch (e) {
-                errorService.report(e, "Git FS Clear (File)", { silent: true, severity: 'warning' });
-             }
+             } catch (e) {}
           }
-          try {
-              await gitService.deleteRecursive('/.git');
-          } catch(e) {}
-      } catch (e) {
-        errorService.report(e, "Git FS Clear", { silent: true, severity: 'warning' });
-      }
+      } catch (e) {}
   },
 
   deleteRecursive: async (path: string) => {
@@ -107,9 +105,7 @@ export const gitService = {
               }
           }
           await pfs.rmdir(path);
-      } catch(e) {
-        errorService.report(e, `Git Recursive Delete: ${path}`, { silent: true, severity: 'warning' });
-      }
+      } catch(e) {}
   },
 
   init: async () => {
@@ -125,8 +121,6 @@ export const gitService = {
       const stats = await pfs.stat('/.git');
       return stats.type === 'dir';
     } catch (e: any) {
-      if (e.code === 'ENOENT') return false;
-      errorService.report(e, "Git Repo Check", { silent: true, terminal: false, severity: 'warning' });
       return false;
     }
   },
@@ -147,16 +141,7 @@ export const gitService = {
 
   writeFile: async (filepath: string, content: string) => {
     try {
-        const parts = filepath.split('/');
-        if (parts.length > 1) {
-          let currentPath = '';
-          for (let i = 0; i < parts.length - 1; i++) {
-              currentPath += `/${parts[i]}`;
-              if (!(await directoryExists(currentPath))) {
-                  await pfs.mkdir(currentPath);
-              }
-          }
-        }
+        await ensureDirectory(filepath);
         await pfs.writeFile(`/${filepath}`, content, 'utf8');
     } catch (e: any) {
         errorService.report(e, `Git FS Write: ${filepath}`);
@@ -166,9 +151,7 @@ export const gitService = {
   deleteFile: async (filepath: string) => {
     try {
         await pfs.unlink(`/${filepath}`);
-    } catch (e) {
-        // Ignore if file doesn't exist in fs
-    }
+    } catch (e) {}
   },
 
   checkout: async (filepath: string) => {
@@ -198,7 +181,7 @@ export const gitService = {
             return { filepath, head, workdir, stage, status };
         });
     } catch (e: any) {
-        errorService.report(e, "Git Status Matrix");
+        errorService.report(e, "Git Status Matrix", { silent: true });
         return [];
     }
   },
@@ -219,16 +202,10 @@ export const gitService = {
     return git.commit({ fs, dir: '/', message, author: { name, email } });
   },
 
-  readConfig: async () => {
-    return git.getConfig({ fs, dir: '/', path: 'user.name' });
-  },
-
   log: async () => {
     try {
         return await git.log({ fs, dir: '/' });
     } catch (e: any) {
-        if (e.code === 'NotFoundError') return [];
-        errorService.report(e, "Git Log Operation", { silent: true, terminal: false, severity: 'warning' });
         return [];
     }
   },
@@ -280,7 +257,6 @@ export const gitService = {
 
   loadFilesToMemory: async (): Promise<File[]> => {
       const files: File[] = [];
-      
       const walk = async (dir: string, parentId: string | null) => {
         try {
           const entries = await pfs.readdir(dir);
@@ -291,42 +267,19 @@ export const gitService = {
               const id = Math.random().toString(36).slice(2, 11);
 
               if (stat.type === 'dir') {
-                   files.push({
-                       id,
-                       name: entry,
-                       type: 'folder',
-                       parentId,
-                       isOpen: false,
-                       language: '',
-                       content: ''
-                   });
+                   files.push({ id, name: entry, type: 'folder', parentId, isOpen: false, language: '', content: '' });
                    await walk(fullPath, id);
               } else {
-                   let content = '';
-                   if (stat.size < 2000000) { 
-                       content = await pfs.readFile(fullPath, 'utf8');
-                   } else {
-                       content = '[File too large]';
-                   }
-                   
+                   const content = await pfs.readFile(fullPath, 'utf8');
                    files.push({
-                       id,
-                       name: entry,
-                       type: 'file',
-                       parentId,
-                       language: getLanguage(entry),
-                       content,
-                       committedContent: content,
-                       isModified: false,
+                       id, name: entry, type: 'file', parentId, language: getLanguage(entry),
+                       content, committedContent: content, isModified: false,
                        history: { past: [], future: [], lastSaved: Date.now() }
                    });
               }
           }
-        } catch (e: any) {
-          errorService.report(e, `Git FS Read Dir: ${dir}`, { silent: true, severity: 'warning' });
-        }
+        } catch (e: any) {}
       };
-
       await walk('/', null);
       return files;
   }

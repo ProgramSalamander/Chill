@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ProjectMeta } from '../types';
@@ -111,15 +112,16 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       handleLoadProject: async (project) => {
-        const { activeProject } = get();
         try {
-          if (activeProject?.id === project.id) return;
+          // Note: we swap FS first to ensure any subsequent syncs hit the right ID
+          gitService.initForProject(project.id);
           
-          get().saveCurrentProject();
-
           const loadedFiles = projectService.loadProject(project.id);
           if (loadedFiles !== null) {
+            // Load files into store
             useFileTreeStore.getState().setAllFiles(loadedFiles);
+            
+            // Mark project as active in projectService (sets localStorage keys)
             projectService.saveProject(loadedFiles, project);
             
             set({ 
@@ -127,14 +129,14 @@ export const useProjectStore = create<ProjectState>()(
               recentProjects: projectService.getRecents() 
             });
 
-            gitService.initForProject(project.id);
+            // Check if Git repo exists in this project's FS
             await useGitStore.getState().checkForExistingRepo();
 
             errorService.report(`Switched to project: ${project.name}`, 'Project', { notifyUser: false, terminal: true, severity: 'info' });
           } else {
              projectService.deleteProject(project.id);
              set({ recentProjects: projectService.getRecents() });
-             throw new Error(`Project data for '${project.name}' not found. Removing from recents.`);
+             throw new Error(`Project data for '${project.name}' not found.`);
           }
         } catch (e: any) {
           errorService.report(e, "Project Load");
@@ -159,7 +161,7 @@ export const useProjectStore = create<ProjectState>()(
             projectService.saveProject(files, activeProject);
             set({ recentProjects: projectService.getRecents() });
           } catch (e: any) {
-            errorService.report(e, "Project Save", { silent: true, severity: 'warning' });
+            console.warn("Project auto-save error", e);
           }
         }
       },
