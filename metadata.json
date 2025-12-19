@@ -1,5 +1,5 @@
 {
   "name": "Chill AI",
-  "description": "An AI-first, futuristic coding IDE designed for the modern 'vibe coder'. Features a glassmorphism UI, integrated LLM assistance, full project context awareness, and seamless code generation workflows.",
+  "description": "An AI-first, futuristic coding IDE designed for the modern 'vibe coder'. Features a glassmorphism UI, integrated LLM assistance, autonomous agents, and secure code execution previews.",
   "requestFramePermissions": []
 }

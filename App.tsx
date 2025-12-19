@@ -75,52 +75,23 @@ function App() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const handleRefreshPreview = useCallback(() => {
-      // If it's a blob URL (Markdown), we need to regenerate the blob URL
-      if (previewUrl.startsWith('blob:')) {
-          setPreviewKey(prev => prev + 1);
-      } else if (iframeRef.current && iframeRef.current.contentWindow) {
-          // If it's a SW URL (HTML), we can just reload the iframe content
-          iframeRef.current.contentWindow.location.reload();
-      }
-  }, [previewUrl]);
+      setPreviewKey(prev => prev + 1);
+  }, []);
 
   useEffect(() => {
     if (!isPreviewOpen) return;
 
     const updatePreview = () => {
-        if (activeFile?.language === 'markdown') {
-             // Fallback to blob for markdown since it needs compilation
-             const html = generatePreviewHtml(files, activeFile);
-             const blob = new Blob([html], { type: 'text/html' });
-             const url = URL.createObjectURL(blob);
-             setPreviewUrl(prev => {
-                 if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-                 return url;
-             });
-        } else {
-             // Use Service Worker for web projects
-             // This pushes the current (possibly unsaved) state to the SW cache
-             previewService.updatePreviewFiles(files);
-             
-             let path = 'index.html';
-             if (activeFile && activeFile.language === 'html') {
-                 path = getFilePath(activeFile, files);
-             } else {
-                 // Try to find index.html
-                 const index = files.find(f => f.name === 'index.html');
-                 if (index) path = getFilePath(index, files);
-             }
-             
-             // Check if path has changed
-             const newUrl = `/preview/${path}`;
-             setPreviewUrl(prev => {
-                 if (prev !== newUrl) return newUrl;
-                 return prev;
-             });
-             
-             // NOTE: We don't auto-reload the iframe on every keystroke to prevent flickering.
-             // Users can press the refresh button or we could add a smarter debounce.
-        }
+        // ALWAYS use generatePreviewHtml for the preview to ensure it is self-contained.
+        // This allows us to remove 'allow-same-origin' from the iframe sandbox safely.
+        const html = generatePreviewHtml(files, activeFile);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        
+        setPreviewUrl(prev => {
+            if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+            return url;
+        });
     };
 
     // Debounce updates during typing
@@ -168,33 +139,27 @@ function App() {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const cmd = isMac ? e.metaKey : e.ctrlKey;
       
-      // Toggle Sidebar (Cmd+B)
       if (cmd && e.key === 'b') {
         e.preventDefault();
         const current = useUIStore.getState().activeSidebarView;
         setActiveSidebarView(current ? null : 'explorer');
       }
-      // Toggle AI Panel (Cmd+L)
       if (cmd && e.key === 'l') {
         e.preventDefault();
         setIsAIOpen(!useUIStore.getState().isAIOpen);
       }
-      // Toggle Terminal (Cmd+J)
       if (cmd && e.key === 'j') {
         e.preventDefault();
         setIsTerminalOpen(!useUIStore.getState().isTerminalOpen);
       }
-      // Open Spotlight (Cmd+P)
       if (cmd && e.key === 'p') {
         e.preventDefault();
         setIsCommandPaletteOpen(true);
       }
-      // Open Settings (Cmd+,)
       if (cmd && e.key === ',') {
         e.preventDefault();
         setIsSettingsOpen(true);
       }
-      // Save (Cmd+S)
       if (cmd && e.key === 's') {
         e.preventDefault();
         if (activeFile) saveFile(activeFile);
@@ -204,19 +169,6 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFile, saveFile, setActiveSidebarView, setIsAIOpen, setIsTerminalOpen, setIsCommandPaletteOpen, setIsSettingsOpen]);
-
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
 
   const handleGlobalContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -311,9 +263,8 @@ function App() {
       if (!activeFile) return;
       const { setIsPreviewOpen } = useUIStore.getState();
       
-      if (activeFile.language === 'html') {
+      if (activeFile.language === 'html' || activeFile.language === 'markdown') {
           setIsPreviewOpen(true);
-          // Small delay to ensure preview pane is mounted before reloading
           setTimeout(() => handleRefreshPreview(), 100);
       } else {
           await executionService.runCode(activeFile.content, activeFile.language);
@@ -386,7 +337,7 @@ function App() {
                                         <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-md px-2 py-0.5 mx-2 text-[10px] shadow-sm group hover:border-slate-300 transition-colors">
                                             <IconGlobe size={12} className="text-slate-400 mr-2 group-hover:text-blue-500" />
                                             <span className="truncate text-slate-500 font-mono select-none flex-1">
-                                              {previewUrl.startsWith('blob:') ? 'Markdown Preview' : previewUrl.replace(/^\/preview\//, 'localhost:3000/')}
+                                              {previewUrl.startsWith('blob:') ? 'Self-Contained Preview' : 'Preview Runtime'}
                                             </span>
                                             <button 
                                                 onClick={handleRefreshPreview} 
@@ -398,13 +349,6 @@ function App() {
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <button 
-                                                onClick={() => window.open(previewUrl, '_blank')}
-                                                className="p-1.5 hover:bg-slate-200 rounded-md text-slate-500 hover:text-slate-800 transition-colors"
-                                                title="Open in New Tab"
-                                            >
-                                                <IconExternalLink size={14} />
-                                            </button>
-                                            <button 
                                                 onClick={() => setIsPreviewOpen(false)}
                                                 className="p-1.5 hover:bg-slate-200 rounded-md text-slate-500 hover:text-red-500 transition-colors"
                                                 title="Close Preview"
@@ -414,14 +358,14 @@ function App() {
                                         </div>
                                     </div>
                                     
-                                    {/* Content Frame */}
+                                    {/* Content Frame - Removed 'allow-same-origin' to satisfy security policies and prevent escape */}
                                     <iframe 
                                         key={previewKey}
                                         ref={iframeRef}
                                         className="w-full h-full border-none bg-white"
                                         src={previewUrl}
                                         title="Live Preview"
-                                        sandbox="allow-scripts allow-modals allow-same-origin allow-forms" 
+                                        sandbox="allow-scripts allow-modals allow-forms" 
                                     />
                                 </div>
                             )}
