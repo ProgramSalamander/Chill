@@ -13,12 +13,15 @@ import {
   IconZap,
   IconRefresh,
   IconArrowDown,
-  IconArrowUp
+  IconArrowUp,
+  IconList,
+  IconNetwork
 } from './Icons';
 import { useGitStore } from '../stores/gitStore';
 import { useFileTreeStore } from '../stores/fileStore';
 import { useProjectStore } from '../stores/projectStore';
 import { notify } from '../stores/notificationStore';
+import { GitGraph } from './GitGraph';
 
 const GitPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
@@ -26,6 +29,7 @@ const GitPanel: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAllStaged, setShowAllStaged] = useState(false);
   const [showAllUnstaged, setShowAllUnstaged] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'graph'>('graph');
   const INITIAL_FILES_TO_SHOW = 50;
 
   const isInitialized = useGitStore(state => state.isInitialized);
@@ -264,81 +268,112 @@ const GitPanel: React.FC = () => {
               </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-6">
-              {/* Staged */}
-              <div>
-                  <div className="flex items-center justify-between px-2 mb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Staged Changes</span>
-                      <div className="flex items-center gap-2">
-                          <button onClick={unstageAll} disabled={stagedFiles.length === 0} className="p-1 hover:text-white text-slate-500 disabled:opacity-30" title="Unstage All Changes">
-                              <IconMinusCircle size={14} />
-                          </button>
-                          <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{stagedFiles.length}</span>
-                      </div>
-                  </div>
-                  <div className="space-y-0.5">
-                      {(showAllStaged ? stagedFiles : stagedFiles.slice(0, INITIAL_FILES_TO_SHOW)).map(f => renderFileItem(f, true))}
-                      {stagedFiles.length > INITIAL_FILES_TO_SHOW && !showAllStaged && (
-                          <div className="px-2 pt-2">
-                              <button 
-                                  onClick={() => setShowAllStaged(true)} 
-                                  className="w-full text-center text-xs text-slate-400 hover:text-white bg-white/5 py-1.5 rounded-md transition-colors"
-                              >
-                                  Show all {stagedFiles.length} staged files...
+          <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col h-full min-h-0">
+              {/* Changes Section */}
+              <div className="flex-shrink-0 p-2 space-y-4">
+                  {/* Staged */}
+                  <div>
+                      <div className="flex items-center justify-between px-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Staged Changes</span>
+                          <div className="flex items-center gap-2">
+                              <button onClick={unstageAll} disabled={stagedFiles.length === 0} className="p-1 hover:text-white text-slate-500 disabled:opacity-30" title="Unstage All Changes">
+                                  <IconMinusCircle size={14} />
                               </button>
+                              <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{stagedFiles.length}</span>
                           </div>
-                      )}
-                      {stagedFiles.length === 0 && <div className="px-2 text-xs text-slate-600 italic">No staged changes</div>}
-                  </div>
-              </div>
-
-              {/* Changes */}
-              <div>
-                   <div className="flex items-center justify-between px-2 mb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Changes</span>
-                      <div className="flex items-center gap-2">
-                          <button onClick={stageAll} disabled={unstagedFiles.length === 0} className="p-1 hover:text-white text-slate-500 disabled:opacity-30" title="Stage All Changes">
-                              <IconPlusCircle size={14} />
-                          </button>
-                          <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{unstagedFiles.length}</span>
                       </div>
-                  </div>
-                  <div className="space-y-0.5">
-                      {(showAllUnstaged ? unstagedFiles : unstagedFiles.slice(0, INITIAL_FILES_TO_SHOW)).map(f => renderFileItem(f, false))}
-                      {unstagedFiles.length > INITIAL_FILES_TO_SHOW && !showAllUnstaged && (
-                          <div className="px-2 pt-2">
-                              <button 
-                                  onClick={() => setShowAllUnstaged(true)} 
-                                  className="w-full text-center text-xs text-slate-400 hover:text-white bg-white/5 py-1.5 rounded-md transition-colors"
-                              >
-                                  Show all {unstagedFiles.length} changes...
-                              </button>
-                          </div>
-                      )}
-                      {unstagedFiles.length === 0 && <div className="px-2 text-xs text-slate-600 italic">Working tree clean</div>}
-                  </div>
-              </div>
-
-               {/* History */}
-               <div>
-                   <div className="flex items-center justify-between px-2 mb-2 mt-4 pt-4 border-t border-white/5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">History</span>
-                  </div>
-                  <div className="space-y-3 px-2">
-                      {commits.length === 0 && <div className="text-xs text-slate-600 italic">No commits yet</div>}
-                      {commits.map(c => (
-                          <div key={c.oid} className="relative pl-3 border-l border-white/10 pb-1">
-                              <div className="absolute -left-[3.5px] top-1.5 w-1.5 h-1.5 rounded-full bg-vibe-accent"></div>
-                              <div className="text-xs text-slate-200 font-medium truncate">{c.commit.message}</div>
-                              <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                                      <IconClock size={10} />
-                                      {new Date(c.commit.author.timestamp * 1000).toLocaleDateString()}
-                                  </span>
-                                  <span className="text-[10px] font-mono text-slate-600 bg-white/5 px-1 rounded">{c.oid.slice(0, 7)}</span>
+                      <div className="space-y-0.5">
+                          {(showAllStaged ? stagedFiles : stagedFiles.slice(0, INITIAL_FILES_TO_SHOW)).map(f => renderFileItem(f, true))}
+                          {stagedFiles.length > INITIAL_FILES_TO_SHOW && !showAllStaged && (
+                              <div className="px-2 pt-2">
+                                  <button 
+                                      onClick={() => setShowAllStaged(true)} 
+                                      className="w-full text-center text-xs text-slate-400 hover:text-white bg-white/5 py-1.5 rounded-md transition-colors"
+                                  >
+                                      Show all {stagedFiles.length} staged files...
+                                  </button>
                               </div>
+                          )}
+                          {stagedFiles.length === 0 && <div className="px-2 text-xs text-slate-600 italic">No staged changes</div>}
+                      </div>
+                  </div>
+
+                  {/* Changes */}
+                  <div>
+                       <div className="flex items-center justify-between px-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Changes</span>
+                          <div className="flex items-center gap-2">
+                              <button onClick={stageAll} disabled={unstagedFiles.length === 0} className="p-1 hover:text-white text-slate-500 disabled:opacity-30" title="Stage All Changes">
+                                  <IconPlusCircle size={14} />
+                              </button>
+                              <span className="text-[10px] bg-white/5 px-1.5 rounded-full text-slate-500">{unstagedFiles.length}</span>
                           </div>
-                      ))}
+                      </div>
+                      <div className="space-y-0.5">
+                          {(showAllUnstaged ? unstagedFiles : unstagedFiles.slice(0, INITIAL_FILES_TO_SHOW)).map(f => renderFileItem(f, false))}
+                          {unstagedFiles.length > INITIAL_FILES_TO_SHOW && !showAllUnstaged && (
+                              <div className="px-2 pt-2">
+                                  <button 
+                                      onClick={() => setShowAllUnstaged(true)} 
+                                      className="w-full text-center text-xs text-slate-400 hover:text-white bg-white/5 py-1.5 rounded-md transition-colors"
+                                  >
+                                      Show all {unstagedFiles.length} changes...
+                                  </button>
+                              </div>
+                          )}
+                          {unstagedFiles.length === 0 && <div className="px-2 text-xs text-slate-600 italic">Working tree clean</div>}
+                      </div>
+                  </div>
+              </div>
+
+               {/* History Graph Section */}
+               <div className="flex-1 flex flex-col min-h-0 border-t border-white/5 mt-2">
+                   <div className="flex items-center justify-between px-4 py-2 bg-white/[0.02]">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">History</span>
+                      <div className="flex gap-1">
+                        <button 
+                            onClick={() => setViewMode('graph')}
+                            className={`p-1 rounded ${viewMode === 'graph' ? 'bg-vibe-accent/20 text-vibe-glow' : 'text-slate-500 hover:text-white'}`}
+                            title="Graph View"
+                        >
+                            <IconNetwork size={14} />
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('list')}
+                            className={`p-1 rounded ${viewMode === 'list' ? 'bg-vibe-accent/20 text-vibe-glow' : 'text-slate-500 hover:text-white'}`}
+                            title="List View"
+                        >
+                            <IconList size={14} />
+                        </button>
+                      </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-hidden relative">
+                      {commits.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full text-xs text-slate-600 italic pb-8">
+                              <span>No commits yet</span>
+                          </div>
+                      ) : (
+                          viewMode === 'graph' ? (
+                              <GitGraph commits={commits} />
+                          ) : (
+                              <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-2 space-y-3">
+                                {commits.map(c => (
+                                    <div key={c.oid} className="relative pl-3 border-l border-white/10 pb-1 group">
+                                        <div className="absolute -left-[3.5px] top-1.5 w-1.5 h-1.5 rounded-full bg-vibe-accent group-hover:scale-125 transition-transform"></div>
+                                        <div className="text-xs text-slate-200 font-medium truncate group-hover:text-white">{c.commit.message}</div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                <IconClock size={10} />
+                                                {new Date(c.commit.author.timestamp * 1000).toLocaleDateString()}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-slate-600 bg-white/5 px-1 rounded">{c.oid.slice(0, 7)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                              </div>
+                          )
+                      )}
                   </div>
                </div>
           </div>

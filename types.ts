@@ -46,6 +46,7 @@ export interface Commit {
   payload?: string;
   commit: {
       message: string;
+      parent: string[];
       author: {
           name: string;
           email: string;

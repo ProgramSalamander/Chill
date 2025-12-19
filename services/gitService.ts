@@ -140,7 +140,6 @@ export const gitService = {
           corsProxy: proxy,
           onProgress,
           singleBranch: true,
-          depth: 1,
           onAuth,
           onAuthFailure,
       });
