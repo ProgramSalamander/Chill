@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { IconClose, IconGitBranch } from './Icons';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
@@ -8,6 +8,7 @@ import { useProjectStore } from '../stores/projectStore';
 const CloneModal: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const isCloneModalOpen = useUIStore(state => state.isCloneModalOpen);
   const setIsCloneModalOpen = useUIStore(state => state.setIsCloneModalOpen);
   const isCloning = useGitStore(state => state.isCloning);
@@ -17,6 +18,8 @@ const CloneModal: React.FC = () => {
     if (isCloneModalOpen) {
       setRepoUrl(''); // Clear input on open
       setError('');
+      // Auto-focus input for better UX
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isCloneModalOpen]);
 
@@ -55,6 +58,14 @@ const CloneModal: React.FC = () => {
       executeClone(url);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && repoUrl.trim() && !isCloning) {
+        handleConfirmClone();
+    } else if (e.key === 'Escape') {
+        setIsCloneModalOpen(false);
+    }
+  };
+
   if (!isCloneModalOpen) return null;
 
   return (
@@ -81,9 +92,11 @@ const CloneModal: React.FC = () => {
             Enter the URL of the Git repository you wish to clone.
           </p>
           <input 
+            ref={inputRef}
             type="text" 
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="e.g., https://github.com/user/repo.git"
             className="w-full bg-vibe-900 border border-vibe-border rounded-lg px-3 py-2 text-sm text-vibe-text-main focus:outline-none focus:border-vibe-accent placeholder-vibe-text-muted"
             disabled={isCloning}
