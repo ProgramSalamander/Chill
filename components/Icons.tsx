@@ -58,7 +58,11 @@ import {
   Download,
   Image,
   ExternalLink,
-  Globe
+  Globe,
+  Replace,
+  Regex,
+  CaseSensitive,
+  WholeWord
 } from 'lucide-react';
 
 export const IconFileCode = (props: any) => <FileCode {...props} />;
@@ -120,3 +124,7 @@ export const IconDownload = (props: any) => <Download {...props} />;
 export const IconImage = (props: any) => <Image {...props} />;
 export const IconExternalLink = (props: any) => <ExternalLink {...props} />;
 export const IconGlobe = (props: any) => <Globe {...props} />;
+export const IconReplace = (props: any) => <Replace {...props} />;
+export const IconRegex = (props: any) => <Regex {...props} />;
+export const IconCaseSensitive = (props: any) => <CaseSensitive {...props} />;
+export const IconWholeWord = (props: any) => <WholeWord {...props} />;

@@ -7,6 +7,7 @@ import GitPanel from './GitPanel';
 import ExtensionsPanel from './ExtensionsPanel';
 import ChangesReviewPanel from './ChangesReviewPanel';
 import UsagePanel from './UsagePanel';
+import SearchPanel from './SearchPanel';
 import Tooltip from './Tooltip';
 import { useUIStore } from '../stores/uiStore';
 import { useGitStore } from '../stores/gitStore';
@@ -225,6 +226,7 @@ const Sidebar: React.FC = () => {
                   className="glass-panel rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl shrink-0 border-vibe-border"
                 >
                    {activeSidebarView === 'explorer' && <FileExplorer />}
+                   {activeSidebarView === 'search' && <SearchPanel />}
                    {activeSidebarView === 'git' && <GitPanel />}
                    {activeSidebarView === 'extensions' && <ExtensionsPanel />}
                    {activeSidebarView === 'changes' && <ChangesReviewPanel />}
