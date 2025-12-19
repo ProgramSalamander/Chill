@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { IconClose, IconGitBranch } from './Icons';
 import { useUIStore } from '../stores/uiStore';
@@ -19,10 +20,10 @@ const CloneModal: React.FC = () => {
     }
   }, [isCloneModalOpen]);
 
-  const handleConfirmClone = async () => {
-    if (repoUrl.trim() && !isCloning) {
+  const executeClone = async (url: string) => {
+    if (url.trim() && !isCloning) {
       setError('');
-      const repoName = repoUrl.trim().split('/').pop()?.replace('.git', '') || 'cloned-project';
+      const repoName = url.trim().split('/').pop()?.replace('.git', '') || 'cloned-project';
       
       const newProject = await useProjectStore.getState().handleNewProject(repoName);
       if (!newProject) {
@@ -30,13 +31,21 @@ const CloneModal: React.FC = () => {
           return;
       }
 
-      const success = await clone(repoUrl.trim());
+      const success = await clone(url.trim());
       if (success) {
         setIsCloneModalOpen(false);
       } else {
         setError('Failed to clone repository. Please check the URL and terminal for more details.');
       }
     }
+  };
+
+  const handleConfirmClone = () => executeClone(repoUrl);
+
+  const handleQuickClone = () => {
+      const url = 'https://github.com/ProgramSalamander/Chill.git';
+      setRepoUrl(url);
+      executeClone(url);
   };
 
   if (!isCloneModalOpen) return null;
@@ -77,7 +86,25 @@ const CloneModal: React.FC = () => {
               {error}
             </p>
           )}
-          <p className="text-slate-500 text-xs mt-2">
+
+          <div className="mt-4 pt-4 border-t border-white/5">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Or clone Chill itself!</span>
+            <button 
+                onClick={handleQuickClone}
+                disabled={isCloning}
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-vibe-accent/10 hover:border-vibe-accent/30 transition-all group text-left disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <div>
+                    <div className="text-xs font-medium text-slate-300 group-hover:text-white">Clone Chill Source</div>
+                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">ProgramSalamander/Chill</div>
+                </div>
+                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-vibe-accent group-hover:text-white transition-colors text-slate-500">
+                    <IconGitBranch size={12} />
+                </div>
+            </button>
+          </div>
+
+          <p className="text-slate-500 text-xs mt-4">
             This will overwrite your current in-memory workspace.
           </p>
         </div>
