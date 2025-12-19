@@ -1,3 +1,4 @@
+
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -24,7 +25,7 @@ const RichText: React.FC<RichTextProps> = ({ text, onApplyCode, onInsertCode }) 
     // This now only handles inline code.
     code({ node, inline, className, children, ...props }: any) {
       return (
-        <code className="bg-white/10 px-1 py-0.5 rounded text-vibe-glow font-mono text-[90%]" {...props}>
+        <code className="bg-white/10 px-1 py-0.5 rounded text-vibe-glow font-mono text-[90%] break-all" {...props}>
           {children}
         </code>
       );

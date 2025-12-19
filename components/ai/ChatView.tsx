@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Message, MessageRole } from '../../types';
 import { IconSparkles } from '../Icons';
@@ -51,7 +52,7 @@ const ChatView: React.FC<ChatViewProps> = ({ messages, isGenerating, onApplyCode
       {messages.map((msg) => (
         <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 duration-300`}>
           <div
-            className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-md border ${
+            className={`max-w-[95%] rounded-2xl px-5 py-3.5 text-sm shadow-xl backdrop-blur-md border break-words ${
               msg.role === MessageRole.USER
                 ? 'bg-vibe-accent/80 text-white rounded-br-sm border-indigo-400/30 shadow-[0_4px_15px_rgba(99,102,241,0.2)]'
                 : 'bg-[#181824]/80 text-slate-200 rounded-bl-sm border-white/10'
