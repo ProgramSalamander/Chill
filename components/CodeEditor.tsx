@@ -15,6 +15,7 @@ import { useAICommand } from './editor/hooks/useAICommand';
 import { useAgentStore } from '../stores/agentStore';
 import { useFileTreeStore } from '../stores/fileStore';
 import { getFilePath } from '../utils/fileUtils';
+import { IconSparkles } from './Icons';
 
 interface CodeEditorProps {
   code: string;
@@ -440,6 +441,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           onChange={(value) => onChange(value || '')}
           onMount={handleEditorDidMount}
           theme={theme === 'dark' ? 'vibe-dark-theme' : 'vibe-light-theme'}
+          loading={
+            <div className="flex flex-col items-center justify-center h-full w-full text-slate-500 gap-4 bg-transparent backdrop-blur-sm">
+               <div className="relative">
+                  <div className="absolute inset-0 bg-vibe-accent blur-xl opacity-20 animate-pulse"></div>
+                  <IconSparkles size={32} className="text-vibe-glow animate-spin-slow relative z-10" />
+               </div>
+               <p className="text-xs font-mono font-medium tracking-widest uppercase opacity-60 animate-pulse">Initializing Vibe Engine...</p>
+            </div>
+          }
           options={{
               fontFamily: '"JetBrains Mono", monospace',
               fontSize: 14,

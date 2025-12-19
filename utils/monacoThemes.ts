@@ -1,3 +1,4 @@
+
 import { editor } from 'monaco-editor';
 
 export const vibeDarkTheme: editor.IStandaloneThemeData = {
@@ -35,6 +36,8 @@ export const vibeDarkTheme: editor.IStandaloneThemeData = {
     'editorSuggestWidget.selectedBackground': '#2C313A',
     'editorBracketMatch.background': '#2C313A',
     'editorBracketMatch.border': '#4B5563',
+    'focusBorder': '#00000000',
+    'editorWidget.border': '#2A2A33',
   }
 };
 
@@ -73,5 +76,7 @@ export const vibeLightTheme: editor.IStandaloneThemeData = {
     'editorSuggestWidget.selectedBackground': '#E0E3E9',
     'editorBracketMatch.background': '#D2D8E7',
     'editorBracketMatch.border': 'transparent',
+    'focusBorder': '#00000000',
+    'editorWidget.border': '#E2E8F0',
   }
 };

@@ -353,7 +353,6 @@ function App() {
                         <>
                             <div className={`relative h-full transition-[width] duration-300 ease-out ${isPreviewOpen ? 'w-1/2 border-r border-vibe-border' : 'w-full'}`}>
                                 <CodeEditor 
-                                    key={activeFile.id}
                                     theme={theme}
                                     code={activeFile.content} 
                                     language={activeFile.language}
