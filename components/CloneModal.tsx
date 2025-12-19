@@ -23,8 +23,15 @@ const CloneModal: React.FC = () => {
   const executeClone = async (url: string) => {
     if (url.trim() && !isCloning) {
       setError('');
-      const repoName = url.trim().split('/').pop()?.replace('.git', '') || 'cloned-project';
+      const cleanUrl = url.trim().replace(/\/+$/, '');
+      const repoName = cleanUrl.split('/').pop()?.replace('.git', '') || 'cloned-project';
       
+      const existingProject = useProjectStore.getState().recentProjects.find(p => p.name === repoName);
+      if (existingProject) {
+        setError(`A project named "${repoName}" already exists. Please rename or delete it first.`);
+        return;
+      }
+
       const newProject = await useProjectStore.getState().handleNewProject(repoName);
       if (!newProject) {
           setError('Failed to create a new project for cloning. The operation was cancelled.');
