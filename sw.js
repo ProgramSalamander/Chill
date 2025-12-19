@@ -1,20 +1,21 @@
-
-const CACHE_NAME = 'chill-ide-core-v1';
-const ASSETS_CACHE_NAME = 'chill-ide-assets-v1';
-const PREVIEW_CACHE_NAME = 'chill-ide-preview-v1';
+const CACHE_NAME = 'chill-ide-core-v2';
+const ASSETS_CACHE_NAME = 'chill-ide-assets-v2';
+const PREVIEW_CACHE_NAME = 'chill-ide-preview-v2';
 
 // Core Application Shell
 const PRECACHE_URLS = [
   '/',
-  '/index.html',
-  '/index.tsx'
+  '/index.html'
 ];
 
 // Install: Cache critical core files immediately
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force waiting service worker to become active
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Pre-caching core shell');
+      return cache.addAll(PRECACHE_URLS);
+    })
   );
 });
 
@@ -24,12 +25,13 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== ASSETS_CACHE_NAME && cacheName !== PREVIEW_CACHE_NAME) {
+          if (![CACHE_NAME, ASSETS_CACHE_NAME, PREVIEW_CACHE_NAME].includes(cacheName)) {
+            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => self.clients.claim()) // Take control of all open clients
+    }).then(() => self.clients.claim())
   );
 });
 
@@ -40,12 +42,14 @@ self.addEventListener('message', (event) => {
     const response = new Response(content, { 
         headers: { 
             'Content-Type': mimeType,
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*'
         } 
     });
     
     // Normalize path to ensure it starts with /preview/
-    const url = new URL(`/preview/${path.replace(/^\//, '')}`, self.location.origin);
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const url = new URL(`/preview${normalizedPath}`, self.location.origin);
     
     event.waitUntil(
         caches.open(PREVIEW_CACHE_NAME).then(cache => cache.put(url, response))
@@ -58,7 +62,6 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // 0. Preview Server Handler
-  // Intercepts any request starting with /preview/ and serves from the specific cache
   if (url.pathname.startsWith('/preview/')) {
       event.respondWith(
           caches.open(PREVIEW_CACHE_NAME).then(cache => {
@@ -66,10 +69,10 @@ self.addEventListener('fetch', (event) => {
                   return response || new Response(`
                     <!DOCTYPE html>
                     <html>
-                    <body style="background:#000;color:#666;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
-                        <div>
-                            <h3>404 Not Found</h3>
-                            <p>File not found in preview cache: ${url.pathname}</p>
+                    <body style="background:#050508;color:#475569;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0;">
+                        <div style="text-align:center;">
+                            <h3 style="color:#f1f5f9;margin-bottom:8px;">404 Not Found</h3>
+                            <p style="font-size:14px;">The virtual file <code>${url.pathname}</code> is not in the preview cache.</p>
                         </div>
                     </body>
                     </html>
@@ -81,27 +84,28 @@ self.addEventListener('fetch', (event) => {
   }
 
   // 1. External CDN Dependencies -> Cache First Strategy
-  if (
-    url.hostname.includes('esm.sh') ||
-    url.hostname.includes('cdn.tailwindcss.com') ||
-    url.hostname.includes('cdnjs.cloudflare.com') ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com') ||
-    url.hostname.includes('unpkg.com')
-  ) {
+  const isCdnAsset = [
+    'esm.sh', 
+    'cdn.tailwindcss.com', 
+    'cdnjs.cloudflare.com', 
+    'fonts.googleapis.com', 
+    'fonts.gstatic.com', 
+    'cdn.jsdelivr.net'
+  ].some(domain => url.hostname.includes(domain));
+
+  if (isCdnAsset) {
     event.respondWith(
       caches.open(ASSETS_CACHE_NAME).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
           if (cachedResponse) return cachedResponse;
 
           return fetch(event.request).then((networkResponse) => {
-            // Only cache valid 200 responses
-            if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'cors') {
+            if (networkResponse && networkResponse.status === 200) {
               cache.put(event.request, networkResponse.clone());
             }
             return networkResponse;
           }).catch(() => {
-             // Fallback logic
+             // Fallback for offline CDN assets could be added here
           });
         });
       })
@@ -109,24 +113,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Local Application Files -> Stale-While-Revalidate Strategy
+  // 2. Local Application Files -> Network First (or Stale-While-Revalidate)
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) => {
-        return cache.match(event.request).then((cachedResponse) => {
-          const fetchPromise = fetch(event.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              cache.put(event.request, networkResponse.clone());
-            }
-            return networkResponse;
-          }).catch((err) => {
-             console.log('Network fetch failed for', event.request.url);
-          });
-
-          return cachedResponse || fetchPromise;
-        });
+      fetch(event.request).then(response => {
+          if (response && response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+          }
+          return response;
+      }).catch(() => {
+          return caches.match(event.request);
       })
     );
-    return;
   }
 });

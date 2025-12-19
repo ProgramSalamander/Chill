@@ -249,8 +249,6 @@
     "isomorphic-git/": "https://esm.sh/isomorphic-git@^1.36.1/",
     "zustand": "https://esm.sh/zustand@^5.0.9",
     "zustand/": "https://esm.sh/zustand@^5.0.9/",
-    "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "lucide-react": "https://esm.sh/lucide-react@0.474.0",
     "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
@@ -263,7 +261,9 @@
     "buffer": "https://esm.sh/buffer@^6.0.3",
     "showdown": "https://esm.sh/showdown@^2.1.0",
     "jszip": "https://esm.sh/jszip@^3.10.1",
-    "webworker": "https://esm.sh/webworker@^0.8.4"
+    "webworker": "https://esm.sh/webworker@^0.8.4",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
@@ -276,15 +276,6 @@
     <div class="aurora-bg"></div>
     <div class="noise-overlay"></div>
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SW registered'))
-            .catch(err => console.log('SW failed', err));
-        });
-      }
-    </script>
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
