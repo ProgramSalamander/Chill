@@ -61,7 +61,7 @@ const ChatView: React.FC<ChatViewProps> = ({ messages, isGenerating, onApplyCode
             {renderMessageContent(msg.text, msg.role, msg.isStreaming)}
           </div>
           <span className="text-[10px] text-slate-500 mt-1.5 px-1 font-mono opacity-70">
-            {msg.role === 'user' ? 'You' : 'Vibe AI'} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {msg.role === 'user' ? 'You' : (msg.modelName || 'Vibe AI')} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       ))}

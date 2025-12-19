@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 
 export interface File {
@@ -31,6 +30,7 @@ export interface Message {
   text: string;
   timestamp: number;
   isStreaming?: boolean;
+  modelName?: string;
 }
 
 export interface TerminalLine {

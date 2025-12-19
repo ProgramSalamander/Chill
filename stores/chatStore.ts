@@ -132,7 +132,16 @@ export const useChatStore = create<ChatState>()(
 
           const stream = await chatSession.sendMessageStream({ message: prompt });
           const responseId = (Date.now() + 1).toString();
-          set(state => ({ messages: [...state.messages, { id: responseId, role: MessageRole.MODEL, text: '', timestamp: Date.now(), isStreaming: true }] }));
+          set(state => ({ 
+            messages: [...state.messages, { 
+              id: responseId, 
+              role: MessageRole.MODEL, 
+              text: '', 
+              timestamp: Date.now(), 
+              isStreaming: true,
+              modelName: profile.name
+            }] 
+          }));
           
           let fullText = '';
           let lastUsage = undefined;
